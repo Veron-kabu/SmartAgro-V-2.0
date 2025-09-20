@@ -12,15 +12,14 @@ import {
   RefreshControl,
   Alert,
 } from "react-native"
-import { useAuth, useUser } from "@clerk/clerk-expo"
+import { useAuth } from "@clerk/clerk-expo"
 import { Ionicons } from "@expo/vector-icons"
 import { getJSON, postJSON } from "../../context/api"
-
-const apiUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5001"
+// Base URL is centralized in the API client; pass only paths
 
 export default function MessagesScreen() {
   const { isSignedIn } = useAuth()
-  const { user } = useUser()
+  // no-op
   const [conversations, setConversations] = useState([])
   const [selectedConversation, setSelectedConversation] = useState(null)
   const [messages, setMessages] = useState([])
@@ -31,7 +30,7 @@ export default function MessagesScreen() {
 
   const fetchProfile = async () => {
     try {
-      const profileData = await getJSON(`${apiUrl}/api/users/profile`)
+  const profileData = await getJSON(`/api/users/profile`)
       setProfile(profileData)
     } catch (error) {
       console.error("Error fetching profile:", error)
@@ -135,7 +134,7 @@ export default function MessagesScreen() {
         order_id: selectedConversation.orderId || null,
       }
 
-      await postJSON(`${apiUrl}/api/messages`, messageData)
+  await postJSON(`/api/messages`, messageData)
 
       // Add message to local state
       const newMsg = {
@@ -149,7 +148,7 @@ export default function MessagesScreen() {
 
       setMessages((prev) => [...prev, newMsg])
       setNewMessage("")
-    } catch (error) {
+    } catch (_error) {
       Alert.alert("Error", "Failed to send message")
     }
   }

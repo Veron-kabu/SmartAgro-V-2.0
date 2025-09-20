@@ -1,14 +1,13 @@
 import { View, Text } from 'react-native'
 import { useEffect, useState } from 'react'
 import { getJSON } from '../../context/api'
-
-const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001'
+// Base URL is centralized in the API client; pass only paths
 
 export default function AdminDashboard() {
   const [profile, setProfile] = useState(null)
   useEffect(() => {
     let mounted = true
-    getJSON(`${apiUrl}/api/users/profile`).then((p) => {
+  getJSON(`/api/users/profile`).then((p) => {
       if (mounted) setProfile(p)
     }).catch(() => {})
     return () => { mounted = false }

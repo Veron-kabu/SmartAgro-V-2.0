@@ -15,8 +15,7 @@ import {
 import { useAuth } from "@clerk/clerk-expo"
 import { Ionicons } from "@expo/vector-icons"
 import { getJSON, postJSON } from "../../context/api"
-
-const apiUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5001"
+// Base URL is centralized in the API client; pass only paths
 
 export default function MarketScreen() {
   const { isSignedIn } = useAuth()
@@ -37,7 +36,7 @@ export default function MarketScreen() {
 
   const fetchProducts = async () => {
     try {
-      const data = await getJSON(`${apiUrl}/api/products`)
+  const data = await getJSON(`/api/products`)
       setProducts(data || [])
       setFilteredProducts(data || [])
     } catch (error) {
@@ -79,7 +78,7 @@ export default function MarketScreen() {
 
   const handleAddToFavorites = async (productId) => {
     try {
-      await postJSON(`${apiUrl}/api/favorites`, { product_id: productId })
+  await postJSON(`/api/favorites`, { product_id: productId })
       Alert.alert("Success", "Added to favorites!")
     } catch (_error) {
       Alert.alert("Error", "Failed to add to favorites")

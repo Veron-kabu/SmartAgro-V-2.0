@@ -3,8 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react"
 import { useAuth, useUser } from "@clerk/clerk-expo"
 import { getJSON, postJSON, setAuthTokenGetter } from "./api"
-
-const apiUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5001"
+// Base URL is centralized in the API client; pass only paths
 
 const ProfileContext = createContext({
   profile: null,
@@ -48,7 +47,7 @@ export function ProfileProvider({ children }) {
     try {
       setLoading(true)
       setError(null)
-      let p = await getJSON(`${apiUrl}/api/users/profile`)
+  let p = await getJSON(`/api/users/profile`)
       setProfile(p)
     } catch (err) {
       // If profile doesn't exist yet (404), attempt to create it using Clerk user info
@@ -59,14 +58,14 @@ export function ProfileProvider({ children }) {
             user.username || (email ? email.split("@")[0] : `user_${(user.id || "").slice(-6)}`)
           const full_name = [user.firstName, user.lastName].filter(Boolean).join(" ") || null
           const phone = user.phoneNumbers?.[0]?.phoneNumber || null
-          await postJSON(`${apiUrl}/api/users`, {
+          await postJSON(`/api/users`, {
             username: derivedUsername,
             email,
             full_name,
             phone,
           })
           // Re-fetch after creating
-          const created = await getJSON(`${apiUrl}/api/users/profile`)
+          const created = await getJSON(`/api/users/profile`)
           setProfile(created)
           setError(null)
         } catch (createErr) {

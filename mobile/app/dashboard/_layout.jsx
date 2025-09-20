@@ -3,8 +3,7 @@ import { useAuth, useUser } from '@clerk/clerk-expo'
 import { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, View, Text } from 'react-native'
 import { getJSON } from '../../context/api'
-
-const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001'
+// Base URL is centralized in the API client; pass only paths
 
 export default function DashboardLayout() {
   const { isSignedIn } = useAuth()
@@ -25,7 +24,7 @@ export default function DashboardLayout() {
         return
       }
       try {
-        const profile = await getJSON(`${apiUrl}/api/users/profile`)
+  const profile = await getJSON(`/api/users/profile`)
         if (mounted) setRole(profile?.role || null)
   } catch (_e) {
         // Fallback to Clerk metadata if DB profile not found yet

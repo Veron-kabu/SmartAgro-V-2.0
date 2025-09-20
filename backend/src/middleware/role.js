@@ -1,5 +1,4 @@
-import clerkBackend from "@clerk/backend";
-const { clerkClient } = clerkBackend;
+import { clerkClient } from "./auth.js";
 
 const roleMiddleware = (allowedRoles) => {
   return async (req, res, next) => {

@@ -2,8 +2,7 @@ import { View, Text, Button, Alert } from 'react-native'
 import { useProfile } from '../context/profile'
 import { ROLES, SWITCHABLE_ROLES } from '../constants/roles'
 import { patchJSON } from '../context/api'
-
-const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5001'
+// Base URL is centralized in the API client; pass only paths
 
 export default function RoleSwitcher() {
   const { profile, refresh } = useProfile()
@@ -13,7 +12,7 @@ export default function RoleSwitcher() {
     if (!SWITCHABLE_ROLES.includes(nextRole)) return
     if (nextRole === ROLES.admin) return
     try {
-      await patchJSON(`${apiUrl}/api/users/role`, { role: nextRole })
+  await patchJSON(`/api/users/role`, { role: nextRole })
       Alert.alert('Role updated', `Switched to ${nextRole}`)
       await refresh()
     } catch (e) {

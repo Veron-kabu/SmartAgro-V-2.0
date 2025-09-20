@@ -101,6 +101,19 @@ app.post("/api/users", ensureAuth(), async (req, res) => {
     const allowed = ["buyer", "farmer"]
     const safeRole = allowed.includes(role) ? role : "buyer"
 
+    // Fetch Clerk user to accurately set emailVerified at insertion time
+    let emailVerified = false
+    try {
+      const clerkUser = await clerkClient.users.getUser(req.auth.userId)
+      const primaryEmailObj =
+        clerkUser?.emailAddresses?.find((e) => e.id === clerkUser?.primaryEmailAddressId) ||
+        clerkUser?.emailAddresses?.[0]
+      emailVerified = (primaryEmailObj?.verification?.status === "verified") || false
+    } catch (e) {
+      // Non-fatal: fallback to false if Clerk fetch fails
+      emailVerified = false
+    }
+
     const inserted = await db
       .insert(usersTable)
       .values({
@@ -111,6 +124,7 @@ app.post("/api/users", ensureAuth(), async (req, res) => {
         fullName: full_name,
         phone,
         location,
+        emailVerified,
       })
       .returning()
 
@@ -532,22 +546,23 @@ async function handleUserCreated(userData) {
 
   if (!id || email_addresses.length === 0) return
 
-  const primaryEmail =
-    email_addresses.find((e) => e.id === primary_email_address_id)?.email_address || email_addresses[0]?.email_address
+  const primaryEmailObj =
+    email_addresses.find((e) => e.id === primary_email_address_id) || email_addresses[0]
+  const primaryEmail = primaryEmailObj?.email_address
 
   // Derive fields matching our schema
   const role = unsafe_metadata.role || "buyer" // default role
   const fullName = unsafe_metadata.full_name || [first_name, last_name].filter(Boolean).join(" ") || null
   const phone = unsafe_metadata.phone || null
   const location = unsafe_metadata.location || null
-  const emailVerified = email_addresses[0]?.verification?.status === "verified" || false
+  const emailVerified = primaryEmailObj?.verification?.status === "verified" || false
 
   // username is required in schema; derive a fallback if missing
   const derivedUsername = username || (primaryEmail ? primaryEmail.split("@")[0] : `user_${id.slice(-6)}`)
 
   // Upsert-like behavior: try insert, if conflict update basic fields
   try {
-    const existing = await db.select().from(usersTable).where(usersTable.clerkUserId.eq(id))
+    const existing = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, id))
 
     if (existing.length > 0) {
       await db
@@ -564,7 +579,7 @@ async function handleUserCreated(userData) {
           status: "active",
           updatedAt: new Date(),
         })
-        .where(usersTable.clerkUserId.eq(id))
+  .where(eq(usersTable.clerkUserId, id))
     } else {
       await db.insert(usersTable).values({
         clerkUserId: id,
@@ -597,7 +612,10 @@ async function handleUserDeleted(userData) {
   const { id } = userData || {}
   if (!id) return
   try {
-    await db.update(usersTable).set({ status: "inactive", updatedAt: new Date() }).where(usersTable.clerkUserId.eq(id))
+    await db
+      .update(usersTable)
+      .set({ status: "inactive", updatedAt: new Date() })
+      .where(eq(usersTable.clerkUserId, id))
   } catch (e) {
     console.error("handleUserDeleted error:", e)
   }

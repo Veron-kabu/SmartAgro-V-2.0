@@ -1,38 +1,34 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, Image, RefreshControl, Alert } from "react-native"
 import { useAuth, useUser } from "@clerk/clerk-expo"
 import { Ionicons } from "@expo/vector-icons"
 import { router } from "expo-router"
-import { getJSON } from "../../context/api"
+import { getJSON, patchJSON } from "../../context/api"
+import { useProfile } from "../../context/profile"
 
-const apiUrl = process.env.EXPO_PUBLIC_API_URL || "http://localhost:5001"
+// Base URL is centralized in the API client; pass only paths
 
 export default function HomeScreen() {
   const { isSignedIn } = useAuth()
   const { user } = useUser()
-  const [profile, setProfile] = useState(null)
+  const { profile, loading: profileLoading, refresh: refreshProfile } = useProfile()
   const [dashboardData, setDashboardData] = useState(null)
   const [recentProducts, setRecentProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!isSignedIn) return
 
     try {
-      const [profileRes, productsRes] = await Promise.all([
-        getJSON(`${apiUrl}/api/users/profile`),
-        getJSON(`${apiUrl}/api/products?limit=5`),
-      ])
-
-      setProfile(profileRes)
+  const productsRes = await getJSON(`/api/products?limit=5`)
       setRecentProducts(productsRes?.slice(0, 5) || [])
 
       // Fetch role-specific dashboard data
-      if (profileRes?.role === "farmer") {
-        const farmerData = await getJSON(`${apiUrl}/api/dashboard/farmer`)
+      if (profile?.role === "farmer") {
+        const farmerData = await getJSON(`/api/dashboard/farmer`)
         setDashboardData(farmerData)
       }
     } catch (error) {
@@ -41,11 +37,14 @@ export default function HomeScreen() {
       setLoading(false)
       setRefreshing(false)
     }
-  }
+  }, [isSignedIn, profile?.role])
 
   useEffect(() => {
-    fetchData()
-  }, [isSignedIn])
+    // Wait until profile is loaded/created to avoid 404s
+    if (isSignedIn && !profileLoading) {
+      fetchData()
+    }
+  }, [isSignedIn, profileLoading, profile?.role, fetchData])
 
   const onRefresh = () => {
     setRefreshing(true)
@@ -61,13 +60,10 @@ export default function HomeScreen() {
         text: "Switch to Buyer",
         onPress: async () => {
           try {
-            await fetch(`${apiUrl}/api/users/role`, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ role: "buyer" }),
-            })
-            fetchData()
-          } catch (error) {
+            await patchJSON(`/api/users/role`, { role: "buyer" })
+            await refreshProfile()
+            await fetchData()
+          } catch (_error) {
             Alert.alert("Error", "Failed to switch role")
           }
         },
@@ -75,7 +71,7 @@ export default function HomeScreen() {
     ])
   }
 
-  if (loading) {
+  if (loading || profileLoading) {
     return (
       <View style={styles.loadingContainer}>
         <Text style={styles.loadingText}>Loading...</Text>
