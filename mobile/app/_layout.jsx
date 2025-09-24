@@ -1,4 +1,4 @@
-import { Stack } from "expo-router"
+import { Stack, usePathname, useRouter } from "expo-router"
 import { useEffect } from "react"
 import { ClerkProvider, useAuth } from "@clerk/clerk-expo"
 import { ProfileProvider } from "../context/profile"
@@ -52,6 +52,8 @@ export default function RootLayout() {
 
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
+      {/* Redirect from '/' based on auth state so we don't need a dedicated index route */}
+      <InitialRedirect />
       <LocationHeartbeat />
       <ProfileProvider>
         <CartProvider>
@@ -75,6 +77,22 @@ function LocationHeartbeat() {
     const stop = startLocationHeartbeat({ intervalMs })
     return () => stop()
   }, [isSignedIn])
+
+  return null
+}
+
+function InitialRedirect() {
+  const { isLoaded, isSignedIn } = useAuth()
+  const pathname = usePathname()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (!isLoaded) return
+    // Handle app root and legacy '/page' redirect centrally
+    if (!pathname || pathname === "/" || pathname === "/page") {
+      router.replace(isSignedIn ? "/(tabs)/home" : "/(auth)/sign-up")
+    }
+  }, [isLoaded, isSignedIn, pathname, router])
 
   return null
 }

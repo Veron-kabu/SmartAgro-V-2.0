@@ -5,12 +5,15 @@ import { useProfile } from '../../context/profile'
 import RoleSwitcher from '../../components/RoleSwitcher'
 import { getJSON, postJSON, patchJSON } from '../../context/api'
 import { router } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 
 // Shared dashboard for Buyer and Farmer with identical UI; location stays hidden
 export default function UserDashboard({ expectedRole = 'buyer', title = 'User Profile', fallbackName = 'User' }) {
   const { user } = useUser()
   const { profile, refresh } = useProfile()
   const [loading, setLoading] = useState(true)
+  const [dashboardData, setDashboardData] = useState(null)
+  const [recentProducts, setRecentProducts] = useState([])
   const [editOpen, setEditOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editEmail, setEditEmail] = useState(profile?.email || '')
@@ -24,6 +27,7 @@ export default function UserDashboard({ expectedRole = 'buyer', title = 'User Pr
   const [currentPwd, setCurrentPwd] = useState('')
   const [newPwd, setNewPwd] = useState('')
   const [confirmPwd, setConfirmPwd] = useState('')
+  const [greeting, setGreeting] = useState('')
 
   const patchProfile = useCallback(async (payload) => {
     const updated = await patchJSON('/api/users/profile', payload)
@@ -69,6 +73,39 @@ export default function UserDashboard({ expectedRole = 'buyer', title = 'User Pr
     init()
     return () => { mounted = false }
   }, [profile, refresh])
+
+  // Compute greeting based on current time and refresh it periodically
+  useEffect(() => {
+    const compute = () => {
+      const h = new Date().getHours()
+      const g = h < 12 ? 'Good Morning' : h < 18 ? 'Good Afternoon' : 'Good Evening'
+      const first = (profile?.fullName?.split(' ')?.[0]) || user?.firstName || profile?.username || fallbackName
+      setGreeting(`${g}, ${first}`)
+    }
+    compute()
+    const id = setInterval(compute, 60 * 1000)
+    return () => clearInterval(id)
+  }, [profile?.fullName, profile?.username, user?.firstName, fallbackName])
+
+  // Fetch recent products and role-specific dashboard (farmer)
+  const fetchData = useCallback(async () => {
+    try {
+      const productsRes = await getJSON(`/api/products?limit=5`)
+      setRecentProducts(productsRes?.slice(0, 5) || [])
+      if ((profile?.role || expectedRole) === 'farmer') {
+        const farmerData = await getJSON(`/api/dashboard/farmer`)
+        setDashboardData(farmerData)
+      } else {
+        setDashboardData(null)
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error)
+    }
+  }, [profile?.role, expectedRole])
+
+  useEffect(() => {
+    if (!loading) fetchData()
+  }, [loading, fetchData])
 
   // Resolve initial avatar URL when profile changes (do not touch edit fields here)
   useEffect(() => {
@@ -241,6 +278,57 @@ export default function UserDashboard({ expectedRole = 'buyer', title = 'User Pr
         style={styles.container}
         contentContainerStyle={{ paddingBottom: 24 }}
         renderSectionHeader={() => null}
+        ListFooterComponent={() => (
+          <View>
+            {(profile?.role || expectedRole) === 'farmer' && dashboardData && (
+              <View style={styles.statsContainer}>
+                <View style={styles.statCard}>
+                  <Ionicons name="leaf" size={24} color="#16a34a" />
+                  <Text style={styles.statNumber}>{dashboardData.totalProducts}</Text>
+                  <Text style={styles.statLabel}>Products</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Ionicons name="receipt" size={24} color="#f59e0b" />
+                  <Text style={styles.statNumber}>{dashboardData.activeOrders}</Text>
+                  <Text style={styles.statLabel}>Active Orders</Text>
+                </View>
+                <View style={styles.statCard}>
+                  <Ionicons name="cash" size={24} color="#10b981" />
+                  <Text style={styles.statNumber}>${dashboardData.totalRevenue}</Text>
+                  <Text style={styles.statLabel}>Revenue</Text>
+                </View>
+              </View>
+            )}
+
+            {recentProducts.length > 0 && (
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Fresh Products</Text>
+                  <TouchableOpacity onPress={() => router.push('/(tabs)/home')}>
+                    <Text style={styles.seeAllText}>See All</Text>
+                  </TouchableOpacity>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {recentProducts.map((product) => (
+                    <TouchableOpacity key={product.id} style={styles.productCard}>
+                      <Image
+                        source={{ uri: product.images?.[0] || 'https://via.placeholder.com/120' }}
+                        style={styles.productImage}
+                      />
+                      <Text style={styles.productTitle} numberOfLines={2}>
+                        {product.title}
+                      </Text>
+                      <Text style={styles.productPrice}>
+                        ${product.price}/{product.unit}
+                      </Text>
+                      <Text style={styles.productLocation}>{product.location}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </View>
+        )}
         renderItem={({ item, section }) => {
           if (section.key === 'profile') {
             return (
@@ -253,6 +341,7 @@ export default function UserDashboard({ expectedRole = 'buyer', title = 'User Pr
                     <Image source={{ uri: avatarUrl || profile?.profileImageUrl || 'https://via.placeholder.com/64' }} style={styles.avatar} />
                   </TouchableOpacity>
                   <View style={{ flex: 1, marginLeft: 12 }}>
+                    {!!greeting && <Text style={styles.greeting}>{greeting}</Text>}
                     <Text style={styles.name}>{profile?.fullName || profile?.username || fallbackName}</Text>
                     <Text style={styles.muted}>@{profile?.username || 'username'}</Text>
                     <Text style={[styles.tag, { marginTop: 6 }]}>{(profile?.role || expectedRole).toUpperCase()}</Text>
@@ -467,6 +556,7 @@ const styles = StyleSheet.create({
   avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#e5e7eb' },
   name: { fontSize: 16, fontWeight: '700', color: '#111827' },
   muted: { color: '#6b7280', fontSize: 12 },
+  greeting: { fontSize: 16, fontWeight: '700', color: '#111827' },
   tag: { fontSize: 10, color: '#16a34a', backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, alignSelf: 'flex-start' },
   link: { color: '#16a34a', fontWeight: '600' },
   input: { flex: 1, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#fff' },
@@ -491,4 +581,17 @@ const styles = StyleSheet.create({
   modalFooter: { padding: 16, backgroundColor: '#fff', borderTopColor: '#e5e7eb', borderTopWidth: 1, flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   footerBtn: { alignSelf: 'auto', flex: 1, alignItems: 'center' },
   bold: { fontWeight: '700' },
+  // Added styles for stats and sections
+  statsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginHorizontal: 16, marginTop: 8 },
+  statCard: { flex: 1, backgroundColor: '#f3f4f6', marginHorizontal: 4, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
+  statNumber: { fontSize: 18, fontWeight: '700', color: '#111827', marginTop: 4 },
+  statLabel: { fontSize: 12, color: '#6b7280' },
+  section: { backgroundColor: '#fff', margin: 16, marginTop: 12, padding: 16, borderRadius: 12, elevation: 2 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  seeAllText: { color: '#16a34a', fontWeight: '600' },
+  productCard: { width: 140, marginRight: 12, backgroundColor: '#fff', borderRadius: 12, padding: 8, elevation: 1, borderColor: '#e5e7eb', borderWidth: 1 },
+  productImage: { width: 124, height: 84, borderRadius: 8, backgroundColor: '#e5e7eb' },
+  productTitle: { fontSize: 12, fontWeight: '600', color: '#111827', marginTop: 6 },
+  productPrice: { fontSize: 12, color: '#16a34a', marginTop: 2 },
+  productLocation: { fontSize: 10, color: '#6b7280', marginTop: 2 },
 })
