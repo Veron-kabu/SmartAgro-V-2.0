@@ -8,8 +8,12 @@ import protectRoutes from "./middleware/protect.js"
 import { requireRole } from "./middleware/role.js"
 import { ENV, validateEnv } from "./config/env.js"
 import cronJob from "./config/cron.js"
-import { usersTable, productsTable, ordersTable, messagesTable, favoritesTable, marketDataTable } from "./db/schema.js"
-import { and, eq, gt, gte, lte } from "drizzle-orm"
+import { usersTable, productsTable, ordersTable, messagesTable, favoritesTable, marketDataTable, reviewsTable } from "./db/schema.js"
+import { and, eq, gt, gte, lte, inArray } from "drizzle-orm"
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3"
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+import { GetObjectCommand } from "@aws-sdk/client-s3"
+import locationRouter from "./models/location.js"
 
 try {
   validateEnv()
@@ -32,12 +36,75 @@ app.use(
 )
 
 // JSON parser for all routes EXCEPT the webhook route (which needs raw body)
+// and EXCEPT the profile route (we attach a larger limit only for that route below)
 app.use((req, res, next) => {
-  if (req.path === "/api/webhooks/clerk") return next()
-  return express.json()(req, res, next)
+  if (req.path === "/api/webhooks/clerk" || req.path === "/api/users/profile") return next()
+  return express.json({ limit: "10mb", type: "application/json" })(req, res, next)
 })
-// Attach Clerk auth to every request
+
+// Attach Clerk auth to every request BEFORE any route uses ensureAuth/getAuth
 app.use(withClerk)
+
+// Optional: signed URL for private avatar access
+app.get("/api/uploads/avatar-signed-url", ensureAuth(), async (req, res) => {
+  try {
+    const { key } = req.query || {}
+    if (!key || typeof key !== "string") return res.status(400).json({ error: "key is required" })
+    const { AWS_S3_BUCKET, AWS_S3_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY } = ENV
+    const s3 = new S3Client({
+      region: AWS_S3_REGION,
+      credentials: {
+        accessKeyId: AWS_ACCESS_KEY_ID,
+        secretAccessKey: AWS_SECRET_ACCESS_KEY,
+      },
+    })
+    const cmd = new GetObjectCommand({ Bucket: AWS_S3_BUCKET, Key: key })
+    const url = await getSignedUrl(s3, cmd, { expiresIn: 60 * 5 })
+    res.json({ url })
+  } catch (e) {
+    console.error("signed-url error:", e)
+    res.status(500).json({ error: "Failed to get signed url" })
+  }
+})
+
+// Resolve avatar URL to a usable display URL (signed when private)
+app.get("/api/uploads/resolve-avatar-url", ensureAuth(), async (req, res) => {
+  try {
+    const { url } = req.query || {}
+    if (!url || typeof url !== "string") return res.status(400).json({ error: "url is required" })
+    const { AWS_S3_BUCKET, AWS_S3_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_S3_PUBLIC_READ, AWS_CLOUDFRONT_DOMAIN } = ENV
+    // If uploads not configured, or URL not our bucket/domain, just passthrough
+    const isS3Like = (() => {
+      try {
+        const u = new URL(url)
+        const host = u.host
+        if (AWS_CLOUDFRONT_DOMAIN && host === AWS_CLOUDFRONT_DOMAIN) return true
+        const s3Host = `${AWS_S3_BUCKET}.s3.${AWS_S3_REGION}.amazonaws.com`
+        return !!AWS_S3_BUCKET && !!AWS_S3_REGION && host === s3Host
+      } catch {
+        return false
+      }
+    })()
+    if (!isS3Like || AWS_S3_PUBLIC_READ) {
+      return res.json({ url, ttlSeconds: null })
+    }
+    // Private S3: sign a GET for the key derived from path
+    const u = new URL(url)
+    let key = u.pathname.startsWith("/") ? u.pathname.slice(1) : u.pathname
+    const s3 = new S3Client({
+      region: AWS_S3_REGION,
+      credentials: { accessKeyId: AWS_ACCESS_KEY_ID, secretAccessKey: AWS_SECRET_ACCESS_KEY },
+    })
+    const cmd = new GetObjectCommand({ Bucket: AWS_S3_BUCKET, Key: key })
+    const expiresIn = 60 * 5
+    const signed = await getSignedUrl(s3, cmd, { expiresIn })
+    return res.json({ url: signed, ttlSeconds: expiresIn })
+  } catch (e) {
+    console.error("resolve-avatar-url error:", e)
+    res.status(500).json({ error: "Failed to resolve avatar url" })
+  }
+})
+// Clerk middleware already registered above
 
 if (ENV.NODE_ENV === "production") {
   cronJob.start()
@@ -49,6 +116,9 @@ if (ENV.NODE_ENV === "production") {
 app.use(protectRoutes(["/protected(.*)"], { mode: "redirect" }))
 // API protection: ensure 401 JSON on protected API namespaces
 app.use(protectRoutes(["/api/admin(.*)", "/api/secure(.*)"], { mode: "api" }))
+
+// Minimal mount for location APIs (keeps server.js lean)
+app.use(locationRouter)
 
 // ------------------ Webhook Handlers ------------------
 app.post(
@@ -85,6 +155,43 @@ app.post(
 )
 
 // ------------------ User Management ------------------
+// Presign upload for avatar to S3 (optional feature)
+app.post("/api/uploads/avatar-presign", ensureAuth(), async (req, res) => {
+  try {
+    const { contentType = "image/jpeg", contentLength } = req.body || {}
+    const { AWS_S3_BUCKET, AWS_S3_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_S3_PUBLIC_READ, UPLOAD_MAX_MB, AWS_CLOUDFRONT_DOMAIN } = ENV
+    if (!AWS_S3_BUCKET || !AWS_S3_REGION || !AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) {
+      return res.status(501).json({ error: "Uploads not configured" })
+    }
+
+    const allowed = ["image/jpeg", "image/png", "image/webp"]
+    if (!allowed.includes(contentType)) {
+      return res.status(400).json({ error: "Unsupported content type", allowed })
+    }
+    if (contentLength && Number(contentLength) > UPLOAD_MAX_MB * 1024 * 1024) {
+      return res.status(413).json({ error: `File too large. Max ${UPLOAD_MAX_MB}MB` })
+    }
+
+    const s3 = new S3Client({
+      region: AWS_S3_REGION,
+      credentials: {
+        accessKeyId: AWS_ACCESS_KEY_ID,
+        secretAccessKey: AWS_SECRET_ACCESS_KEY,
+      },
+    })
+    const key = `avatars/${req.auth.userId}/${Date.now()}`
+    const acl = AWS_S3_PUBLIC_READ ? "public-read" : undefined
+    const cmd = new PutObjectCommand({ Bucket: AWS_S3_BUCKET, Key: key, ContentType: contentType, ACL: acl })
+    const uploadUrl = await getSignedUrl(s3, cmd, { expiresIn: 60 * 5 })
+    const originUrl = AWS_CLOUDFRONT_DOMAIN
+      ? `https://${AWS_CLOUDFRONT_DOMAIN}/${key}`
+      : `https://${AWS_S3_BUCKET}.s3.${AWS_S3_REGION}.amazonaws.com/${key}`
+    res.json({ uploadUrl, publicUrl: originUrl, contentType, acl: acl || "private" })
+  } catch (error) {
+    console.error("Presign error:", error)
+    res.status(500).json({ error: "Failed to presign upload" })
+  }
+})
 app.post("/api/users", ensureAuth(), async (req, res) => {
   try {
     const existingUser = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
@@ -161,6 +268,75 @@ app.get("/api/users/profile", ensureAuth(), async (req, res) => {
     res.status(500).json({ error: "Failed to fetch user" })
   }
 })
+
+// Update current user's profile fields
+// Apply a larger JSON limit specifically for profile updates to handle base64 images
+app.patch(
+  "/api/users/profile",
+  express.json({ limit: "25mb", type: "application/json" }),
+  ensureAuth(),
+  async (req, res) => {
+  try {
+    const me = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
+    if (me.length === 0) return res.status(404).json({ error: "User not found" })
+
+    const { username, email, full_name, phone, location, profile_image_url } = req.body || {}
+
+    // Uniqueness checks for username and email when provided
+    if (typeof username === "string" && username.trim()) {
+      const taken = await db.select().from(usersTable).where(eq(usersTable.username, username.trim()))
+      if (taken.length > 0 && taken[0].id !== me[0].id) {
+        return res.status(409).json({ error: "conflict", field: "username", message: "Username already taken" })
+      }
+    }
+    if (typeof email === "string" && email.trim()) {
+      const emailNorm = email.trim()
+      const taken = await db.select().from(usersTable).where(eq(usersTable.email, emailNorm))
+      if (taken.length > 0 && taken[0].id !== me[0].id) {
+        return res.status(409).json({ error: "conflict", field: "email", message: "Email already in use" })
+      }
+    }
+
+    const updates = {}
+    if (typeof username !== "undefined") updates.username = username?.trim() || null
+    if (typeof email !== "undefined") updates.email = email?.trim() || null
+    if (typeof full_name !== "undefined") updates.fullName = full_name || null
+    if (typeof phone !== "undefined") updates.phone = phone || null
+    if (typeof location !== "undefined") updates.location = location || null
+    if (typeof profile_image_url !== "undefined") {
+      // Allowlist: only permit URLs pointing to our S3 bucket or CloudFront domain (if configured)
+      const { AWS_S3_BUCKET, AWS_S3_REGION, AWS_CLOUDFRONT_DOMAIN } = ENV
+      const allowlistHosts = []
+      if (AWS_S3_BUCKET && AWS_S3_REGION) allowlistHosts.push(`${AWS_S3_BUCKET}.s3.${AWS_S3_REGION}.amazonaws.com`)
+      if (AWS_CLOUDFRONT_DOMAIN) allowlistHosts.push(AWS_CLOUDFRONT_DOMAIN)
+      const val = profile_image_url || null
+      if (val === null) {
+        updates.profileImageUrl = null
+      } else if (allowlistHosts.length === 0) {
+        // If not configured, accept as-is (development convenience)
+        updates.profileImageUrl = val
+      } else {
+        try {
+          const u = new URL(val)
+          if (!allowlistHosts.includes(u.host)) {
+            return res.status(400).json({ error: "Invalid image URL host" })
+          }
+          updates.profileImageUrl = val
+        } catch {
+          return res.status(400).json({ error: "Invalid image URL" })
+        }
+      }
+    }
+    updates.updatedAt = new Date()
+
+    const updated = await db.update(usersTable).set(updates).where(eq(usersTable.clerkUserId, req.auth.userId)).returning()
+    return res.json(updated[0])
+  } catch (error) {
+    console.error("Error updating user profile:", error)
+    res.status(500).json({ error: "Failed to update profile" })
+  }
+}
+)
 
 // Update user's role (allow switching only between buyer and farmer)
 app.patch("/api/users/role", ensureAuth(), async (req, res) => {
@@ -281,6 +457,81 @@ app.post("/api/products", ensureAuth(), requireRole(["farmer"]), async (req, res
 })
 
 // ------------------ Order APIs ------------------
+// Get orders for the authenticated buyer
+app.get("/api/orders", ensureAuth(), requireRole(["buyer"]), async (req, res) => {
+  try {
+    // Only support buyer=me for now
+    const { buyer, limit: limitStr, offset: offsetStr } = req.query
+    if (buyer !== "me") {
+      return res.status(400).json({ error: "Unsupported query. Use buyer=me" })
+    }
+
+    const me = await db
+      .select()
+      .from(usersTable)
+      .where(and(eq(usersTable.clerkUserId, req.auth.userId), eq(usersTable.role, "buyer")))
+
+    if (me.length === 0) {
+      return res.status(403).json({ error: "Access denied" })
+    }
+
+  let limit = Number(limitStr)
+  let offset = Number(offsetStr)
+  if (!Number.isFinite(limit) || limit <= 0 || limit > 100) limit = 25
+  if (!Number.isFinite(offset) || offset < 0) offset = 0
+
+  // drizzle's select doesn't have limit/offset chaining in this simple example, so fetch all and slice
+  // In production you can use .limit/.offset when using a query builder supporting it for postgres
+  let rows = await db.select().from(ordersTable).where(eq(ordersTable.buyerId, me[0].id))
+  rows = rows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  const pageRows = rows.slice(offset, offset + limit)
+
+    // Always return a paginated object; even when empty, return { items: [], total, limit, offset }
+
+    const productIds = Array.from(new Set(pageRows.map((r) => r.productId)))
+    const farmerIds = Array.from(new Set(pageRows.map((r) => r.farmerId)))
+    const orderIds = pageRows.map((r) => r.id)
+
+    const [products, farmers, myReviews] = await Promise.all([
+      db.select().from(productsTable).where(inArray(productsTable.id, productIds)),
+      db.select().from(usersTable).where(inArray(usersTable.id, farmerIds)),
+      orderIds.length > 0
+        ? db
+            .select()
+            .from(reviewsTable)
+            .where(and(eq(reviewsTable.reviewerId, me[0].id), inArray(reviewsTable.orderId, orderIds)))
+        : Promise.resolve([]),
+    ])
+
+    const productMap = new Map(products.map((p) => [p.id, p]))
+    const farmerMap = new Map(farmers.map((f) => [f.id, f]))
+    const reviewMap = new Map(myReviews.map((r) => [r.orderId, r]))
+
+    const result = pageRows.map((o) => ({
+        id: o.id,
+        status: o.status,
+        totalAmount: o.totalAmount,
+        createdAt: o.createdAt,
+        hasReview: reviewMap.has(o.id),
+        reviewRating: reviewMap.get(o.id)?.rating ?? null,
+        product: (() => {
+          const p = productMap.get(o.productId)
+          return p
+            ? { id: p.id, title: p.title, price: p.price, unit: p.unit }
+            : { id: o.productId, title: null, price: null, unit: null }
+        })(),
+        farmer: (() => {
+          const f = farmerMap.get(o.farmerId)
+          return f ? { id: f.id, fullName: f.fullName || f.username } : { id: o.farmerId, fullName: null }
+        })(),
+      }))
+
+    res.json({ items: result, total: rows.length, limit, offset })
+  } catch (error) {
+    console.error("Error fetching buyer orders:", error)
+    res.status(500).json({ error: "Failed to fetch orders" })
+  }
+})
 app.post("/api/orders", ensureAuth(), requireRole(["buyer"]), async (req, res) => {
   try {
     const buyer = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
@@ -347,6 +598,107 @@ app.patch("/api/orders/:id/status", ensureAuth(), requireRole(["farmer", "admin"
   }
 })
 
+// ------------------ Reviews API ------------------
+// Create a review for an order (buyer only)
+app.post("/api/reviews", ensureAuth(), requireRole(["buyer"]), async (req, res) => {
+  try {
+    const { order_id, rating, comment } = req.body || {}
+    const orderId = Number(order_id)
+    const score = Number(rating)
+    if (!orderId || isNaN(orderId)) {
+      return res.status(400).json({ error: "Valid order_id is required" })
+    }
+    if (!Number.isFinite(score) || score < 1 || score > 5) {
+      return res.status(400).json({ error: "rating must be between 1 and 5" })
+    }
+
+    const me = await db
+      .select()
+      .from(usersTable)
+      .where(and(eq(usersTable.clerkUserId, req.auth.userId), eq(usersTable.role, "buyer")))
+    if (me.length === 0) return res.status(403).json({ error: "Access denied" })
+
+    const ord = await db.select().from(ordersTable).where(eq(ordersTable.id, orderId))
+    if (ord.length === 0) return res.status(404).json({ error: "Order not found" })
+    if (ord[0].buyerId !== me[0].id) return res.status(403).json({ error: "Cannot review someone else's order" })
+    // Optional: enforce delivered
+    const okStatuses = ["delivered", "completed"]
+    if (!okStatuses.includes((ord[0].status || "").toLowerCase())) {
+      return res.status(400).json({ error: "Order not delivered; cannot review yet" })
+    }
+
+    const inserted = await db
+      .insert(reviewsTable)
+      .values({
+        orderId,
+        reviewerId: me[0].id,
+        reviewedId: ord[0].farmerId,
+        rating: score,
+        comment: comment || null,
+      })
+      .returning()
+
+    res.json(inserted[0])
+  } catch (error) {
+    console.error("Error creating review:", error)
+    res.status(500).json({ error: "Failed to create review" })
+  }
+})
+
+// Get reviews for current buyer or by order
+app.get("/api/reviews", ensureAuth(), async (req, res) => {
+  try {
+    const { buyer, order_id } = req.query || {}
+    let reviewerId = null
+    if (buyer === "me") {
+      const me = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
+      if (me.length === 0) return res.status(403).json({ error: "Access denied" })
+      reviewerId = me[0].id
+    }
+
+    const whereClauses = []
+    if (reviewerId) whereClauses.push(eq(reviewsTable.reviewerId, reviewerId))
+    if (order_id) {
+      const oid = Number(order_id)
+      if (!Number.isFinite(oid)) return res.status(400).json({ error: "Invalid order_id" })
+      whereClauses.push(eq(reviewsTable.orderId, oid))
+    }
+
+    let reviews = []
+    if (whereClauses.length > 0) {
+      // Build AND filter
+      const predicate = whereClauses.length === 1 ? whereClauses[0] : and(...whereClauses)
+      reviews = await db.select().from(reviewsTable).where(predicate)
+    } else {
+      reviews = await db.select().from(reviewsTable)
+    }
+
+    if (reviews.length === 0) return res.json([])
+
+    const farmerIds = Array.from(new Set(reviews.map((r) => r.reviewedId)))
+    const farmers = await db.select().from(usersTable).where(inArray(usersTable.id, farmerIds))
+    const farmerMap = new Map(farmers.map((f) => [f.id, f]))
+
+    const result = reviews
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .map((r) => ({
+        id: r.id,
+        orderId: r.orderId,
+        rating: r.rating,
+        comment: r.comment,
+        createdAt: r.createdAt,
+        farmer: (() => {
+          const f = farmerMap.get(r.reviewedId)
+          return f ? { id: f.id, fullName: f.fullName || f.username } : { id: r.reviewedId, fullName: null }
+        })(),
+      }))
+
+    res.json(result)
+  } catch (error) {
+    console.error("Error fetching reviews:", error)
+    res.status(500).json({ error: "Failed to fetch reviews" })
+  }
+})
 // ------------------ Favorites API ------------------
 app.post("/api/favorites", ensureAuth(), requireRole(["buyer"]), async (req, res) => {
   try {
@@ -385,6 +737,51 @@ app.post("/api/favorites", ensureAuth(), requireRole(["buyer"]), async (req, res
   } catch (error) {
     console.error("Error adding favorite:", error)
     res.status(500).json({ error: "Failed to add favorite" })
+  }
+})
+
+// Get favorites for the authenticated buyer
+app.get("/api/favorites", ensureAuth(), requireRole(["buyer"]), async (req, res) => {
+  try {
+    const { buyer } = req.query
+    if (buyer !== "me") return res.status(400).json({ error: "Unsupported query. Use buyer=me" })
+
+    const me = await db
+      .select()
+      .from(usersTable)
+      .where(and(eq(usersTable.clerkUserId, req.auth.userId), eq(usersTable.role, "buyer")))
+    if (me.length === 0) return res.status(403).json({ error: "Access denied" })
+
+    const favs = await db.select().from(favoritesTable).where(eq(favoritesTable.buyerId, me[0].id))
+    if (favs.length === 0) return res.json([])
+
+    const productIds = Array.from(new Set(favs.map((f) => f.productId)))
+    const products = await db.select().from(productsTable).where(inArray(productsTable.id, productIds))
+    const farmerIds = Array.from(new Set(products.map((p) => p.farmerId)))
+    const farmers = await db.select().from(usersTable).where(inArray(usersTable.id, farmerIds))
+
+    const productMap = new Map(products.map((p) => [p.id, p]))
+    const farmerMap = new Map(farmers.map((u) => [u.id, u]))
+
+    const result = favs
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .map((f) => {
+        const p = productMap.get(f.productId)
+        const farmer = p ? farmerMap.get(p.farmerId) : null
+        return {
+          id: f.id,
+          createdAt: f.createdAt,
+          product: p
+            ? { id: p.id, title: p.title, price: p.price, unit: p.unit, images: p.images, location: p.location }
+            : { id: f.productId },
+          farmer: farmer ? { id: farmer.id, fullName: farmer.fullName || farmer.username } : null,
+        }
+      })
+
+    res.json(result)
+  } catch (error) {
+    console.error("Error fetching favorites:", error)
+    res.status(500).json({ error: "Failed to fetch favorites" })
   }
 })
 

@@ -24,6 +24,7 @@ export const usersTable = pgTable("users", {
   fullName: varchar("full_name", { length: 255 }),
   phone: varchar("phone", { length: 20 }),
   location: jsonb("location"),
+  geoCell: varchar("geo_cell", { length: 32 }),
   profileImageUrl: text("profile_image_url"),
   emailVerified: boolean("email_verified").default(false),
   status: varchar("status", { length: 20 }).default("active"), // active, inactive, suspended
@@ -47,6 +48,7 @@ export const productsTable = pgTable("products", {
   harvestDate: timestamp("harvest_date"),
   expiryDate: timestamp("expiry_date"),
   location: jsonb("location").notNull(),
+  geoCell: varchar("geo_cell", { length: 32 }),
   images: jsonb("images").default([]),
   isOrganic: boolean("is_organic").default(false),
   status: varchar("status", { length: 20 }).default("active"), // active, sold, expired, inactive

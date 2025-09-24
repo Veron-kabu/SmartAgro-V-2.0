@@ -14,7 +14,8 @@ import {
 } from "react-native"
 import { useAuth } from "@clerk/clerk-expo"
 import { Ionicons } from "@expo/vector-icons"
-import { getJSON, postJSON } from "../../context/api"
+import { postJSON } from "../../context/api"
+import { useProfile } from "../../context/profile"
 // Base URL is centralized in the API client; pass only paths
 
 export default function MessagesScreen() {
@@ -26,16 +27,7 @@ export default function MessagesScreen() {
   const [newMessage, setNewMessage] = useState("")
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [profile, setProfile] = useState(null)
-
-  const fetchProfile = async () => {
-    try {
-  const profileData = await getJSON(`/api/users/profile`)
-      setProfile(profileData)
-    } catch (error) {
-      console.error("Error fetching profile:", error)
-    }
-  }
+  const { profile, loading: profileLoading, refresh: refreshProfile } = useProfile()
 
   const fetchConversations = async () => {
     try {
@@ -114,10 +106,13 @@ export default function MessagesScreen() {
 
   useEffect(() => {
     if (isSignedIn) {
-      fetchProfile()
+      if (!profile && !profileLoading) {
+        // ensure profile is loaded/created
+        refreshProfile().catch(() => {})
+      }
       fetchConversations()
     }
-  }, [isSignedIn])
+  }, [isSignedIn, profileLoading, profile, refreshProfile])
 
   const onRefresh = () => {
     setRefreshing(true)

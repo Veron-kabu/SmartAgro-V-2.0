@@ -101,7 +101,7 @@ export default function HomeScreen() {
             )}
           </View>
         </View>
-        <TouchableOpacity onPress={() => router.push("/profile")}>
+        <TouchableOpacity onPress={() => router.push("/(tabs)/profile")}>
           <Image source={{ uri: user?.imageUrl || "https://via.placeholder.com/50" }} style={styles.profileImage} />
         </TouchableOpacity>
       </View>

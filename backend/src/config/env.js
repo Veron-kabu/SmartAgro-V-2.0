@@ -17,6 +17,19 @@ export const ENV = {
     "http://localhost:8081",
     "exp://192.168.1.100:8081",
   ],
+
+  // Optional: AWS S3 for direct uploads
+  AWS_S3_BUCKET: process.env.AWS_S3_BUCKET,
+  AWS_S3_REGION: process.env.AWS_S3_REGION,
+  AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
+  AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
+  AWS_S3_PUBLIC_READ: /^true$/i.test(process.env.AWS_S3_PUBLIC_READ || "true"),
+  UPLOAD_MAX_MB: Number(process.env.UPLOAD_MAX_MB || 10),
+  AWS_CLOUDFRONT_DOMAIN: process.env.AWS_CLOUDFRONT_DOMAIN,
+
+  // Geospatial tuning
+  // Resolution used by application-side geo cell calculations (must match DB trigger default unless you update triggers)
+  GEO_CELL_RES: Math.max(1, Math.min(100, Number(process.env.GEO_CELL_RES || 10))),
 }
 
 // Validation function to check required environment variables

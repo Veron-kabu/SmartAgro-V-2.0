@@ -16,7 +16,7 @@ export default function SignUpScreen() {
   // If email verification is enabled, prepare verification
   await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
   // Navigate with mode and email so verify screen branches properly
-  router.push({ pathname: '/(auth)/verify', params: { mode: 'sign-up', email: emailAddress } })
+  router.push({ pathname: '/(auth)/verify', params: { mode: 'sign-up', email: emailAddress, sentAt: Date.now() } })
     } catch (err) {
       console.error('Sign-up failed', err)
       Alert.alert('Sign-up failed', err?.errors?.[0]?.message || 'Please try again')

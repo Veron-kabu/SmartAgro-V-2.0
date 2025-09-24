@@ -2,42 +2,35 @@ import { Stack, usePathname, useRouter } from 'expo-router'
 import { useAuth, useUser } from '@clerk/clerk-expo'
 import { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, View, Text } from 'react-native'
-import { getJSON } from '../../context/api'
-// Base URL is centralized in the API client; pass only paths
+import { useProfile } from '../../context/profile'
+// Role will be derived from profile context; avoid direct API calls that may 404 during auto-create
 
 export default function DashboardLayout() {
   const { isSignedIn } = useAuth()
   const { user } = useUser()
   const pathname = usePathname()
   const router = useRouter()
+  const { profile, loading: profileLoading } = useProfile()
   const [role, setRole] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // Fetch role from backend; fallback to Clerk unsafeMetadata.role
+  // Derive role from profile context; fallback to Clerk metadata
   useEffect(() => {
-    let mounted = true
-    async function run() {
-      if (!isSignedIn) {
-        setRole(null)
-        setLoading(false)
-        router.replace('/(auth)/sign-in')
-        return
-      }
-      try {
-  const profile = await getJSON(`/api/users/profile`)
-        if (mounted) setRole(profile?.role || null)
-  } catch (_e) {
-        // Fallback to Clerk metadata if DB profile not found yet
-        if (mounted) setRole(user?.unsafeMetadata?.role || null)
-      } finally {
-        if (mounted) setLoading(false)
-      }
+    if (!isSignedIn) {
+      setRole(null)
+      setLoading(false)
+      router.replace('/(auth)/sign-in')
+      return
     }
-    run()
-    return () => {
-      mounted = false
+    // while profile is loading (auto-create may be in progress), keep loading
+    if (profileLoading) {
+      setLoading(true)
+      return
     }
-  }, [isSignedIn, user?.unsafeMetadata?.role, router])
+    const nextRole = profile?.role || user?.unsafeMetadata?.role || null
+    setRole(nextRole)
+    setLoading(false)
+  }, [isSignedIn, profile?.role, user?.unsafeMetadata?.role, profileLoading, router])
 
   const targetRoute = useMemo(() => {
     if (!role) return null

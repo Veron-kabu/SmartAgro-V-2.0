@@ -20,11 +20,19 @@ export default function SignInScreen() {
       } else if (result.status === 'needs_first_factor') {
         // Prepare email code factor and navigate to verify with email in params
         try {
-          await signIn.prepareFirstFactor({ strategy: 'email_code' })
+          await signIn.reload?.()
+          const factors = Array.isArray(signIn.supportedFirstFactors) ? signIn.supportedFirstFactors : []
+          const emailCodeFactor = factors.find((f) => f?.strategy === 'email_code' && f?.emailAddressId)
+          if (emailCodeFactor?.emailAddressId) {
+            await signIn.prepareFirstFactor({ strategy: 'email_code', emailAddressId: emailCodeFactor.emailAddressId })
+          } else {
+            await signIn.prepareFirstFactor({ strategy: 'email_code' })
+          }
         } catch (_e) {
-          // ignore if already prepared
+          Alert.alert('Cannot send code', 'We could not prepare email verification. Please try again.')
+          return
         }
-        router.push({ pathname: '/(auth)/verify', params: { mode: 'sign-in', email: emailAddress } })
+  router.push({ pathname: '/(auth)/verify', params: { mode: 'sign-in', email: emailAddress, sentAt: Date.now() } })
       }
     } catch (err) {
       console.error('Sign-in failed', err)
@@ -34,17 +42,47 @@ export default function SignInScreen() {
 
   const onEmailCodeSignIn = async () => {
     if (!isLoaded) return
-    if (!emailAddress) {
+    const email = String(emailAddress || '').trim()
+    if (!email) {
       Alert.alert('Email required', 'Enter your email to receive a verification code')
       return
     }
     try {
-      await signIn.create({ identifier: emailAddress })
-      await signIn.prepareFirstFactor({ strategy: 'email_code' })
-      router.push({ pathname: '/(auth)/verify', params: { mode: 'sign-in', email: emailAddress } })
+      // Ensure we operate on the latest signIn object state
+      await signIn.reload?.()
+
+      // Only create if we don't already have the same identifier in the current flow
+      const currentId = (signIn && signIn.identifier) ? String(signIn.identifier).toLowerCase() : ''
+      if (!currentId || currentId !== email.toLowerCase()) {
+        try {
+          await signIn.create({ identifier: email })
+        } catch (_e) {
+          // If an older sign-in exists, reload and continue; do not hard-fail here
+          // Common Clerk error: "Update operations are not allowed on older sign ins"
+          await signIn.reload?.()
+        }
+      }
+
+      // Prepare the email code factor (pass emailAddressId when possible)
+      try {
+        await signIn.reload?.()
+        const factors = Array.isArray(signIn.supportedFirstFactors) ? signIn.supportedFirstFactors : []
+        const emailCodeFactor = factors.find((f) => f?.strategy === 'email_code' && f?.emailAddressId)
+        if (emailCodeFactor?.emailAddressId) {
+          await signIn.prepareFirstFactor({ strategy: 'email_code', emailAddressId: emailCodeFactor.emailAddressId })
+        } else {
+          await signIn.prepareFirstFactor({ strategy: 'email_code' })
+        }
+      } catch (_prepErr) {
+        Alert.alert('Cannot send code', 'We could not send a verification code. Please try again.')
+        return
+      }
+
+  router.push({ pathname: '/(auth)/verify', params: { mode: 'sign-in', email, sentAt: Date.now() } })
     } catch (err) {
       console.error('Start email code sign-in failed', err)
-      Alert.alert('Email code sign-in failed', err?.errors?.[0]?.message || 'Please try again')
+      const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || err?.message || 'Please try again'
+      Alert.alert('Email code sign-in failed', String(msg))
     }
   }
 

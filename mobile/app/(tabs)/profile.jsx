@@ -1,18 +1,24 @@
 "use client"
 
-import { View, Text, StyleSheet } from "react-native"
+import { View, ActivityIndicator, Text } from "react-native"
+import { useProfile } from "../../context/profile"
+import UserDashboard from "../dashboard/UserDashboard"
 
 export default function ProfileTab() {
-  return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Profile</Text>
-      <Text style={styles.subtitle}>Coming soon.</Text>
-    </View>
-  )
-}
+  const { profile, loading } = useProfile()
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f9fafb", alignItems: "center", justifyContent: "center" },
-  title: { fontSize: 22, fontWeight: "700", color: "#111827", marginBottom: 8 },
-  subtitle: { fontSize: 14, color: "#6b7280" },
-})
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator />
+        <Text style={{ marginTop: 8 }}>Loading profile…</Text>
+      </View>
+    )
+  }
+
+  const role = profile?.role === 'farmer' ? 'farmer' : 'buyer'
+  const title = role === 'farmer' ? 'Farmer Profile' : 'Buyer Profile'
+  const fallbackName = role === 'farmer' ? 'Farmer' : 'Buyer'
+
+  return <UserDashboard expectedRole={role} title={title} fallbackName={fallbackName} />
+}

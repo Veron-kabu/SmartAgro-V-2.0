@@ -1,20 +1,20 @@
-import { View, Text } from 'react-native'
-import { useEffect, useState } from 'react'
-import { getJSON } from '../../context/api'
+import { View, Text, ActivityIndicator } from 'react-native'
+import { useProfile } from '../../context/profile'
 // Base URL is centralized in the API client; pass only paths
 
 export default function AdminDashboard() {
-  const [profile, setProfile] = useState(null)
-  useEffect(() => {
-    let mounted = true
-  getJSON(`/api/users/profile`).then((p) => {
-      if (mounted) setProfile(p)
-    }).catch(() => {})
-    return () => { mounted = false }
-  }, [])
+  const { profile, loading } = useProfile()
 
   const name = profile?.fullName || profile?.username || 'User'
   const role = profile?.role || 'admin'
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator />
+        <Text style={{ marginTop: 8 }}>Loading…</Text>
+      </View>
+    )
+  }
 
   return (
     <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
