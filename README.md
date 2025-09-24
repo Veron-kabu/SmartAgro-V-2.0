@@ -1,5 +1,10 @@
 # Farmer Buyer System
-
+open ngrok
+create account
+create domain and copy the domain url
+add it to clerk endpoint under webhooks
+if it does not work just run......ngrok http 5001 then add it to clerk ie 
+https://6f76c4dfc52d.ngrok-free.app/apiwebhooks/clerk
 ## Location & Nearby Features
 
 This project supports live user locations and "nearby" discovery for farmers, buyers, and listings — all implemented with free components (no paid services).
