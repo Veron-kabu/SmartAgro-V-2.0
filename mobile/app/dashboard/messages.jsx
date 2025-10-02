@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo, useCallback } from "react"
 import {
   View,
   Text,
@@ -14,12 +14,21 @@ import {
 } from "react-native"
 import { useAuth } from "@clerk/clerk-expo"
 import { Ionicons } from "@expo/vector-icons"
-import { postJSON } from "../../context/api"
+import { postJSON, getJSONCancelable } from "../../context/api"
+import { useLocalSearchParams } from 'expo-router'
 import { useProfile } from "../../context/profile"
 // Base URL is centralized in the API client; pass only paths
 
 export default function MessagesScreen() {
   const { isSignedIn } = useAuth()
+  const params = useLocalSearchParams()
+  const prefillTo = useMemo(() => {
+    const raw = params?.to
+    if (!raw) return null
+    const n = Array.isArray(raw) ? raw[0] : raw
+    const idNum = Number(n)
+    return isNaN(idNum) ? null : idNum
+  }, [params])
   // no-op
   const [conversations, setConversations] = useState([])
   const [selectedConversation, setSelectedConversation] = useState(null)
@@ -29,7 +38,7 @@ export default function MessagesScreen() {
   const [refreshing, setRefreshing] = useState(false)
   const { profile, loading: profileLoading, refresh: refreshProfile } = useProfile()
 
-  const fetchConversations = async () => {
+  const fetchConversations = useCallback(async () => {
     try {
       const mockConversations = [
         {
@@ -61,16 +70,47 @@ export default function MessagesScreen() {
           productTitle: "Organic Carrots",
         },
       ]
-      setConversations(mockConversations)
+      let list = mockConversations
+      // If prefillTo is present and not already in list, create a stub conversation
+      let abortController = new AbortController()
+      if (prefillTo && !mockConversations.some(c => c.otherUser.id === prefillTo)) {
+        // Attempt lightweight fetch of user profile with cancellation support
+        let fetchedUser = null
+        try { fetchedUser = await getJSONCancelable(`/api/users/${prefillTo}`, abortController.signal) } catch (e) { if (e?.name !== 'AbortError') {/* ignore */} }
+        const stub = {
+          id: Date.now(),
+          otherUser: {
+            id: prefillTo,
+            fullName: fetchedUser?.full_name || fetchedUser?.fullName || `User #${prefillTo}`,
+            profileImageUrl: fetchedUser?.profile_image_url || fetchedUser?.profileImageUrl || 'https://via.placeholder.com/50',
+            role: fetchedUser?.role || 'farmer',
+          },
+          lastMessage: '',
+          lastMessageTime: new Date().toISOString(),
+          unreadCount: 0,
+          productId: null,
+          productTitle: '',
+        }
+        list = [stub, ...list]
+      }
+  setConversations(list)
+      // Auto-open stub if prefill
+      if (prefillTo) {
+        const conv = list.find(c => c.otherUser.id === prefillTo)
+        if (conv) {
+          setSelectedConversation(conv)
+          fetchMessages(conv.id)
+        }
+      }
     } catch (error) {
       console.error("Error fetching conversations:", error)
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }
+  }, [prefillTo, fetchMessages])
 
-  const fetchMessages = async (conversationId) => {
+  const fetchMessages = useCallback(async (conversationId) => {
     try {
       const mockMessages = [
         {
@@ -102,7 +142,7 @@ export default function MessagesScreen() {
     } catch (error) {
       console.error("Error fetching messages:", error)
     }
-  }
+  }, [profile])
 
   useEffect(() => {
     if (isSignedIn) {
@@ -112,7 +152,14 @@ export default function MessagesScreen() {
       }
       fetchConversations()
     }
-  }, [isSignedIn, profileLoading, profile, refreshProfile])
+  }, [isSignedIn, profileLoading, profile, refreshProfile, prefillTo, fetchConversations])
+
+  // Cleanup (abort any pending user fetch if component unmounts quickly)
+  useEffect(() => {
+    return () => {
+      // We used local AbortController inside fetchConversations; for a fuller implementation, refactor it to outer scope.
+    }
+  }, [])
 
   const onRefresh = () => {
     setRefreshing(true)

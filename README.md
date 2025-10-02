@@ -5,6 +5,18 @@ create domain and copy the domain url
 add it to clerk endpoint under webhooks
 if it does not work just run......ngrok http 5001 then add it to clerk ie 
 https://6f76c4dfc52d.ngrok-free.app/apiwebhooks/clerk
+## Role Immutability
+
+User roles (buyer, farmer, admin) are assigned once at user record creation and cannot be switched via the API or mobile client. The former runtime role‑switch feature was removed to enforce clearer authorization boundaries and simplify analytics. Any legacy users with unexpected role values are normalized by migration `0001_lock_roles.sql` (roles outside the set [buyer, farmer, admin] are set to `buyer`).
+
+Implications:
+- No endpoint exists to toggle roles (removed `/api/users/role`).
+- Client UI no longer shows role switching controls or prompts.
+- Authorization logic should rely on the stable `role` column in `users`.
+- To change a user’s role, perform a manual admin/database operation (or implement controlled admin tooling—currently not included).
+
+If you introduce an admin panel later, ensure any role change flow includes audit logging and explicit confirmation.
+
 ## Location & Nearby Features
 
 This project supports live user locations and "nearby" discovery for farmers, buyers, and listings — all implemented with free components (no paid services).
@@ -145,6 +157,27 @@ If your Postgres host supports extensions (`CREATE EXTENSION`), you can switch t
 	cd .\backend
 	npm run migrate:geocell
 	```
+
+### Drizzle Migrations (Important)
+
+All Drizzle migrations (and the required `meta/_journal.json`) are stored under `backend/src/db/migrations`.
+
+Configuration:
+- The Drizzle config (`backend/drizzle.config.js`) must have `out: "./src/db/migrations"`.
+- Do NOT point `out` to a different folder (e.g. `./db/migrations`) unless you also move the existing `meta` directory. If Drizzle cannot find `meta/_journal.json`, `drizzle-kit migrate` will fail with: `Can't find meta/_journal.json file`.
+
+If you accidentally generated a migration in the wrong folder:
+1. Delete the stray file (e.g. `backend/db/migrations/XXXX_some_migration.sql`).
+2. Ensure `out` is restored to `./src/db/migrations`.
+3. Re‑run: `npx drizzle-kit generate` (or your existing migration script) so the migration appears alongside `meta/`.
+4. Apply migrations: `npx drizzle-kit migrate`.
+
+Adding the Clerk sync runs table (example):
+- Migration file added: `src/db/migrations/0006_add_clerk_sync_runs.sql`.
+- After generating, apply with `npx drizzle-kit migrate` and then the mobile Admin Console sync panel will stop showing 500 errors.
+
+Tip: Commit the `meta/_journal.json` so teammates maintain a consistent migration state.
+
 
 ### Quick Start (just sign in)
 - You don’t need to run any manual location commands if you’re using the mobile app.

@@ -2,8 +2,12 @@
 
 import { Tabs } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
+import { View, Text } from 'react-native'
+import { useCart } from '../../context/cart'
 
 export default function TabsLayout() {
+  const { items: cartItems } = useCart()
+  const cartCount = cartItems.reduce((n,i)=> n + (i.quantity||0), 0)
   return (
     <Tabs
       initialRouteName="home"
@@ -35,19 +39,21 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="search" size={size} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="messages"
-        options={{
-          title: "Messages",
-          tabBarIcon: ({ color, size }) => <Ionicons name="chatbubbles" size={size} color={color} />,
-        }}
-      />
-  {/** Orders removed from tab bar; open via navigation to /orders (standalone stack) */}
+      {/* Messages tab removed; accessed via Profile -> Chat section */}
       <Tabs.Screen
         name="favourites"
         options={{
           title: "Favourites",
-          tabBarIcon: ({ color, size }) => <Ionicons name="heart" size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => (
+            <View>
+              <Ionicons name="heart" size={size} color={color} />
+              {cartCount > 0 && (
+                <View style={{ position:'absolute', top:-4, right:-10, backgroundColor:'#ef4444', borderRadius:10, minWidth:18, paddingHorizontal:4, height:18, alignItems:'center', justifyContent:'center' }}>
+                  <Text style={{ color:'#fff', fontSize:10, fontWeight:'700' }} numberOfLines={1}>{cartCount > 99 ? '99+' : cartCount}</Text>
+                </View>
+              )}
+            </View>
+          ),
         }}
       />
       <Tabs.Screen

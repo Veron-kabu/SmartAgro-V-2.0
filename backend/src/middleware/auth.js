@@ -1,6 +1,10 @@
 import { clerkMiddleware, requireAuth, getAuth, clerkClient } from "@clerk/express";
 import crypto from "crypto";
 import { Webhook as SvixWebhook } from "svix";
+import { db } from "../config/db.js";
+import { usersTable } from "../db/schema.js";
+import { eq } from "drizzle-orm";
+import { handleUserCreated } from "../routes/webhooks.js";
 
 // Global middleware to attach auth (session) to req.auth
 export const withClerk = clerkMiddleware();
@@ -64,5 +68,29 @@ export function verifyClerkWebhook(req, res, next) {
 	} catch (err) {
 		console.error("Clerk webhook verification error:", err);
 		return res.status(400).json({ error: "Webhook verification failed" });
+	}
+}
+
+// Middleware to ensure a DB user row exists for the authenticated Clerk user (fallback if webhook missed)
+export async function ensureDbUser(req, res, next) {
+	try {
+		const auth = getAuth(req)
+		if (!auth?.userId) return next()
+		// Check if user exists in DB
+		const existing = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, auth.userId))
+		if (existing.length === 0) {
+			// Fetch from Clerk and provision
+			const clerkUser = await clerkClient.users.getUser(auth.userId)
+			if (clerkUser) {
+				await handleUserCreated(clerkUser)
+				if (process.env.CLERK_WEBHOOK_DEBUG === 'true') {
+					console.log(`[ensureDbUser] Backfilled missing user ${auth.userId}`)
+				}
+			}
+		}
+		return next()
+	} catch (err) {
+		console.error('ensureDbUser error:', err.message)
+		return next() // do not block request; fail softly
 	}
 }

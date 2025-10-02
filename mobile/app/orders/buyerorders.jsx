@@ -1,11 +1,14 @@
 "use client"
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { View, Text, StyleSheet, SectionList, ActivityIndicator } from 'react-native'
+import { View, Text, StyleSheet, SectionList, ActivityIndicator, TouchableOpacity } from 'react-native'
+import { useRouter } from 'expo-router'
 import { getJSON } from '../../context/api'
 import { groupOrders, formatCurrency, formatDate, statusBadgeColor } from '../../utils/orders'
+import { OrderTimeline } from '../../components/OrderTimeline'
 
 export default function BuyerOrders() {
+  const router = useRouter()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -71,7 +74,7 @@ export default function BuyerOrders() {
         if (item.__empty) return (<View style={styles.card}><Text style={styles.muted}>No orders yet.</Text></View>)
         const badge = statusBadgeColor(item.status)
         return (
-          <View style={styles.card}>
+          <TouchableOpacity style={styles.card} activeOpacity={0.75} onPress={() => router.push(`/orders/order-details?id=${item.id}`)}>
             <View style={styles.rowBetween}>
               <Text style={styles.bold}>{item.product?.title || 'Product'}</Text>
               <View style={[styles.badge, { backgroundColor: badge.bg }]}><Text style={[styles.badgeText, { color: badge.fg }]}>{String(item.status || '').toUpperCase()}</Text></View>
@@ -81,7 +84,10 @@ export default function BuyerOrders() {
               <Text style={styles.muted}>{formatDate(item.createdAt)}</Text>
               <Text style={styles.bold}>{formatCurrency(item.totalAmount)}</Text>
             </View>
-          </View>
+            <View style={{ marginTop: 10 }}>
+              <OrderTimeline status={item.status} compact />
+            </View>
+          </TouchableOpacity>
         )
       }}
       ListFooterComponent={canLoadMore ? (

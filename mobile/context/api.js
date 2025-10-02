@@ -102,8 +102,26 @@ async function getAuthToken() {
   return null
 }
 
-export async function getJSON(pathOrUrl) {
-  const res = await authFetch(pathOrUrl)
+function isJsonLike(contentType) {
+  return typeof contentType === 'string' && contentType.toLowerCase().includes('application/json')
+}
+
+async function safeParseJson(res) {
+  // Some endpoints may return 204 / empty body. Avoid throwing JSON parse errors.
+  const text = await res.text()
+  if (!text) return null
+  try { return JSON.parse(text) } catch (e) {
+    const err = new Error('Failed to parse JSON response')
+    err.cause = e
+    err.raw = text
+    err.url = res.url
+    err.status = res.status
+    throw err
+  }
+}
+
+export async function getJSON(pathOrUrl, options = {}) {
+  const res = await authFetch(pathOrUrl, options)
   if (!res.ok) {
     let body = null
     try { body = await res.text() } catch { /* ignore */ }
@@ -114,7 +132,17 @@ export async function getJSON(pathOrUrl) {
     err.body = body
     throw err
   }
-  return res.json()
+  const ct = res.headers.get('content-type') || ''
+  if (!isJsonLike(ct)) {
+    // Non-JSON success -> return raw text for caller to decide
+    return await res.text()
+  }
+  return safeParseJson(res)
+}
+
+// Cancellation-friendly variant (just alias with explicit signal param usage)
+export async function getJSONCancelable(pathOrUrl, signal) {
+  return getJSON(pathOrUrl, { signal })
 }
 
 export async function postJSON(pathOrUrl, body) {
@@ -129,7 +157,9 @@ export async function postJSON(pathOrUrl, body) {
     err.body = text
     throw err
   }
-  return res.json()
+  const ct = res.headers.get('content-type') || ''
+  if (!isJsonLike(ct)) return await res.text()
+  return safeParseJson(res)
 }
 
 export async function patchJSON(pathOrUrl, body) {
@@ -144,7 +174,26 @@ export async function patchJSON(pathOrUrl, body) {
     err.body = text
     throw err
   }
-  return res.json()
+  const ct = res.headers.get('content-type') || ''
+  if (!isJsonLike(ct)) return await res.text()
+  return safeParseJson(res)
+}
+
+export async function deleteJSON(pathOrUrl) {
+  const res = await authFetch(pathOrUrl, { method: 'DELETE' })
+  if (!res.ok) {
+    let text = null
+    try { text = await res.text() } catch { /* ignore */ }
+    const err = new Error(`Request failed: ${res.status} ${res.statusText}`)
+    err.status = res.status
+    err.statusText = res.statusText
+    err.url = res.url
+    err.body = text
+    throw err
+  }
+  const ct = res.headers.get('content-type') || ''
+  if (!isJsonLike(ct)) return await res.text()
+  return safeParseJson(res)
 }
 
 // Lightweight ping helper to test connectivity to backend (e.g., "/health")

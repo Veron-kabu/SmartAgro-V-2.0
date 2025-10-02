@@ -5,8 +5,7 @@ export const ROLES = {
   ADMIN: "admin",
 }
 
-// Roles that users can switch between (excluding admin)
-export const SWITCHABLE_ROLES = [ROLES.BUYER, ROLES.FARMER]
+// Role switching disabled in current system (buyer & farmer fixed at creation)
 
 // All valid roles
 export const ALL_ROLES = Object.values(ROLES)

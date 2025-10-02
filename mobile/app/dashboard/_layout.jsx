@@ -40,12 +40,15 @@ export default function DashboardLayout() {
     return null
   }, [role])
 
+  // Redirect only when user is on a role root or the bare /dashboard path.
+  // Allow deeper dashboard sub-routes like /dashboard/post-listing without forced replacement.
   useEffect(() => {
-    if (!loading && targetRoute) {
-      const onRolePath = pathname && pathname.startsWith(targetRoute)
-      if (!onRolePath) {
-        router.replace(targetRoute)
-      }
+    if (loading || !targetRoute) return
+    const roleRoots = ['/dashboard/farmer','/dashboard/buyer','/dashboard/admin']
+    const isExactDashboard = pathname === '/dashboard'
+    const isRoleRoot = roleRoots.includes(pathname)
+    if ((isExactDashboard || isRoleRoot) && pathname !== targetRoute) {
+      router.replace(targetRoute)
     }
   }, [loading, targetRoute, pathname, router])
 
@@ -63,6 +66,8 @@ export default function DashboardLayout() {
       <Stack.Screen name="farmer" />
       <Stack.Screen name="buyer" />
       <Stack.Screen name="admin" />
+      <Stack.Screen name="post-listing" />
+      <Stack.Screen name="my-listings" />
     </Stack>
   )
 }

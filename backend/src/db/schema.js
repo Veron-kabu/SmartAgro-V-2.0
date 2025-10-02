@@ -26,6 +26,9 @@ export const usersTable = pgTable("users", {
   location: jsonb("location"),
   geoCell: varchar("geo_cell", { length: 32 }),
   profileImageUrl: text("profile_image_url"),
+  bannerImageUrl: text("banner_image_url"),
+  profileImageBlurhash: text("profile_image_blurhash"),
+  bannerImageBlurhash: text("banner_image_blurhash"),
   emailVerified: boolean("email_verified").default(false),
   status: varchar("status", { length: 20 }).default("active"), // active, inactive, suspended
   createdAt: timestamp("created_at").defaultNow(),
@@ -50,7 +53,10 @@ export const productsTable = pgTable("products", {
   location: jsonb("location").notNull(),
   geoCell: varchar("geo_cell", { length: 32 }),
   images: jsonb("images").default([]),
+  thumbnails: jsonb("thumbnails").default([]),
+  imageBlurhashes: jsonb("image_blurhashes").default([]),
   isOrganic: boolean("is_organic").default(false),
+  discountPercent: integer("discount_percent").default(0),
   status: varchar("status", { length: 20 }).default("active"), // active, sold, expired, inactive
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -72,6 +78,18 @@ export const ordersTable = pgTable("orders", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// =======================
+// ORDER STATUS HISTORY
+// =======================
+export const orderStatusHistoryTable = pgTable("order_status_history", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id").references(() => ordersTable.id).notNull(),
+  fromStatus: varchar("from_status", { length: 20 }),
+  toStatus: varchar("to_status", { length: 20 }).notNull(),
+  changedByUserId: integer("changed_by_user_id").references(() => usersTable.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // =======================
@@ -108,6 +126,23 @@ export const reviewsTable = pgTable("reviews", {
   rating: integer("rating"), // 1 to 5
   comment: text("comment"),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// =======================
+// CLERK SYNC RUNS (Operational Observability)
+// =======================
+export const clerkSyncRunsTable = pgTable('clerk_sync_runs', {
+  id: serial('id').primaryKey(),
+  source: varchar('source', { length: 40 }), // startup, periodic, manual
+  dryRun: boolean('dry_run').default(false),
+  startedAt: timestamp('started_at').defaultNow(),
+  finishedAt: timestamp('finished_at'),
+  durationMs: integer('duration_ms'),
+  processed: integer('processed').default(0),
+  inserted: integer('inserted').default(0),
+  updated: integer('updated').default(0),
+  status: varchar('status', { length: 20 }).default('success'), // success | fail
+  errorMessage: text('error_message'),
 });
 
 // =======================
@@ -159,6 +194,17 @@ export const ordersRelations = relations(ordersTable, ({ one }) => ({
     fields: [ordersTable.productId],
     references: [productsTable.id],
   }),
+}));
+
+export const orderStatusHistoryRelations = relations(orderStatusHistoryTable, ({ one }) => ({
+  order: one(ordersTable, {
+    fields: [orderStatusHistoryTable.orderId],
+    references: [ordersTable.id],
+  }),
+  changedBy: one(usersTable, {
+    fields: [orderStatusHistoryTable.changedByUserId],
+    references: [usersTable.id],
+  })
 }));
 
 export const messagesRelations = relations(messagesTable, ({ one }) => ({

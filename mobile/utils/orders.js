@@ -32,3 +32,18 @@ export function groupOrders(orders = []) {
   }
   return { current, completed }
 }
+
+// Canonical status pipeline (farmer side)
+// pending -> accepted -> shipped -> delivered
+// Rejected / cancelled are terminal off-ramps
+export const ORDER_STATUS_FLOW = ['pending','accepted','shipped','delivered']
+
+export function nextStatusesFor(status) {
+  const s = (status || '').toLowerCase()
+  switch (s) {
+    case 'pending': return ['accepted','rejected']
+    case 'accepted': return ['shipped','cancelled']
+    case 'shipped': return ['delivered']
+    default: return []
+  }
+}

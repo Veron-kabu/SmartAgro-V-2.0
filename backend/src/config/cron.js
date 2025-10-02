@@ -2,7 +2,12 @@ import cron from "cron"
 import https from "https"
 import http from "http"
 import { ENV } from "./env.js"
+import { db } from "../config/db.js"
+import { usersTable, productsTable } from "../db/schema.js"
+import { S3Client, ListObjectsV2Command, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { computeBlurhashFromUrl } from "../utils/blurhash.js"
 
+// Keep-alive ping (every 14 minutes)
 const job = new cron.CronJob("*/14 * * * *", () => {
   const apiUrl = ENV.API_URL
 
@@ -26,7 +31,86 @@ const job = new cron.CronJob("*/14 * * * *", () => {
     })
 })
 
-export default job
+// Lightweight periodic blurhash backfill (runs every hour at minute 7)
+// Intentionally low limit each run to spread CPU usage.
+const blurhashBackfillJob = new cron.CronJob("7 * * * *", async () => {
+  if (ENV.DISABLE_AUTO_BACKFILL === 'true') return
+  try {
+    const limit = 15
+    const users = await db.select().from(usersTable)
+    const products = await db.select().from(productsTable)
+    let updated = 0
+    async function encode(url) { try { const { hash } = await computeBlurhashFromUrl(url); return hash } catch { return null } }
+    // Users first: profile + banner
+    for (const u of users) {
+      if (updated >= limit) break
+      if ((!u.profileImageUrl || u.profileImageBlurhash) && (!u.bannerImageUrl || u.bannerImageBlurhash)) continue
+      const patch = {}
+      if (u.profileImageUrl && !u.profileImageBlurhash) { const h = await encode(u.profileImageUrl); if (h) patch.profileImageBlurhash = h }
+      if (u.bannerImageUrl && !u.bannerImageBlurhash) { const h = await encode(u.bannerImageUrl); if (h) patch.bannerImageBlurhash = h }
+      if (Object.keys(patch).length) { patch.updatedAt = new Date(); await db.update(usersTable).set(patch).where(usersTable.id.eq(u.id)); updated++ }
+    }
+    // Products next
+    for (const p of products) {
+      if (updated >= limit) break
+      if (!Array.isArray(p.images) || p.images.length === 0 || (Array.isArray(p.imageBlurhashes) && p.imageBlurhashes.length > 0)) continue
+      const hashes = []
+      for (const url of p.images.slice(0,6)) { const h = await encode(url); if (h) hashes.push(h) }
+      if (hashes.length) { await db.update(productsTable).set({ imageBlurhashes: hashes, updatedAt: new Date() }).where(productsTable.id.eq(p.id)); updated++ }
+    }
+    if (updated > 0) console.log(`🔄 Blurhash cron backfill updated ${updated} records`)
+  } catch (e) {
+    console.warn('blurhash cron backfill failed', e.message)
+  }
+})
+
+// Orphan product image cleanup (runs daily at 02:30). Strategy:
+// 1. List objects under products/ prefix (single page up to 1000)
+// 2. For each object older than GRACE_DAYS and not referenced in any product.images, delete it.
+// NOTE: This is a lightweight best-effort cleaner; for very large buckets a paginated / batched
+// approach or manifest tracking would be preferable.
+const orphanProductImageCleanupJob = new cron.CronJob('30 2 * * *', async () => {
+  try {
+    if (ENV.DISABLE_ORPHAN_CLEANUP === 'true') return
+    const { AWS_S3_BUCKET, AWS_S3_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY } = ENV
+    if (!AWS_S3_BUCKET || !AWS_S3_REGION || !AWS_ACCESS_KEY_ID || !AWS_SECRET_ACCESS_KEY) return
+    const s3 = new S3Client({ region: AWS_S3_REGION, credentials: { accessKeyId: AWS_ACCESS_KEY_ID, secretAccessKey: AWS_SECRET_ACCESS_KEY } })
+    const graceDays = Number(process.env.ORPHAN_IMAGE_GRACE_DAYS || 3)
+    const cutoff = Date.now() - graceDays * 24 * 60 * 60 * 1000
+    const list = await s3.send(new ListObjectsV2Command({ Bucket: AWS_S3_BUCKET, Prefix: 'products/' }))
+    if (!list.Contents || list.Contents.length === 0) return
+    // Build a set of all referenced product image paths (without domain) for quick lookup
+    const prods = await db.select().from(productsTable)
+    const referenced = new Set()
+    for (const p of prods) {
+      if (Array.isArray(p.images)) {
+        for (const url of p.images) {
+          try {
+            const u = new URL(url)
+            const path = u.pathname.startsWith('/') ? u.pathname.slice(1) : u.pathname
+            referenced.add(path)
+          } catch {}
+        }
+      }
+    }
+    let deleted = 0
+    for (const obj of list.Contents) {
+      if (!obj || !obj.Key) continue
+      if (!obj.Key.startsWith('products/')) continue
+      if (referenced.has(obj.Key)) continue
+      if (!obj.LastModified || obj.LastModified.getTime() > cutoff) continue // retain within grace window
+      try {
+        await s3.send(new DeleteObjectCommand({ Bucket: AWS_S3_BUCKET, Key: obj.Key }))
+        deleted++
+      } catch (e) { /* non-fatal */ }
+    }
+    if (deleted > 0) console.log(`🧽 Orphan product image cleanup removed ${deleted} object(s) older than ${graceDays}d`)
+  } catch (e) {
+    console.warn('orphan image cleanup failed', e.message)
+  }
+})
+
+export { job as default, blurhashBackfillJob, orphanProductImageCleanupJob }
 
 // CRON JOB EXPLANATION:
 // Cron jobs are scheduled tasks that run periodically at fixed intervals
