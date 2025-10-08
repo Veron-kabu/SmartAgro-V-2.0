@@ -216,9 +216,6 @@ export default function ProductDetail() {
             </View>
 
             <View style={{ flexDirection:'row', gap:12, marginTop:28 }}>
-              <TouchableOpacity style={[styles.secondaryActionBtn]} onPress={() => router.push(`/dashboard/messages?to=${product.farmerId}`)} activeOpacity={0.85}>
-                <Text style={styles.secondaryActionBtnText}>Chat</Text>
-              </TouchableOpacity>
               <TouchableOpacity style={[styles.secondaryActionBtn]} onPress={() => router.push(`/orders/new?product=${product.id}`)} activeOpacity={0.85}>
                 <Text style={styles.secondaryActionBtnText}>Order Now</Text>
               </TouchableOpacity>

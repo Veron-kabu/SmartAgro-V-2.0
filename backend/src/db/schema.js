@@ -93,19 +93,6 @@ export const orderStatusHistoryTable = pgTable("order_status_history", {
 });
 
 // =======================
-// MESSAGES
-// =======================
-export const messagesTable = pgTable("messages", {
-  id: serial("id").primaryKey(),
-  senderId: integer("sender_id").references(() => usersTable.id).notNull(),
-  receiverId: integer("receiver_id").references(() => usersTable.id).notNull(),
-  orderId: integer("order_id").references(() => ordersTable.id),
-  message: text("message").notNull(),
-  isRead: boolean("is_read").default(false),
-  createdAt: timestamp("created_at").defaultNow(),
-});
-
-// =======================
 // FAVORITES
 // =======================
 export const favoritesTable = pgTable("favorites", {
@@ -165,8 +152,6 @@ export const usersRelations = relations(usersTable, ({ many }) => ({
   products: many(productsTable),
   ordersAsBuyer: many(ordersTable, { relationName: "buyer" }),
   ordersAsFarmer: many(ordersTable, { relationName: "farmer" }),
-  messagesSent: many(messagesTable, { relationName: "sender" }),
-  messagesReceived: many(messagesTable, { relationName: "receiver" }),
   favorites: many(favoritesTable),
   reviewsWritten: many(reviewsTable, { relationName: "reviewer" }),
   reviewsReceived: many(reviewsTable, { relationName: "reviewed" }),
@@ -205,21 +190,6 @@ export const orderStatusHistoryRelations = relations(orderStatusHistoryTable, ({
     fields: [orderStatusHistoryTable.changedByUserId],
     references: [usersTable.id],
   })
-}));
-
-export const messagesRelations = relations(messagesTable, ({ one }) => ({
-  sender: one(usersTable, {
-    fields: [messagesTable.senderId],
-    references: [usersTable.id],
-  }),
-  receiver: one(usersTable, {
-    fields: [messagesTable.receiverId],
-    references: [usersTable.id],
-  }),
-  order: one(ordersTable, {
-    fields: [messagesTable.orderId],
-    references: [ordersTable.id],
-  }),
 }));
 
 export const favoritesRelations = relations(favoritesTable, ({ one }) => ({

@@ -106,19 +106,6 @@ export default function MarketScreen() {
     }
   }
 
-  const handleContactFarmer = (product) => {
-    Alert.alert("Contact Farmer", `Send a message to the farmer about ${product.title}?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Send Message",
-        onPress: () => {
-          // Navigate to messages with pre-filled data
-          console.log("Navigate to messages with product:", product.id)
-        },
-      },
-    ])
-  }
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -259,12 +246,6 @@ export default function MarketScreen() {
                 </View>
 
                 <View style={[styles.productActions, isOwner && { justifyContent: 'flex-end' }]}>
-                  {!isOwner && (
-                    <TouchableOpacity style={styles.contactButton} onPress={() => handleContactFarmer(product)}>
-                      <Ionicons name="chatbubble" size={16} color="#16a34a" />
-                      <Text style={styles.contactText}>Contact</Text>
-                    </TouchableOpacity>
-                  )}
                   <TouchableOpacity style={styles.orderButton} onPress={goTo}>
                     <Text style={styles.orderText}>{isOwner ? 'Edit' : 'View'}</Text>
                   </TouchableOpacity>
@@ -489,21 +470,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-  },
-  contactButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#16a34a",
-  },
-  contactText: {
-    fontSize: 11,
-    color: "#16a34a",
-    marginLeft: 4,
-    fontWeight: "600",
   },
   orderButton: {
     backgroundColor: "#16a34a",

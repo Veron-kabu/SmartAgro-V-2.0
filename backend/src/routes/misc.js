@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { db } from '../config/db.js'
-import { favoritesTable, messagesTable, reviewsTable, usersTable, productsTable, ordersTable, marketDataTable, clerkSyncRunsTable } from '../db/schema.js'
+import { favoritesTable, reviewsTable, usersTable, productsTable, ordersTable, marketDataTable, clerkSyncRunsTable } from '../db/schema.js'
 import { syncClerkUsers } from '../utils/clerkSync.js'
 import { ensureAuth } from '../middleware/auth.js'
 import { requireRole } from '../middleware/role.js'
@@ -51,21 +51,6 @@ router.get('/reviews', ensureAuth(), async (req,res) => {
 })
 
 
-// Messages
-router.post('/messages', ensureAuth(), requireRole(['buyer','farmer','admin']), async (req,res) => {
-  try {
-    const sender = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
-    if (sender.length === 0) return res.status(403).json({ error: 'Sender not found' })
-    const { receiver_id, order_id, message } = req.body
-    if (!receiver_id || isNaN(Number(receiver_id)) || !message || typeof message !== 'string' || message.trim() === '') return res.status(400).json({ error: 'Valid receiver ID and non-empty message are required' })
-    const receiver = await db.select().from(usersTable).where(eq(usersTable.id, receiver_id))
-    if (receiver.length === 0) return res.status(404).json({ error: 'Receiver not found' })
-    if (order_id) { const order = await db.select().from(ordersTable).where(eq(ordersTable.id, order_id)); if (order.length === 0) return res.status(404).json({ error: 'Order not found' }) }
-    const inserted = await db.insert(messagesTable).values({ senderId: sender[0].id, receiverId: receiver_id, orderId: order_id || null, message }).returning()
-    res.json(inserted[0])
-  } catch (e) { console.error('Error sending message:', e); res.status(500).json({ error: 'Failed to send message' }) }
-})
-
 // Dashboard (farmer)
 router.get('/dashboard/farmer', ensureAuth(), requireRole(['farmer']), async (req,res) => {
   try {
@@ -86,10 +71,6 @@ router.get('/stats/overview', ensureAuth(), async (req,res) => {
     if (meArr.length === 0) return res.status(404).json({ error: 'User not found' })
     const me = meArr[0]
     const isFarmer = me.role === 'farmer'; const isBuyer = me.role === 'buyer'
-    // Messages (received only counts for unread/total)
-    const received = await db.select().from(messagesTable).where(eq(messagesTable.receiverId, me.id))
-    const unreadMessages = received.filter(m => !m.isRead).length
-    const totalMessages = received.length
     const activeStatuses = ['pending','accepted','shipped']
     const deliveredStatuses = ['delivered','completed']
     let ordersPrimary = [] // farmer incoming OR buyer orders
@@ -118,7 +99,6 @@ router.get('/stats/overview', ensureAuth(), async (req,res) => {
     }
     res.json({
       role: me.role,
-      messages: { unread: unreadMessages, total: totalMessages },
       orders: ordersSummary,
       ordersSent: ordersSentSummary,
       products: { total: totalProducts }

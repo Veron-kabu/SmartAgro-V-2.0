@@ -22,10 +22,9 @@ Lightweight favorites toggle & listing (buyer context).
 - `GET  /api/favorites` (auth) — List raw favorites rows for current user.
 
 ## misc.js
-Mixed legacy/aux endpoints: reviews, favorites (legacy variant), messages, dashboards, stats, market data.
+Mixed legacy/aux endpoints: reviews, favorites (legacy variant), dashboards, stats, market data.
 - Reviews: `POST /api/reviews`, `GET /api/reviews`
 - Favorites (legacy style): `POST /api/favorites`, `GET /api/favorites?buyer=me`
-- Messages: `POST /api/messages`
 - Farmer dashboard: `GET /api/dashboard/farmer`
 - Stats overview: `GET /api/stats/overview`
 - Market data: `GET /api/market-data`

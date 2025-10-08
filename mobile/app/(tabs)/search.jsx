@@ -185,7 +185,6 @@ export default function SearchTab() {
           {!isOwner && (
             <View style={styles.cardActions}>
               <TouchableOpacity style={styles.orderBtn} activeOpacity={0.85} onPress={() => router.push(`/orders/new?product=${item.id}`)}><Text style={styles.orderBtnText}>Order</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.chatBtn} activeOpacity={0.85} onPress={() => router.push(`/dashboard/messages?to=${item.farmerId}`)}><Text style={styles.chatBtnText}>Chat</Text></TouchableOpacity>
             </View>
           )}
         </View>
@@ -313,8 +312,6 @@ const styles = StyleSheet.create({
   cardActions: { flexDirection: 'row', gap: 8, marginTop: 10 },
   orderBtn: { backgroundColor: '#000', paddingHorizontal: 18, paddingVertical: 6, borderRadius: 18 },
   orderBtnText: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  chatBtn: { backgroundColor: '#fff', paddingHorizontal: 18, paddingVertical: 6, borderRadius: 18 },
-  chatBtnText: { color: '#111827', fontSize: 12, fontWeight: '600' },
   badgesRow: { flexDirection: 'row', gap: 6, marginTop: 6 },
   badge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
   badgeOrganic: { backgroundColor: '#dcfce7' },

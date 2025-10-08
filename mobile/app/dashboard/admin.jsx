@@ -129,7 +129,6 @@ export default function AdminDashboard() {
           {overviewLoading && <ActivityIndicator size="small" />}
         </View>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 12 }}>
-          <Stat label="Unread Msgs" value={overview?.messages?.unread ?? 0} />
           <Stat label="Orders Active" value={overview?.orders?.active ?? 0} />
           <Stat label="Orders Delivered" value={overview?.orders?.delivered ?? 0} />
         </View>
@@ -177,7 +176,6 @@ export default function AdminDashboard() {
         <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151' }}>Quick Actions</Text>
         <View style={{ marginTop: 12, gap: 10 }}>
           <QuickLink label="My Listings" onPress={() => router.push('/dashboard/my-listings')} />
-          <QuickLink label="Messages" onPress={() => router.push('/dashboard/messages')} />
           <QuickLink label="Earnings (Farmer)" disabled onPress={() => {}} note="Farmer only" />
         </View>
       </View>

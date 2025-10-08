@@ -1,13 +1,15 @@
 MOBILE
+npm install
 npx install expo
-npm expo
+npm install dotenv
+npx expo
 
 Mobile App (Expo)
 =================
 
 Overview
 --------
-This is the React Native / Expo client for the Farmer‑Buyer system (iOS / Android). It integrates with the backend for authentication, product discovery, ordering, messaging, and optimized media loading with Blurhash placeholders.
+This is the React Native / Expo client for the Farmer‑Buyer system (iOS / Android). It integrates with the backend for authentication, product discovery, ordering, and optimized media loading with Blurhash placeholders.
 
 Key Technologies
 ----------------

@@ -44,14 +44,12 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
   const [openListings, setOpenListings] = useState(true)
   const [openOrders, setOpenOrders] = useState(true)
   const [openFunds, setOpenFunds] = useState(true)
-  const [openChat, setOpenChat] = useState(true)
   const [earnings, setEarnings] = useState(null)
   const { signingOut, logout: confirmLogout } = useLogout()
   const collapseKeys = useRef({
     listings: 'dashboard:collapse:listings',
     orders: 'dashboard:collapse:orders',
-    funds: 'dashboard:collapse:funds',
-    chat: 'dashboard:collapse:chat'
+    funds: 'dashboard:collapse:funds'
   })
 
   // Simple currency formatter (later can use Intl if locale / polyfill present)
@@ -71,7 +69,6 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
         if (map[collapseKeys.current.listings]) setOpenListings(map[collapseKeys.current.listings] === '1')
         if (map[collapseKeys.current.orders]) setOpenOrders(map[collapseKeys.current.orders] === '1')
         if (map[collapseKeys.current.funds]) setOpenFunds(map[collapseKeys.current.funds] === '1')
-        if (map[collapseKeys.current.chat]) setOpenChat(map[collapseKeys.current.chat] === '1')
       } catch (e) {
         console.log('collapse restore failed', e.message)
       }
@@ -470,33 +467,6 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
             )}
           </View>
         )}
-
-        {/* Chat Section (collapsible) */}
-        <View style={styles.sectionBlock}>
-          <View style={styles.sectionHeaderRow}>
-            <TouchableOpacity style={styles.sectionTitleBtn} onPress={() => setOpenChat(o=>{ const v=!o; persistCollapse('chat', v); return v })} activeOpacity={0.7}>
-              <Text style={styles.chevron}>{openChat ? '▾' : '▸'}</Text>
-              <Text style={styles.sectionHeading}>Chat</Text>
-            </TouchableOpacity>
-            <View style={styles.headerActionsRow}>
-              <TouchableOpacity style={styles.headingActionBtn} activeOpacity={0.85} onPress={() => router.push('/dashboard/messages')}>
-                <Text style={styles.headingActionText}>Open Chat</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          {openChat && (
-            <View style={styles.rowCards}>
-              <TouchableOpacity style={styles.favoriteCard} activeOpacity={0.85} onPress={() => router.push('/dashboard/messages')}>
-                <ExpoImage source={{ uri: 'https://images.unsplash.com/photo-1588702547919-26089e690ecc?auto=format&fit=crop&w=800&q=60' }} style={styles.favoriteImage} contentFit="cover" cachePolicy="memory-disk" placeholder={BLUR_HASH_THUMB} />
-                <Text style={styles.favoriteTitle}>Unread Messages</Text>
-                <View style={styles.favoriteMetrics}>
-                  <Text style={styles.metricLine}>Unread <Text style={styles.metricValue}>{stats?.messages?.unread ?? 0}</Text></Text>
-                  <Text style={styles.metricLine}>Total <Text style={styles.metricValue}>{stats?.messages?.total ?? 0}</Text></Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
 
         {/* Switch Role section removed */}
         <View style={{ paddingHorizontal: 16, marginTop: 16 }}>

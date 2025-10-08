@@ -39,7 +39,13 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="search" size={size} color={color} />,
         }}
       />
-      {/* Messages tab removed; accessed via Profile -> Chat section */}
+      <Tabs.Screen
+        name="messages"
+        options={{
+          title: "Messages",
+          tabBarIcon: ({ color, size }) => <Ionicons name="chatbubbles" size={size} color={color} />,
+        }}
+      />
       <Tabs.Screen
         name="favourites"
         options={{

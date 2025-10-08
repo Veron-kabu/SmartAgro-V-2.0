@@ -6,9 +6,9 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-  "sync:clerk:users": "node ./scripts/sync-clerk-users.mjs",
-  "migrate:geocell": "node ./scripts/apply-geocell-migration.mjs",
-  "blurhash:backfill": "node ./scripts/backfill-blurhashes.mjs"
+    "sync:clerk:users": "node ./scripts/sync-clerk-users.mjs",
+    "migrate:geocell": "node ./scripts/apply-geocell-migration.mjs",
+    "blurhash:backfill": "node ./scripts/backfill-blurhashes.mjs"
   },
   "keywords": [],
   "author": "",
