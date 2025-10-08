@@ -23,7 +23,19 @@ router.get('/products', async (req,res) => {
       const d = new Date(cursor)
       if (!isNaN(d.getTime())) whereExpr = and(whereExpr, lt(productsTable.createdAt, d))
     }
-    let query = db.select().from(productsTable).where(whereExpr).orderBy(productsTable.createdAt)
+    
+    // Join with users table to get farmer information
+    let query = db.select({
+      ...productsTable,
+      farmerEmail: usersTable.email,
+      farmerName: usersTable.fullName,
+      farmerUsername: usersTable.username
+    })
+    .from(productsTable)
+    .leftJoin(usersTable, eq(productsTable.farmerId, usersTable.id))
+    .where(whereExpr)
+    .orderBy(productsTable.createdAt)
+    
     let rows = await query
     // order newest first
     rows = rows.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -49,7 +61,17 @@ router.get('/products/:id', async (req,res) => {
   try {
     const productId = Number(req.params.id)
     if (isNaN(productId)) return res.status(400).json({ error: 'Invalid product ID' })
-    const product = await db.select().from(productsTable).where(eq(productsTable.id, productId))
+    
+    const product = await db.select({
+      ...productsTable,
+      farmerEmail: usersTable.email,
+      farmerName: usersTable.fullName,
+      farmerUsername: usersTable.username
+    })
+    .from(productsTable)
+    .leftJoin(usersTable, eq(productsTable.farmerId, usersTable.id))
+    .where(eq(productsTable.id, productId))
+    
     if (product.length === 0) return res.status(404).json({ error: 'Product not found' })
     res.json(product[0])
   } catch (e) {

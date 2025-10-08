@@ -6,6 +6,7 @@ import { router } from 'expo-router'
 import BlurhashImage from "../../components/BlurhashImage"
 import { useAuth } from "@clerk/clerk-expo"
 import { useProfile } from "../../context/profile"
+import { useChat } from "../../context/chat"
 import { Ionicons } from "@expo/vector-icons"
 import { getJSON } from "../../context/api"
 import { useFavorites, subscribeAppEvents } from "../../context/favorites"
@@ -14,6 +15,7 @@ import { useFavorites, subscribeAppEvents } from "../../context/favorites"
 export default function MarketScreen() {
   const { isSignedIn } = useAuth()
   const { profile } = useProfile()
+  const { createOrFindChatRoom, setCurrentChatRoom } = useChat()
   const [products, setProducts] = useState([])
   const [filteredProducts, setFilteredProducts] = useState([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -103,6 +105,36 @@ export default function MarketScreen() {
       await toggleFavCtx(product.id)
     } catch (e) {
       Alert.alert('Error', e?.message || 'Failed to toggle favorite')
+    }
+  }
+
+  const handleStartChat = async (product) => {
+    if (!product.farmerEmail) {
+      Alert.alert('Error', 'Farmer contact information not available')
+      return
+    }
+
+    if (profile?.id && product.farmerId === profile.id) {
+      Alert.alert('Not allowed', 'You cannot chat with yourself')
+      return
+    }
+
+    try {
+      const roomName = `Chat about ${product.title}`
+      
+      console.log('Starting chat with farmer:', product.farmerEmail)
+      const chatRoom = await createOrFindChatRoom(product.farmerEmail, roomName)
+      
+      if (chatRoom) {
+        setCurrentChatRoom(chatRoom)
+        // Always go to messages tab to maintain proper context and avoid provider issues
+        router.push('/(tabs)/messages')
+      } else {
+        Alert.alert('Error', 'Failed to start chat. Please try again.')
+      }
+    } catch (error) {
+      console.error('Error starting chat:', error)
+      Alert.alert('Error', 'Failed to start chat. Please try again.')
     }
   }
 
@@ -246,6 +278,15 @@ export default function MarketScreen() {
                 </View>
 
                 <View style={[styles.productActions, isOwner && { justifyContent: 'flex-end' }]}>
+                  {!isOwner && (
+                    <TouchableOpacity 
+                      style={styles.chatButton} 
+                      onPress={() => handleStartChat(product)}
+                    >
+                      <Ionicons name="chatbubble" size={14} color="#16a34a" />
+                      <Text style={styles.chatText}>Chat</Text>
+                    </TouchableOpacity>
+                  )}
                   <TouchableOpacity style={styles.orderButton} onPress={goTo}>
                     <Text style={styles.orderText}>{isOwner ? 'Edit' : 'View'}</Text>
                   </TouchableOpacity>
@@ -476,6 +517,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
+  },
+  chatButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#16a34a",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  chatText: {
+    fontSize: 11,
+    color: "#16a34a",
+    fontWeight: "600",
+    marginLeft: 4,
   },
   orderText: {
     fontSize: 11,

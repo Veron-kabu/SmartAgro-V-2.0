@@ -36,7 +36,7 @@ export const ChatProvider = ({ children }) => {
       userEmail: clerkUser?.emailAddresses?.[0]?.emailAddress || 'none',
       userId: clerkUser?.id || 'none'
     });
-  }, [authIsLoaded, userIsLoaded, isSignedIn, clerkUser]);
+  }, [authIsLoaded, userIsLoaded, clerkIsLoaded, isSignedIn, clerkUser]);
 
   // Initialize Firestore when component mounts
   useEffect(() => {
@@ -185,6 +185,72 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
+  const createOrFindChatRoom = async (participantEmail, roomName) => {
+    console.log('ChatProvider: createOrFindChatRoom called with:', { participantEmail, roomName });
+    
+    if (!clerkIsLoaded || !isSignedIn || !clerkUser || !isFirebaseReady || !firebaseDatabase) {
+      console.error('ChatProvider: Prerequisites not met for chat room creation/finding');
+      return null;
+    }
+
+    try {
+      const currentUserEmail = clerkUser.emailAddresses[0]?.emailAddress || clerkUser.id;
+      console.log('ChatProvider: Looking for existing chat room between:', currentUserEmail, 'and', participantEmail);
+      
+      const { collection, query, where, getDocs, addDoc } = await import('firebase/firestore');
+      
+      // First, check if a chat room already exists between these two users
+      const chatRoomsRef = collection(firebaseDatabase, 'chatRooms');
+      
+      // Query for chat rooms that contain both users
+      const existingRoomQuery = query(
+        chatRoomsRef,
+        where('participants', 'array-contains', currentUserEmail)
+      );
+      
+      const querySnapshot = await getDocs(existingRoomQuery);
+      
+      // Check if any of the returned rooms also contains the target participant
+      let existingRoom = null;
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.participants && data.participants.includes(participantEmail)) {
+          existingRoom = { id: doc.id, ...data };
+        }
+      });
+      
+      if (existingRoom) {
+        console.log('ChatProvider: Found existing chat room:', existingRoom.id);
+        return existingRoom;
+      }
+      
+      // No existing room found, create a new one
+      console.log('ChatProvider: Creating new chat room');
+      const docRef = await addDoc(chatRoomsRef, {
+        name: roomName || `Chat with ${participantEmail}`,
+        participants: [currentUserEmail, participantEmail],
+        createdAt: new Date(),
+        lastMessage: null,
+        lastMessageTime: new Date()
+      });
+
+      const newRoom = {
+        id: docRef.id,
+        name: roomName || `Chat with ${participantEmail}`,
+        participants: [currentUserEmail, participantEmail],
+        createdAt: new Date(),
+        lastMessage: null,
+        lastMessageTime: new Date()
+      };
+
+      console.log('ChatProvider: New chat room created with ID:', docRef.id);
+      return newRoom;
+    } catch (error) {
+      console.error('ChatProvider: Error creating/finding chat room:', error);
+      return null;
+    }
+  };
+
   const createChatRoom = async (participantEmail, roomName) => {
     console.log('ChatProvider: createChatRoom called with:', { participantEmail, roomName });
     console.log('ChatProvider: Current state:', {
@@ -272,6 +338,7 @@ export const ChatProvider = ({ children }) => {
     setCurrentChatRoom,
     sendMessage,
     createChatRoom,
+    createOrFindChatRoom,
     getCurrentUser,
     isFirebaseReady
   };
