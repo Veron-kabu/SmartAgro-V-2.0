@@ -1,36 +1,24 @@
-import { View, Text, Button, Alert } from 'react-native'
+import { View, Text } from 'react-native'
 import { useProfile } from '../context/profile'
-import { ROLES, SWITCHABLE_ROLES } from '../constants/roles'
-import { patchJSON } from '../context/api'
-// Base URL is centralized in the API client; pass only paths
+import { ROLE_NAMES } from '../constants/roles'
 
-export default function RoleSwitcher() {
-  const { profile, refresh } = useProfile()
+// This component is deprecated. Role switching has been disabled.
+// Users must select their role during sign-up and it cannot be changed unless by an admin.
+export default function RoleDisplay() {
+  const { profile } = useProfile()
   const current = profile?.role || 'buyer'
 
-  async function switchRole(nextRole) {
-    if (!SWITCHABLE_ROLES.includes(nextRole)) return
-    if (nextRole === ROLES.admin) return
-    try {
-  await patchJSON(`/api/users/role`, { role: nextRole })
-      Alert.alert('Role updated', `Switched to ${nextRole}`)
-      await refresh()
-    } catch (e) {
-      Alert.alert('Failed to update role', e?.message || 'Please try again')
-    }
-  }
-
   return (
-    <View style={{ alignItems: 'center' }}>
-      <Text style={{ marginVertical: 8 }}>Current role: {current}</Text>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        {current !== ROLES.buyer && (
-          <Button title="Switch to Buyer" onPress={() => switchRole(ROLES.buyer)} />
-        )}
-        {current !== ROLES.farmer && (
-          <Button title="Switch to Farmer" onPress={() => switchRole(ROLES.farmer)} />
-        )}
-      </View>
+    <View style={{ alignItems: 'center', padding: 16 }}>
+      <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 4 }}>
+        Account Type
+      </Text>
+      <Text style={{ fontSize: 14, color: '#666' }}>
+        {ROLE_NAMES[current] || current}
+      </Text>
+      <Text style={{ fontSize: 12, color: '#999', marginTop: 4, textAlign: 'center' }}>
+        Contact support if you need to change your account type
+      </Text>
     </View>
   )
 }

@@ -1,10 +1,11 @@
 import { useState, useCallback } from 'react'
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Image } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Image } from 'react-native'
 import { useProfile } from '../../context/profile'
 import { postJSON } from '../../context/api'
 import * as ImagePicker from 'expo-image-picker'
 import { router } from 'expo-router'
 import { useToast } from '../../context/toast'
+import { postListingStyles as styles } from '../../assets/styles/listings.styles'
 
 export default function PostListing() {
   const { profile } = useProfile()
@@ -142,7 +143,7 @@ export default function PostListing() {
     return (
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.headerRow}>
-          <Text style={styles.brand}>FarmLink</Text>
+          <Text style={styles.brand}>SmartAgro</Text>
         </View>
         <Text style={styles.successHeading}>Listing Posted Successfully!</Text>
         <View style={styles.successCard}>
@@ -176,10 +177,7 @@ export default function PostListing() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.headerRow}>
-        <Text style={styles.brand}>FarmLink</Text>
-        <TouchableOpacity style={[styles.submitBtn, (!canSubmit) && { opacity: 0.6 }]} disabled={!canSubmit} onPress={onSubmit}>
-          {submitting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.submitText}>Submit Post</Text>}
-        </TouchableOpacity>
+        <Text style={styles.brand}>SmartAgro</Text>
       </View>
       <Text style={styles.title}>Create a New Post</Text>
 
@@ -221,39 +219,12 @@ export default function PostListing() {
         )}
       </TouchableOpacity>
       {(imageUploading) && <ActivityIndicator style={{ marginTop: 8 }} size="small" color="#16a34a" />}
+      
+      <TouchableOpacity style={[styles.submitBtn, (!canSubmit) && { opacity: 0.6 }]} disabled={!canSubmit} onPress={onSubmit}>
+        {submitting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.submitText}>Submit Post</Text>}
+      </TouchableOpacity>
+      
       <View style={{ height: 48 }} />
     </ScrollView>
   )
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9fafb' },
-  content: { padding: 16, paddingBottom: 64 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  brand: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  title: { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 16 },
-  label: { fontSize: 12, fontWeight: '600', color: '#374151', marginTop: 12, marginBottom: 6 },
-  input: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 24, paddingHorizontal: 16, paddingVertical: 12, fontSize: 13 },
-  multiline: { borderRadius: 20, minHeight: 120 },
-  submitBtn: { backgroundColor: '#000', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 24 },
-  submitText: { color: '#fff', fontWeight: '600', fontSize: 12 },
-  imagePicker: { marginTop: 4, backgroundColor: '#f1f5f9', borderRadius: 20, height: 140, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#e2e8f0' },
-  imagePreview: { width: '100%', height: '100%', borderRadius: 20 },
-  uploadIcon: { fontSize: 22, color: '#64748b', marginBottom: 4 },
-  uploadHint: { fontSize: 12, color: '#64748b' },
-  imagePicked: { fontSize: 12, color: '#111827' },
-  inputError: { borderColor: '#ef4444' },
-  errorText: { color: '#ef4444', fontSize: 11, marginTop: 4, marginLeft: 4 },
-  successHeading: { fontSize: 16, fontWeight: '700', color: '#111827', marginBottom: 16, textAlign: 'center' },
-  successCard: { backgroundColor: '#f1f5f9', padding: 16, borderRadius: 20 },
-  successImage: { width: '100%', height: 160, borderRadius: 16, backgroundColor: '#e2e8f0' },
-  successLabel: { fontSize: 12, color: '#374151', fontWeight: '600' },
-  successValue: { color: '#111827', fontWeight: '700' },
-  successDesc: { fontSize: 12, color: '#374151', marginTop: 4 },
-  successPrice: { fontSize: 13, color: '#111827', fontWeight: '600', marginTop: 6 },
-  noImage: { fontSize: 12, color: '#64748b' },
-  actionBtn: { marginTop: 16, backgroundColor: '#000', paddingVertical: 12, borderRadius: 24, alignItems: 'center' },
-  actionBtnText: { color: '#fff', fontWeight: '600', fontSize: 13 },
-  actionBtnSecondary: { marginTop: 16, backgroundColor: '#fff', paddingVertical: 12, borderRadius: 24, alignItems: 'center', borderWidth: 1, borderColor: '#111827' },
-  actionBtnTextSecondary: { color: '#111827', fontWeight: '600', fontSize: 13 },
-})

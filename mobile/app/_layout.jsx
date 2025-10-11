@@ -12,6 +12,8 @@ import * as SecureStore from "expo-secure-store"
 import { startLocationHeartbeat } from "../utils/location"
 import { track, flush } from "../utils/analytics"
 import { ANALYTICS_EVENTS } from "../constants/analyticsEvents"
+import SafeScreen from "../components/SafeScreen"
+import { SwipeBackGesture } from "../components/navigation"
 
 const tokenCache = {
   async getToken(key) {
@@ -86,19 +88,29 @@ export default function RootLayout() {
       tokenCache={tokenCache}
       telemetry={{ disabled: process.env.EXPO_PUBLIC_CLERK_TELEMETRY_DISABLED === 'true' }} // Re-enabled by default after upgrading Clerk; set EXPO_PUBLIC_CLERK_TELEMETRY_DISABLED=true to silence if issues reoccur
     >
-      {/* Redirect from '/' based on auth state so we don't need a dedicated index route */}
-      <ToastProvider>
-        <InitialRedirect />
-        <LocationHeartbeat />
-        <ProfileProvider>
-          <FavoritesProvider>
-            <CartProvider>
-              <ForegroundCartValidator />
-              <Stack screenOptions={{ headerShown: false }} />
-            </CartProvider>
-          </FavoritesProvider>
-        </ProfileProvider>
-      </ToastProvider>
+      <SafeScreen>
+        {/* Redirect from '/' based on auth state so we don't need a dedicated index route */}
+        <ToastProvider>
+          <InitialRedirect />
+          <LocationHeartbeat />
+          <ProfileProvider>
+            <FavoritesProvider>
+              <CartProvider>
+                <ForegroundCartValidator />
+                <SwipeBackGesture 
+                  edgeWidth={60}
+                  threshold={100}
+                  velocityThreshold={0.4}
+                  hapticFeedback={true}
+                  fallbackRoute="/home"
+                >
+                  <Stack screenOptions={{ headerShown: false }} />
+                </SwipeBackGesture>
+              </CartProvider>
+            </FavoritesProvider>
+          </ProfileProvider>
+        </ToastProvider>
+      </SafeScreen>
     </ClerkProvider>
   )
 }
@@ -127,9 +139,22 @@ function InitialRedirect() {
 
   useEffect(() => {
     if (!isLoaded) return
+    
     // Handle app root and legacy '/page' redirect centrally
     if (!pathname || pathname === "/" || pathname === "/page") {
-  router.replace(isSignedIn ? "/home" : "/(auth)/sign-up")
+      // Use requestAnimationFrame to ensure we're after the layout phase
+      const frame = requestAnimationFrame(() => {
+        try {
+          router.replace(isSignedIn ? "/home" : "/(auth)/sign-up")
+        } catch (_error) {
+          // If navigation fails, try again after a short delay
+          console.log('Initial navigation deferred, retrying...')
+          setTimeout(() => {
+            router.replace(isSignedIn ? "/home" : "/(auth)/sign-up")
+          }, 500)
+        }
+      })
+      return () => cancelAnimationFrame(frame)
     }
   }, [isLoaded, isSignedIn, pathname, router])
 

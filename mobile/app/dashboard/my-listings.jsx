@@ -1,11 +1,12 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, ScrollView, Alert } from 'react-native'
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, ScrollView, Alert } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getJSON, patchJSON, deleteJSON } from '../../context/api'
 import { emitAppEvent } from '../../context/favorites'
 import { useProfile } from '../../context/profile'
 import { router } from 'expo-router'
 import BlurhashImage from '../../components/BlurhashImage'
+import { myListingsStyles as styles } from '../../assets/styles/listings.styles'
 
 export default function MyListings() {
 	const { profile } = useProfile()
@@ -347,63 +348,4 @@ export default function MyListings() {
 		</View>
 	)
 }
-
-const styles = StyleSheet.create({
-	container:{ flex:1, backgroundColor:'#f9fafb' },
-	header:{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingTop: 52, paddingHorizontal:16, paddingBottom:12, backgroundColor:'#fff', borderBottomWidth:1, borderColor:'#e5e7eb' },
-	headerTitle:{ fontSize:16, fontWeight:'700', color:'#111827' },
-	back:{ color:'#111827', fontWeight:'600', fontSize:14 },
-	card:{ flexDirection:'row', backgroundColor:'#fff', marginHorizontal:16, marginTop:12, borderRadius:16, overflow:'hidden', elevation:2, borderWidth:1, borderColor:'#e5e7eb' },
-	image:{ width:110, height:110, backgroundColor:'#e5e7eb' },
-	imageWrapper:{ position:'relative', width:110, height:110 },
-	meta:{ flex:1, padding:12 },
-	title:{ fontSize:13, fontWeight:'700', color:'#111827' },
-	price:{ fontSize:12, fontWeight:'600', color:'#16a34a', marginTop:4 },
-	discount:{ fontSize:11, fontWeight:'600', color:'#dc2626' },
-	qty:{ fontSize:11, color:'#64748b', marginTop:4 },
-	qtyOut:{ color:'#dc2626' },
-	actionsRow:{ flexDirection:'row', marginTop:'auto', gap:8 },
-	smallBtn:{ backgroundColor:'#f1f5f9', paddingHorizontal:12, paddingVertical:6, borderRadius:14 },
-	smallBtnText:{ fontSize:11, fontWeight:'600', color:'#111827' },
-	center:{ flex:1, justifyContent:'center', alignItems:'center' },
-	loadingTxt:{ marginTop:8, fontSize:12, color:'#6b7280' },
-	error:{ color:'#dc2626', fontSize:12 },
-	retry:{ marginTop:12, backgroundColor:'#111827', paddingHorizontal:16, paddingVertical:10, borderRadius:24 },
-	retryText:{ color:'#fff', fontWeight:'600' },
-	empty:{ fontSize:12, color:'#6b7280' },
-	fab:{ position:'absolute', right:16, bottom:24, backgroundColor:'#111827', width:52, height:52, borderRadius:26, alignItems:'center', justifyContent:'center', elevation:4 },
-	fabText:{ color:'#fff', fontSize:24, fontWeight:'700', marginTop:-2 },
-	searchBarWrapper:{ paddingHorizontal:16, paddingTop:12 },
-	searchInput:{ backgroundColor:'#fff', borderWidth:1, borderColor:'#e5e7eb', borderRadius:24, paddingHorizontal:16, paddingVertical:10, fontSize:13, color:'#111827' },
-	filtersScroll:{ marginTop:8, maxHeight:44 },
-	filtersRow:{ paddingHorizontal:12, alignItems:'center' },
-	filterChip:{ backgroundColor:'#f1f5f9', paddingHorizontal:14, paddingVertical:8, borderRadius:18, marginHorizontal:4 },
-	filterChipActive:{ backgroundColor:'#111827' },
-	filterChipText:{ fontSize:12, fontWeight:'600', color:'#374151' },
-	filterChipTextActive:{ color:'#fff' },
-	sortScroll:{ marginTop:4, maxHeight:40 },
-	sortRow:{ paddingHorizontal:12, alignItems:'center' },
-	sortChip:{ backgroundColor:'#f3f4f6', paddingHorizontal:14, paddingVertical:6, borderRadius:16, marginHorizontal:4 },
-	sortChipActive:{ backgroundColor:'#16a34a' },
-	sortChipText:{ fontSize:11, fontWeight:'600', color:'#374151' },
-	sortChipTextActive:{ color:'#fff' },
-	badge:{ position:'absolute', top:6, left:6, backgroundColor:'#111827', paddingHorizontal:6, paddingVertical:2, borderRadius:12 },
-	badgeDiscount:{ backgroundColor:'#16a34a' },
-	badgeOut:{ backgroundColor:'#dc2626', top:6, right:6, left:'auto' },
-	badgeEdited:{ backgroundColor:'#3b82f6', top:'auto', bottom:6, left:6 },
-	badgeText:{ fontSize:10, fontWeight:'700', color:'#fff' },
-	headerActions:{ flexDirection:'row', alignItems:'center' },
-	headerBtn:{ paddingHorizontal:12, paddingVertical:6, backgroundColor:'#f1f5f9', borderRadius:16 },
-	headerBtnText:{ fontSize:12, fontWeight:'600', color:'#111827' },
-	selectOverlay:{ position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'rgba(0,0,0,0.15)', justifyContent:'flex-start', alignItems:'flex-end', padding:6 },
-	checkbox:{ width:22, height:22, borderRadius:12, borderWidth:2, borderColor:'#fff', backgroundColor:'rgba(255,255,255,0.4)', alignItems:'center', justifyContent:'center' },
-	checkboxChecked:{ backgroundColor:'#16a34a', borderColor:'#16a34a' },
-	checkboxMark:{ color:'#fff', fontSize:12, fontWeight:'700' },
-	cardSelected:{ borderColor:'#16a34a', borderWidth:2 },
-	bulkBar:{ position:'absolute', left:0, right:0, bottom:0, flexDirection:'row', padding:12, backgroundColor:'#ffffffee', gap:12, borderTopWidth:1, borderColor:'#e5e7eb' },
-	bulkBtn:{ flex:1, backgroundColor:'#16a34a', paddingVertical:12, borderRadius:24, alignItems:'center' },
-	bulkBtnText:{ color:'#fff', fontWeight:'700', fontSize:13 },
-	bulkCancel:{ backgroundColor:'#f3f4f6' },
-	bulkCancelText:{ color:'#111827', fontWeight:'600', fontSize:13 }
-})
 

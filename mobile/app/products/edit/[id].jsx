@@ -1,10 +1,11 @@
 import { useLocalSearchParams, router } from 'expo-router'
 import { useEffect, useState, useCallback } from 'react'
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Switch, Image } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Switch, Image } from 'react-native'
 import { getJSON, patchJSON, postJSON } from '../../../context/api'
 import * as ImagePicker from 'expo-image-picker'
 import { track } from '../../../utils/analytics'
 import { ANALYTICS_EVENTS } from '../../../constants/analyticsEvents'
+import { productEditStyles as styles } from '../../../assets/styles/products.styles'
 
 export default function EditProduct() {
   const { id } = useLocalSearchParams()
@@ -204,30 +205,3 @@ export default function EditProduct() {
     </ScrollView>
   )
 }
-
-const styles = StyleSheet.create({
-  container:{ flex:1, backgroundColor:'#f8fafc' },
-  headerRow:{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:12 },
-  back:{ color:'#111827', fontSize:14, fontWeight:'600' },
-  title:{ fontSize:16, fontWeight:'700', color:'#111827' },
-  label:{ fontSize:12, fontWeight:'600', color:'#374151', marginTop:16, marginBottom:6 },
-  input:{ backgroundColor:'#fff', borderWidth:1, borderColor:'#e5e7eb', borderRadius:20, paddingHorizontal:16, paddingVertical:10, fontSize:13 },
-  inputError:{ borderColor:'#ef4444' },
-  fieldError:{ color:'#ef4444', fontSize:11, marginTop:4 },
-  switchRow:{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginTop:20 },
-  saveBtn:{ marginTop:28, backgroundColor:'#111827', paddingVertical:14, borderRadius:28, alignItems:'center' },
-  saveText:{ color:'#fff', fontWeight:'700', fontSize:14 },
-  error:{ color:'#dc2626', textAlign:'center' },
-  retry:{ marginTop:12, alignSelf:'center', backgroundColor:'#111827', paddingHorizontal:16, paddingVertical:10, borderRadius:24 },
-  retryText:{ color:'#fff', fontWeight:'600' },
-  imagesWrap:{ flexDirection:'row', flexWrap:'wrap', marginTop:4 },
-  imageItem:{ width:76, height:76, marginRight:8, marginBottom:8, position:'relative' },
-  imageThumb:{ width:'100%', height:'100%', borderRadius:16, backgroundColor:'#e2e8f0' },
-  removeBtn:{ position:'absolute', top:-6, right:-6, backgroundColor:'#111827', width:22, height:22, borderRadius:11, alignItems:'center', justifyContent:'center' },
-  removeBtnText:{ color:'#fff', fontSize:14, fontWeight:'700', lineHeight:16 },
-  addImage:{ width:76, height:76, borderRadius:16, backgroundColor:'#f1f5f9', borderWidth:1, borderColor:'#e2e8f0', alignItems:'center', justifyContent:'center' },
-  addImageText:{ fontSize:28, color:'#64748b', marginTop:-4 },
-  imagesHint:{ fontSize:11, color:'#64748b', marginTop:2, marginLeft:4 },
-  multilineInput:{ minHeight:100, paddingTop:12 },
-  charCount:{ fontSize:10, color:'#94a3b8', marginTop:4, alignSelf:'flex-end', marginRight:4 },
-})

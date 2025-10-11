@@ -1,0 +1,478 @@
+import { StyleSheet } from 'react-native';
+import { COLORS } from '../../constants/colors';
+
+// Post Listing Page Styles
+export const postListingStyles = StyleSheet.create({
+  container: { 
+    flex: 1, backgroundColor: COLORS.background 
+  },
+  content: { 
+    padding: 16, paddingBottom: 64 
+  },
+  headerRow: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    marginBottom: 12 
+  },
+  brand: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    color: COLORS.text 
+  },
+  title: { 
+    fontSize: 16, 
+    fontWeight: '700', 
+    color: COLORS.text, 
+    marginBottom: 16 
+  },
+  label: { 
+    fontSize: 12, 
+    fontWeight: '600', 
+    color: COLORS.textLight, 
+    marginTop: 12, 
+    marginBottom: 6 
+  },
+  input: { 
+    backgroundColor: COLORS.card, 
+    borderWidth: 1, 
+    borderColor: COLORS.border, 
+    borderRadius: 24, 
+    paddingHorizontal: 16, 
+    paddingVertical: 12, 
+    fontSize: 13, 
+    color: COLORS.text 
+  },
+  multiline: { 
+    borderRadius: 20, minHeight: 120 
+  },
+  submitBtn: { 
+    backgroundColor: COLORS.primary, 
+    paddingHorizontal: 16, 
+    paddingVertical: 12, 
+    borderRadius: 24, 
+    alignItems: 'center', 
+    alignSelf: 'center', 
+    marginTop: 20 
+  },
+  submitText: { 
+    color: COLORS.white, 
+    fontWeight: '600', 
+    fontSize: 13 
+  },
+  imagePicker: { 
+    marginTop: 4, 
+    backgroundColor: COLORS.background, 
+    borderRadius: 20, 
+    height: 140, 
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    borderWidth: 1, 
+    borderColor: COLORS.border 
+  },
+  imagePreview: { 
+    width: '100%', 
+    height: '100%', 
+    borderRadius: 20 
+  },
+  uploadIcon: { 
+    fontSize: 22, 
+    color: COLORS.textLight, 
+    marginBottom: 4 
+  },
+  uploadHint: { 
+    fontSize: 12, 
+    color: COLORS.textLight 
+  },
+  imagePicked: { 
+    fontSize: 12, 
+    color: COLORS.text 
+  },
+  inputError: { 
+    borderColor: COLORS.error 
+  },
+  errorText: { 
+    color: COLORS.error, 
+    fontSize: 11, 
+    marginTop: 4, 
+    marginLeft: 4 
+  },
+  successHeading: { 
+    fontSize: 16, 
+    fontWeight: '700', 
+    color: COLORS.text, 
+    marginBottom: 16, 
+    textAlign: 'center' 
+  },
+  successCard: { 
+    backgroundColor: COLORS.background, 
+    padding: 16, 
+    borderRadius: 20 
+  },
+  successImage: { 
+    width: '100%', 
+    height: 160, 
+    borderRadius: 16, 
+    backgroundColor: COLORS.border 
+  },
+  successLabel: { 
+    fontSize: 12, 
+    color: COLORS.textLight, 
+    fontWeight: '600' 
+  },
+  successValue: { 
+    color: COLORS.text, 
+    fontWeight: '700' 
+  },
+  successDesc: { 
+    fontSize: 12, 
+    color: COLORS.textLight, 
+    marginTop: 4 
+  },
+  successPrice: { 
+    fontSize: 13, 
+    color: COLORS.text, 
+    fontWeight: '600', 
+    marginTop: 6 
+  },
+  noImage: { 
+    fontSize: 12, 
+    color: COLORS.textLight 
+  },
+  actionBtn: { 
+    marginTop: 16, 
+    backgroundColor: COLORS.primary, 
+    paddingVertical: 12, 
+    borderRadius: 24, 
+    alignItems: 'center' 
+  },
+  actionBtnText: { 
+    color: COLORS.white, 
+    fontWeight: '600', 
+    fontSize: 13 
+  },
+  actionBtnSecondary: { 
+    marginTop: 16, 
+    backgroundColor: COLORS.card, 
+    paddingVertical: 12, 
+    borderRadius: 24, 
+    alignItems: 'center', 
+    borderWidth: 1, 
+    borderColor: COLORS.primary 
+  },
+  actionBtnTextSecondary: { 
+    color: COLORS.primary, 
+    fontWeight: '600', 
+    fontSize: 13 
+  },
+});
+
+// My Listings Page Styles
+export const myListingsStyles = StyleSheet.create({
+  container:{ 
+    flex:1, backgroundColor: COLORS.background 
+  },
+  header:{ 
+    flexDirection:'row', 
+    alignItems:'center', 
+    justifyContent:'space-between', 
+    paddingTop: 52, 
+    paddingHorizontal:16, 
+    paddingBottom:12, 
+    backgroundColor: COLORS.card, 
+    borderBottomWidth:1, 
+    borderColor: COLORS.border 
+  },
+  headerTitle:{ 
+    fontSize:16, 
+    fontWeight:'700', 
+    color: COLORS.text 
+  },
+  back:{ 
+    color: COLORS.text, 
+    fontWeight:'600', 
+    fontSize:14 
+  },
+  card:{ 
+    flexDirection:'row', 
+    backgroundColor: COLORS.card, 
+    marginHorizontal:16, 
+    marginTop:12, 
+    borderRadius:16, 
+    overflow:'hidden', 
+    elevation:2, 
+    borderWidth:1, 
+    borderColor: COLORS.border 
+  },
+  image:{ 
+    width:110, 
+    height:110, 
+    backgroundColor: COLORS.border 
+  },
+  imageWrapper:{ 
+    position:'relative', width:110, height:110 
+  },
+  meta:{ 
+    flex:1, padding:12 
+  },
+  title:{ 
+    fontSize:13, 
+    fontWeight:'700', 
+    color: COLORS.text 
+  },
+  price:{ 
+    fontSize:12, 
+    fontWeight:'600', 
+    color: COLORS.primary, 
+    marginTop:4 
+  },
+  discount:{ 
+    fontSize:11, 
+    fontWeight:'600', 
+    color: COLORS.error 
+  },
+  qty:{ 
+    fontSize:11, 
+    color: COLORS.textLight, 
+    marginTop:4 
+  },
+  qtyOut:{ 
+    color: COLORS.error 
+  },
+  actionsRow:{ 
+    flexDirection:'row', 
+    marginTop:'auto', 
+    gap:8 
+  },
+  smallBtn:{ 
+    backgroundColor: COLORS.background, 
+    paddingHorizontal:12, 
+    paddingVertical:6, 
+    borderRadius:14 
+  },
+  smallBtnText:{ 
+    fontSize:11, 
+    fontWeight:'600', 
+    color: COLORS.text 
+  },
+  center:{ 
+    flex:1, 
+    justifyContent:'center', 
+    alignItems:'center' 
+  },
+  loadingTxt:{ 
+    marginTop:8, 
+    fontSize:12, 
+    color: COLORS.textLight 
+  },
+  error:{ 
+    color: COLORS.error, 
+    fontSize:12 
+  },
+  retry:{ 
+    marginTop:12, 
+    backgroundColor: COLORS.primary, 
+    paddingHorizontal:16, 
+    paddingVertical:10, 
+    borderRadius:24 
+  },
+  retryText:{ 
+    color: COLORS.white, 
+    fontWeight:'600' 
+  },
+  empty:{ 
+    fontSize:12, 
+    color: COLORS.textLight 
+  },
+  fab:{ 
+    position:'absolute', 
+    right:16, 
+    bottom:24, 
+    backgroundColor: COLORS.primary, 
+    width:52, 
+    height:52, 
+    borderRadius:26, 
+    alignItems:'center', 
+    justifyContent:'center', 
+    elevation:4 
+  },
+  fabText:{ 
+    color: COLORS.white, 
+    fontSize:24, 
+    fontWeight:'700', 
+    marginTop:-2 
+  },
+  searchBarWrapper:{ 
+    paddingHorizontal:16, 
+    paddingTop:12 
+  },
+  searchInput:{ 
+    backgroundColor: COLORS.card, 
+    borderWidth:1, 
+    borderColor: COLORS.border, 
+    borderRadius:24, 
+    paddingHorizontal:16, 
+    paddingVertical:10, 
+    fontSize:13, 
+    color: COLORS.text 
+  },
+  filtersScroll:{ 
+    marginTop:8, 
+    maxHeight:44 
+  },
+  filtersRow:{ 
+    paddingHorizontal:12, 
+    alignItems:'center' 
+  },
+  filterChip:{ 
+    backgroundColor: COLORS.background, 
+    paddingHorizontal:14, 
+    paddingVertical:8, 
+    borderRadius:18, 
+    marginHorizontal:4 
+  },
+  filterChipActive:{ 
+    backgroundColor: COLORS.primary 
+  },
+  filterChipText:{ 
+    fontSize:12, 
+    fontWeight:'600', 
+    color: COLORS.textLight 
+  },
+  filterChipTextActive:{ 
+    color: COLORS.white 
+  },
+  sortScroll:{ 
+    marginTop:4, 
+    maxHeight:40 
+  },
+  sortRow:{ 
+    paddingHorizontal:12, 
+    alignItems:'center' 
+  },
+  sortChip:{ 
+    backgroundColor: COLORS.card, 
+    paddingHorizontal:14, 
+    paddingVertical:6, 
+    borderRadius:16, 
+    marginHorizontal:4 
+  },
+  sortChipActive:{ 
+    backgroundColor: COLORS.primary 
+  },
+  sortChipText:{ 
+    fontSize:11, 
+    fontWeight:'600', 
+    color: COLORS.textLight 
+  },
+  sortChipTextActive:{ 
+    color: COLORS.white 
+  },
+  badge:{ 
+    position:'absolute', 
+    top:6, 
+    left:6, 
+    backgroundColor: COLORS.primary, 
+    paddingHorizontal:6, 
+    paddingVertical:2, 
+    borderRadius:12 
+  },
+  badgeDiscount:{ 
+    backgroundColor: COLORS.primary 
+  },
+  badgeOut:{ 
+    backgroundColor: COLORS.error, 
+    top:6, 
+    right:6, 
+    left:'auto' 
+  },
+  badgeEdited:{ 
+    backgroundColor: COLORS.primary, 
+    top:'auto', 
+    bottom:6, 
+    left:6 
+  },
+  badgeText:{ 
+    fontSize:10, 
+    fontWeight:'700', 
+    color: COLORS.white 
+  },
+  headerActions:{ 
+    flexDirection:'row', 
+    alignItems:'center' 
+  },
+  headerBtn:{ 
+    paddingHorizontal:12, 
+    paddingVertical:6, 
+    backgroundColor: COLORS.background, 
+    borderRadius:16 
+  },
+  headerBtnText:{ 
+    fontSize:12, 
+    fontWeight:'600', 
+    color: COLORS.text 
+  },
+  selectOverlay:{ 
+    position:'absolute', 
+    top:0, 
+    left:0, 
+    right:0, 
+    bottom:0, 
+    backgroundColor:'rgba(0,0,0,0.15)', 
+    justifyContent:'flex-start', 
+    alignItems:'flex-end', 
+    padding:6 
+  },
+  checkbox:{ 
+    width:22, 
+    height:22, 
+    borderRadius:12, 
+    borderWidth:2, 
+    borderColor: COLORS.white, 
+    backgroundColor:'rgba(255,255,255,0.4)', 
+    alignItems:'center', 
+    justifyContent:'center' 
+  },
+  checkboxChecked:{ 
+    backgroundColor: COLORS.primary, 
+    borderColor: COLORS.primary 
+  },
+  checkboxMark:{ 
+    color: COLORS.white, fontSize:12, fontWeight:'700' 
+  },
+  cardSelected:{ 
+    borderColor: COLORS.primary, borderWidth:2 
+  },
+  bulkBar:{ 
+    position:'absolute', 
+    left:0, 
+    right:0, 
+    bottom:0, 
+    flexDirection:'row', 
+    padding:12, 
+    backgroundColor: COLORS.card + 'ee', 
+    gap:12, 
+    borderTopWidth:1, 
+    borderColor: COLORS.border 
+  },
+  bulkBtn:{ 
+    flex:1, 
+    backgroundColor: COLORS.primary, 
+    paddingVertical:12, 
+    borderRadius:24, 
+    alignItems:'center' 
+  },
+  bulkBtnText:{ 
+    color: COLORS.white, 
+    fontWeight:'700', 
+    fontSize:13 
+  },
+  bulkCancel:{ 
+    backgroundColor: COLORS.background 
+  },
+  bulkCancelText:{ 
+    color: COLORS.text, 
+    fontWeight:'600', 
+    fontSize:13 
+  }
+});

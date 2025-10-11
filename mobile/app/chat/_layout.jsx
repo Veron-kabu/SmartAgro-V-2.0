@@ -11,7 +11,7 @@ export default function ChatLayout() {
         }}
       >
         <Stack.Screen name="index" />
-        <Stack.Screen name="messages" />
+        <Stack.Screen name="conversation" />
         <Stack.Screen name="new-chat" />
         <Stack.Screen name="test" />
       </Stack>

@@ -2,13 +2,14 @@
 
 import { useLocalSearchParams, router } from 'expo-router'
 import { useEffect, useState, useCallback } from 'react'
-import { View, Text, StyleSheet, ActivityIndicator, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native'
+import { View, Text, ActivityIndicator, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native'
 import { getJSON, postJSON } from '../../context/api'
 import { track } from '../../utils/analytics'
 import { ANALYTICS_EVENTS } from '../../constants/analyticsEvents'
 import { formatCurrency } from '../../utils/orders'
 import { emitAppEvent } from '../../context/favorites'
 import { useToast } from '../../context/toast'
+import { newOrderStyles as styles } from '../../assets/styles/orders.styles'
 import { useProfile } from '../../context/profile'
 
 export default function NewOrderScreen() {
@@ -135,18 +136,3 @@ export default function NewOrderScreen() {
     </ScrollView>
   )
 }
-
-const styles = StyleSheet.create({
-  center: { flex:1, alignItems:'center', justifyContent:'center', backgroundColor:'#f9fafb' },
-  card: { backgroundColor:'#fff', borderRadius:16, padding:20, elevation:2 },
-  title: { fontSize:22, fontWeight:'700', marginBottom:12, color:'#111827' },
-  label: { fontWeight:'600', fontSize:14, color:'#374151', marginBottom:4 },
-  value: { fontSize:16, fontWeight:'500', color:'#111827', marginBottom:4 },
-  input: { backgroundColor:'#f3f4f6', borderRadius:8, paddingHorizontal:12, paddingVertical:10, fontSize:14, color:'#111827' },
-  helper: { fontSize:12, color:'#6b7280', marginTop:4 },
-  muted: { color:'#6b7280' },
-  mutedSmall: { color:'#6b7280', fontSize:12, marginBottom:4 },
-  total: { fontSize:16, fontWeight:'700', color:'#111827' },
-  button: { backgroundColor:'#16a34a', paddingHorizontal:18, paddingVertical:12, borderRadius:10 },
-  buttonText: { color:'#fff', fontWeight:'700' }
-})

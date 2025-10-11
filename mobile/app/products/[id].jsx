@@ -1,6 +1,6 @@
 import { useLocalSearchParams, router } from 'expo-router'
 import { useEffect, useState, useCallback } from 'react'
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Share, Dimensions, Image } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView, Alert, Share, Dimensions, Image } from 'react-native'
 import { getJSON } from '../../context/api'
 import { useFavorites } from '../../context/favorites'
 import BlurhashImage from '../../components/BlurhashImage'
@@ -8,6 +8,8 @@ import Shimmer from '../../components/Shimmer'
 import { useCart } from '../../context/cart'
 import { track } from '../../utils/analytics'
 import { ANALYTICS_EVENTS } from '../../constants/analyticsEvents'
+import { BackButton } from '../../components/navigation'
+import { productDetailStyles as styles } from '../../assets/styles/products.styles'
 
 export default function ProductDetail() {
   const { id } = useLocalSearchParams()
@@ -139,7 +141,12 @@ export default function ProductDetail() {
             </View>
           )}
           <View style={styles.topButtons}>
-            <TouchableOpacity style={styles.navBtn} onPress={() => router.back()}><Text style={styles.navBtnText}>{'<'}</Text></TouchableOpacity>
+            <BackButton 
+              color="#333"
+              size={20}
+              style={styles.navBtn}
+              fallbackRoute="/home"
+            />
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <TouchableOpacity style={[styles.circleBtn, (favorited || isFavorited(numericId)) && styles.circleBtnActive]} onPress={toggleFavorite} disabled={checkingFav}>
                 <Text style={[styles.circleBtnText, (favorited || isFavorited(numericId)) && styles.circleBtnTextActive]}>{(favorited || isFavorited(numericId)) ? '★' : '☆'}</Text>
@@ -229,46 +236,3 @@ export default function ProductDetail() {
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f3f4f6' },
-  heroWrap: { position: 'relative', width: '100%', height: 260, backgroundColor: '#e5e7eb' },
-  heroImage: { width: '100%', height: '100%' },
-  dotsWrap: { position: 'absolute', bottom: 12, left: 0, right: 0, flexDirection:'row', justifyContent:'center', gap:6 },
-  dot: { width:8, height:8, borderRadius:4, backgroundColor:'rgba(255,255,255,0.4)' },
-  dotActive: { backgroundColor:'#fff' },
-  topButtons: { position: 'absolute', top: 40, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  navBtn: { backgroundColor: 'rgba(255,255,255,0.8)', width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  navBtnText: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  circleBtn: { backgroundColor: 'rgba(255,255,255,0.8)', width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  circleBtnText: { fontSize: 16, color: '#111827', fontWeight: '600' },
-  discountBadge: { position: 'absolute', top: 40, left: 16, backgroundColor: '#ef4444', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16 },
-  discountBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
-  discountBadgeSecondary: { position: 'absolute', top: 40, right: 16, backgroundColor: '#1f2937', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16 },
-  discountBadgeSecondaryText: { color: '#fff', fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
-  sheet: { marginTop: -28, backgroundColor: '#fff', borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, minHeight: 340 },
-  title: { fontSize: 20, fontWeight: '700', color: '#111827', marginBottom: 6 },
-  price: { fontSize: 20, fontWeight: '700', color: '#111827' },
-  origPrice: { fontSize: 14, color: '#6b7280', textDecorationLine:'line-through', fontWeight:'600', marginBottom:2 },
-  unit: { fontSize: 12, fontWeight: '600', color: '#6b7280' },
-  desc: { fontSize: 13, color: '#475569', marginTop: 10, lineHeight: 18 },
-  metaRow: { flexDirection: 'row', marginTop: 8 },
-  metaLabel: { fontSize: 12, color: '#6b7280', width: 110 },
-  metaValue: { fontSize: 12, color: '#111827', fontWeight: '600' },
-  qtyRow: { flexDirection: 'row', alignItems: 'center', marginTop: 22, gap: 16 },
-  qtyLabel: { fontSize: 14, fontWeight: '600', color: '#111827' },
-  qtyControls: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', borderRadius: 24, paddingHorizontal: 8, paddingVertical: 6 },
-  qtyBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 4 },
-  qtyBtnText: { fontSize: 16, fontWeight: '700', color: '#111827' },
-  qtyValue: { minWidth: 28, textAlign: 'center', fontSize: 16, fontWeight: '600', color: '#111827' },
-  extPrice: { marginLeft: 'auto', fontSize: 14, fontWeight: '700', color: '#111827' },
-  addBtn: { marginTop: 18, backgroundColor: '#111827', paddingVertical: 14, borderRadius: 32, alignItems: 'center' },
-  addBtnDisabled: { backgroundColor: '#9ca3af' },
-  addBtnText: { color: '#fff', fontSize: 14, fontWeight: '700', letterSpacing: 0.5 },
-  circleBtnActive: { backgroundColor: '#111827' },
-  circleBtnTextActive: { color: '#fff' },
-  retryBtn: { backgroundColor: '#111827', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 24 },
-  retryBtnText: { color: '#fff', fontWeight: '600' },
-  secondaryActionBtn: { flex:1, backgroundColor: '#f1f5f9', paddingVertical: 14, borderRadius: 28, alignItems:'center' },
-  secondaryActionBtnText: { color:'#111827', fontWeight:'700', fontSize:14 },
-})

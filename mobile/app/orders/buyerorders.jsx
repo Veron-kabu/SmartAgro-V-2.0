@@ -1,11 +1,12 @@
 "use client"
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { View, Text, StyleSheet, SectionList, ActivityIndicator, TouchableOpacity } from 'react-native'
+import { View, Text, SectionList, ActivityIndicator, TouchableOpacity } from 'react-native'
 import { useRouter } from 'expo-router'
 import { getJSON } from '../../context/api'
 import { groupOrders, formatCurrency, formatDate, statusBadgeColor } from '../../utils/orders'
 import { OrderTimeline } from '../../components/OrderTimeline'
+import { buyerOrdersStyles as styles } from '../../assets/styles/orders.styles'
 
 export default function BuyerOrders() {
   const router = useRouter()
@@ -99,16 +100,3 @@ export default function BuyerOrders() {
     />
   )
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9fafb' },
-  card: { backgroundColor: '#fff', margin: 16, padding: 16, borderRadius: 12, elevation: 2 },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  muted: { color: '#6b7280', fontSize: 12 },
-  bold: { fontWeight: '700', color: '#111827' },
-  badge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  badgeText: { fontSize: 10, fontWeight: '700' },
-  skelTitle: { height: 14, backgroundColor: '#e5e7eb', borderRadius: 6, width: '60%' },
-  skelLine: { height: 10, backgroundColor: '#e5e7eb', borderRadius: 6, width: '40%', marginTop: 8 },
-})

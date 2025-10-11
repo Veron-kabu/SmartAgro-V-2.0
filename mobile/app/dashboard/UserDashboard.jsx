@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, Modal, Platform, KeyboardAvoidingView, ScrollView, ActivityIndicator } from 'react-native'
+import { View, Text, TouchableOpacity, TextInput, Alert, Modal, Platform, KeyboardAvoidingView, ScrollView, ActivityIndicator } from 'react-native'
 import { Image as ExpoImage } from 'expo-image'
 import BlurhashImage from '../../components/BlurhashImage'
 import { LinearGradient } from 'expo-linear-gradient'
@@ -12,6 +12,8 @@ import { useDashboardMedia } from '../../hooks/useDashboardMedia'
 import { useDashboardStats } from '../../hooks/useDashboardStats'
 import { router } from 'expo-router'
 import { useToast } from '../../context/toast'
+import { profileStyles as styles } from '../../assets/styles/(tabs)/profile.styles'
+import { userDashboardStyles as modalStyles } from '../../assets/styles/userDashboard.styles'
 
 // Floating FabActions removed for farmer: actions integrated into sections
 
@@ -309,8 +311,8 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         {/* Hero Section */}
         {isAdminViewingOther && (
-          <View style={{ backgroundColor: '#f59e0b', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8, marginHorizontal: 16, marginTop: 8 }}>
-            <Text style={{ color: '#111827', fontSize: 11, fontWeight: '600' }}>Admin view: displaying {expectedRole} layout</Text>
+          <View style={styles.adminBanner}>
+            <Text style={styles.adminBannerText}>Admin view: displaying {expectedRole} layout</Text>
           </View>
         )}
         <View style={styles.heroWrapper}>
@@ -459,9 +461,9 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
                   <Text style={styles.fundLabel}>Products</Text>
                   <Text style={styles.fundValue}>{stats?.products?.total ?? dashboardData?.totalProducts ?? 0}</Text>
                 </View>
-                <TouchableOpacity style={[styles.fundCard, { width: '100%', backgroundColor:'#111827' }]} activeOpacity={0.85} onPress={() => router.push('/dashboard/earnings')}>
-                  <Text style={[styles.fundLabel, { color:'#f3f4f6' }]}>View Detailed Earnings & Trends →</Text>
-                  <Text style={[styles.fundValue, { color:'#fff', marginTop:6, fontSize:13 }]}>Analyze per‑listing performance</Text>
+                <TouchableOpacity style={[styles.fundCard, styles.fundCardFull]} activeOpacity={0.85} onPress={() => router.push('/dashboard/earnings')}>
+                  <Text style={[styles.fundLabel, styles.fundLabelLight]}>View Detailed Earnings & Trends →</Text>
+                  <Text style={[styles.fundValue, styles.fundValueLight]}>Analyze per‑listing performance</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -469,20 +471,20 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
         )}
 
         {/* Switch Role section removed */}
-        <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
+        <View style={styles.logoutContainer}>
           <TouchableOpacity
             onPress={confirmLogout}
             disabled={signingOut}
-            style={{ backgroundColor: '#dc2626', paddingVertical: 12, borderRadius: 10, alignItems: 'center', opacity: signingOut ? 0.75 : 1 }}
+            style={[styles.logoutButton, signingOut && styles.logoutButtonDisabled]}
             activeOpacity={0.85}
           >
             {signingOut ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <View style={styles.logoutRow}>
                 <ActivityIndicator size="small" color="#fff" />
-                <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Logging out…</Text>
+                <Text style={styles.logoutText}>Logging out…</Text>
               </View>
             ) : (
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Log Out</Text>
+              <Text style={styles.logoutText}>Log Out</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -492,116 +494,116 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
       {/* Edit Profile Modal (full-screen, scrollable, keyboard-aware) */}
       <Modal visible={editOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setEditOpen(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-          <View style={styles.editContainer}>
-            <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setEditOpen(false)}>
-                <Text style={styles.headerAction}>Cancel</Text>
-              </TouchableOpacity>
-              <Text style={styles.headerTitle}>Edit Profile</Text>
+          <View style={modalStyles.editContainer}>
+            <View style={modalStyles.modalHeader}>
+        {/**      <TouchableOpacity onPress={() => setEditOpen(false)}>
+                <Text style={modalStyles.headerAction}>Cancel</Text>
+              </TouchableOpacity>  */}
+              <Text style={modalStyles.headerTitle}>Edit Profile</Text>
               <View style={{ width: 56 }} />
             </View>
-            <ScrollView contentContainerStyle={styles.editContent} keyboardShouldPersistTaps="handled">
-              <Text style={styles.inputLabel}>Full name</Text>
+            <ScrollView contentContainerStyle={modalStyles.editContent} keyboardShouldPersistTaps="handled">
+              <Text style={modalStyles.inputLabel}>Full name</Text>
               <TextInput
                 value={editFullName}
                 onChangeText={setEditFullName}
-                style={[styles.input, !fullNameValid && styles.inputError]}
+                style={[modalStyles.input, !fullNameValid && modalStyles.inputError]}
                 placeholder="e.g. Jane Doe"
                 autoFocus
                 returnKeyType="next"
               />
-              {!fullNameValid && <Text style={styles.errorText}>Please enter at least 2 characters</Text>}
+              {!fullNameValid && <Text style={modalStyles.errorText}>Please enter at least 2 characters</Text>}
 
-              <Text style={[styles.inputLabel, { marginTop: 8 }]}>Username</Text>
+              <Text style={modalStyles.inputLabel}>Username</Text>
               <TextInput
                 autoCapitalize="none"
                 value={editUsername}
                 onChangeText={setEditUsername}
-                style={[styles.input, !usernameValid && styles.inputError]}
+                style={[modalStyles.input, !usernameValid && modalStyles.inputError]}
                 placeholder="username"
                 returnKeyType="next"
               />
-              {!usernameValid && <Text style={styles.errorText}>Username must be at least 3 characters</Text>}
+              {!usernameValid && <Text style={modalStyles.errorText}>Username must be at least 3 characters</Text>}
 
-              <Text style={[styles.inputLabel, { marginTop: 8 }]}>Email</Text>
+              <Text style={modalStyles.inputLabel}>Email</Text>
               <TextInput
                 keyboardType="email-address"
                 autoCapitalize="none"
                 value={editEmail}
                 onChangeText={setEditEmail}
-                style={[styles.input, !emailValid && styles.inputError]}
+                style={[modalStyles.input, !emailValid && modalStyles.inputError]}
                 placeholder="you@example.com"
                 returnKeyType="next"
               />
-              {!emailValid && <Text style={styles.errorText}>Enter a valid email address</Text>}
+              {!emailValid && <Text style={modalStyles.errorText}>Enter a valid email address</Text>}
 
-              <Text style={[styles.inputLabel, { marginTop: 8 }]}>Phone</Text>
+              <Text style={modalStyles.inputLabel}>Phone</Text>
               <TextInput
                 keyboardType="phone-pad"
                 value={editPhone}
                 onChangeText={setEditPhone}
-                style={[styles.input, !phoneValid && styles.inputError]}
+                style={[modalStyles.input, !phoneValid && modalStyles.inputError]}
                 placeholder="Optional"
                 returnKeyType="done"
               />
-              {!phoneValid && <Text style={styles.errorText}>Phone should be at least 7 digits</Text>}
+              {!phoneValid && <Text style={modalStyles.errorText}>Phone should be at least 7 digits</Text>}
 
               {/* Change Password Section */}
-              <View style={{ marginTop: 16 }}>
+              <View style={modalStyles.passwordSection}>
                 {!showPwd ? (
                   <TouchableOpacity onPress={() => setShowPwd(true)}>
-                    <Text style={styles.link}>Change password</Text>
+                    <Text style={modalStyles.link}>Change password</Text>
                   </TouchableOpacity>
                 ) : (
                   <View>
-                    <Text style={[styles.inputLabel, { marginTop: 8 }]}>Current password</Text>
+                    <Text style={modalStyles.inputLabel}>Current password</Text>
                     <TextInput
                       value={currentPwd}
                       onChangeText={setCurrentPwd}
-                      style={styles.input}
+                      style={modalStyles.input}
                       placeholder="Enter current password"
                       secureTextEntry
                       returnKeyType="next"
                     />
-                    <Text style={[styles.inputLabel, { marginTop: 8 }]}>New password</Text>
+                    <Text style={modalStyles.inputLabel}>New password</Text>
                     <TextInput
                       value={newPwd}
                       onChangeText={setNewPwd}
-                      style={[styles.input, showPwd && !passwordValid && styles.inputError]}
+                      style={[modalStyles.input, showPwd && !passwordValid && modalStyles.inputError]}
                       placeholder="At least 8 characters"
                       secureTextEntry
                       returnKeyType="next"
                     />
-                    <Text style={[styles.inputLabel, { marginTop: 8 }]}>Confirm new password</Text>
+                    <Text style={modalStyles.inputLabel}>Confirm new password</Text>
                     <TextInput
                       value={confirmPwd}
                       onChangeText={setConfirmPwd}
-                      style={[styles.input, showPwd && !passwordValid && styles.inputError]}
+                      style={[modalStyles.input, showPwd && !passwordValid && modalStyles.inputError]}
                       placeholder="Re-enter new password"
                       secureTextEntry
                       returnKeyType="done"
                     />
                     {showPwd && !passwordValid && (
-                      <Text style={styles.errorText}>Passwords must match and be at least 8 characters</Text>
+                      <Text style={modalStyles.errorText}>Passwords must match and be at least 8 characters</Text>
                     )}
-                    <TouchableOpacity style={{ marginTop: 8 }} onPress={() => { setShowPwd(false); setCurrentPwd(''); setNewPwd(''); setConfirmPwd('') }}>
-                      <Text style={[styles.muted]}>Cancel password change</Text>
+                    <TouchableOpacity style={{ marginTop: 12 }} onPress={() => { setShowPwd(false); setCurrentPwd(''); setNewPwd(''); setConfirmPwd('') }}>
+                      <Text style={modalStyles.cancelPasswordText}>Cancel password change</Text>
                     </TouchableOpacity>
                   </View>
                 )}
               </View>
             </ScrollView>
             {/* Bottom action bar: Save and Cancel */}
-            <View style={styles.modalFooter}>
-              <TouchableOpacity style={[styles.button, styles.secondaryBtn, styles.footerBtn]} onPress={() => setEditOpen(false)}>
-                <Text style={[styles.buttonText, styles.secondaryBtnText]}>Cancel</Text>
+            <View style={modalStyles.modalFooter}>
+              <TouchableOpacity style={[modalStyles.footerBtn, modalStyles.secondaryBtn]} onPress={() => setEditOpen(false)}>
+                <Text style={[modalStyles.buttonText, modalStyles.secondaryBtnText]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.button, styles.footerBtn, (saving || !canSubmit) && { opacity: 0.7 }]}
+                style={[modalStyles.button, modalStyles.footerBtn, (saving || !canSubmit) && modalStyles.buttonDisabled]}
                 disabled={saving || !canSubmit}
                 onPress={handleSave}
               >
-                <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Save'}</Text>
+                <Text style={modalStyles.buttonText}>{saving ? 'Saving…' : 'Save'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -646,111 +648,3 @@ async function pickImageFromLibrary({ base64 = true } = {}) {
 
 // Simple blurhash constants (can be replaced with generated per-image blurhash later)
 const BLUR_HASH_THUMB = 'L5H2EC=PM+yV0g-mq.wG9c010J}I'
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9fafb' },
-  scrollContent: { paddingBottom: 32 },
-  heroWrapper: { position: 'relative', width: '100%', height: 180, backgroundColor: '#e5e7eb' },
-  coverImage: { width: '100%', height: '100%' },
-  bannerOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingVertical: 6, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.25)' },
-  bannerEditHint: { color: '#fff', fontSize: 10, letterSpacing: 0.5 },
-  avatarWrapper: { position: 'absolute', bottom: -48, left: 0, right: 0, alignItems: 'center' },
-  avatarLarge: { width: 96, height: 96, borderRadius: 48, borderWidth: 4, borderColor: '#fff', backgroundColor: '#d1d5db' },
-  profileInfo: { marginTop: 56, alignItems: 'center', paddingHorizontal: 16 },
-  nameLarge: { fontSize: 18, fontWeight: '700', color: '#111827', marginTop: 4 },
-  username: { fontSize: 12, color: '#6b7280', marginTop: 2 },
-  editProfileBtn: { backgroundColor: '#9ca3af', paddingHorizontal: 28, paddingVertical: 10, borderRadius: 24, marginTop: 16 },
-  editProfileText: { color: '#fff', fontWeight: '600', fontSize: 12, letterSpacing: 0.5 },
-  sectionBlock: { marginTop: 32, paddingHorizontal: 16 },
-  sectionHeading: { fontSize: 14, fontWeight: '600', color: '#374151', marginBottom: 12 },
-  rowCards: { flexDirection: 'row', justifyContent: 'space-between' },
-  listingCard: { flex: 1, marginRight: 12, backgroundColor: '#fff', borderRadius: 16, overflow: 'hidden', elevation: 2 },
-  listingImage: { width: '100%', height: 110 },
-  listingCardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10 },
-  listingLabel: { fontSize: 12, fontWeight: '600', color: '#374151' },
-  listingMetric: { fontSize: 12, fontWeight: '700', color: '#111827' },
-  favoriteCard: { flex: 1, marginRight: 12, backgroundColor: '#fff', borderRadius: 16, padding: 14, elevation: 2 },
-  favoriteImage: { width: '100%', height: 70, borderRadius: 12, marginBottom: 10 },
-  favoriteTitle: { fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 12 },
-  favoriteMetrics: { gap: 6 },
-  metricLine: { fontSize: 11, color: '#6b7280' },
-  metricValue: { fontWeight: '700', color: '#111827' },
-  favoriteCardLast: { marginRight: 0 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  card: { backgroundColor: '#fff', margin: 16, padding: 16, borderRadius: 12, elevation: 2 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  subTitle: { fontSize: 14, fontWeight: '600', color: '#111827' },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  profileRow: { flexDirection: 'row', alignItems: 'center', marginTop: 12 },
-  avatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#e5e7eb' },
-  name: { fontSize: 16, fontWeight: '700', color: '#111827' },
-  muted: { color: '#6b7280', fontSize: 12 },
-  greeting: { fontSize: 16, fontWeight: '700', color: '#111827' },
-  tag: { fontSize: 10, color: '#16a34a', backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, alignSelf: 'flex-start' },
-  link: { color: '#16a34a', fontWeight: '600' },
-  input: { flex: 1, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#fff' },
-  inputLabel: { fontSize: 12, color: '#6b7280', marginTop: 12 },
-  button: { backgroundColor: '#16a34a', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, alignSelf: 'flex-start' },
-  buttonText: { color: '#fff', fontWeight: '700' },
-  secondaryBtn: { backgroundColor: '#f3f4f6' },
-  secondaryBtnText: { color: '#111827' },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center' },
-  modalCard: { width: '90%', backgroundColor: '#fff', borderRadius: 12, padding: 16 },
-  detailRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, borderBottomColor: '#f3f4f6', borderBottomWidth: 1 },
-  detailLabel: { color: '#6b7280', fontSize: 12, flex: 0.45 },
-  detailValue: { color: '#111827', fontSize: 12, flex: 0.55, textAlign: 'right' },
-  editContainer: { flex: 1, backgroundColor: '#f9fafb' },
-  modalHeader: { paddingTop: Platform.OS === 'ios' ? 52 : 16, paddingBottom: 12, paddingHorizontal: 16, backgroundColor: '#fff', borderBottomColor: '#e5e7eb', borderBottomWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerTitle: { fontSize: 16, fontWeight: '700', color: '#111827' },
-  headerAction: { color: '#16a34a', fontWeight: '700' },
-  headerActionDisabled: { color: '#9ca3af' },
-  editContent: { padding: 16 },
-  inputError: { borderColor: '#ef4444' },
-  errorText: { color: '#ef4444', fontSize: 12, marginTop: 4 },
-  modalFooter: { padding: 16, backgroundColor: '#fff', borderTopColor: '#e5e7eb', borderTopWidth: 1, flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  footerBtn: { alignSelf: 'auto', flex: 1, alignItems: 'center' },
-  bold: { fontWeight: '700' },
-  // Added styles for stats and sections
-  statsContainer: { flexDirection: 'row', justifyContent: 'space-between', marginHorizontal: 16, marginTop: 8 },
-  statCard: { flex: 1, backgroundColor: '#f3f4f6', marginHorizontal: 4, paddingVertical: 12, borderRadius: 12, alignItems: 'center' },
-  statNumber: { fontSize: 18, fontWeight: '700', color: '#111827', marginTop: 4 },
-  statLabel: { fontSize: 12, color: '#6b7280' },
-  section: { backgroundColor: '#fff', margin: 16, marginTop: 12, padding: 16, borderRadius: 12, elevation: 2 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  seeAllText: { color: '#16a34a', fontWeight: '600' },
-  productCard: { width: 140, marginRight: 12, backgroundColor: '#fff', borderRadius: 12, padding: 8, elevation: 1, borderColor: '#e5e7eb', borderWidth: 1 },
-  productImage: { width: 124, height: 84, borderRadius: 8, backgroundColor: '#e5e7eb' },
-  productTitle: { fontSize: 12, fontWeight: '600', color: '#111827', marginTop: 6 },
-  productPrice: { fontSize: 12, color: '#16a34a', marginTop: 2 },
-  productLocation: { fontSize: 10, color: '#6b7280', marginTop: 2 },
-  // Floating action bar for farmer quick actions
-  fabBar: { position: 'absolute', bottom: 12, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 12 },
-  fabPill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#000', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 24, marginHorizontal: 4 },
-  fabIcon: { color: '#fff', fontSize: 14, marginRight: 6 },
-  fabLabel: { color: '#fff', fontSize: 12, fontWeight: '600' },
-  // New collapsible / header action styles
-  sectionHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitleBtn: { flexDirection: 'row', alignItems: 'center', paddingRight: 8 },
-  chevron: { fontSize: 14, color: '#374151', marginRight: 4 },
-  headerActionsRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  headingActionBtn: { backgroundColor: '#111827', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, marginLeft: 8 },
-  headingActionText: { color: '#fff', fontSize: 11, fontWeight: '600' },
-  fundsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 8 },
-  fundCard: { width: '47%', backgroundColor: '#fff', padding: 12, borderRadius: 12, elevation: 2, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 3 },
-  fundLabel: { fontSize: 11, color: '#6b7280', fontWeight: '600' },
-  fundValue: { fontSize: 14, fontWeight: '700', color: '#111827', marginTop: 4 },
-  // Bottom sheet styles
-  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'flex-end' },
-  sheetBackdropTouchable: { flex: 1 },
-  sheetContainer: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '70%', paddingHorizontal: 16, paddingTop: 6 },
-  sheetHandleWrapper: { alignItems: 'center', paddingVertical: 6 },
-  sheetHandle: { width: 44, height: 5, borderRadius: 3, backgroundColor: '#e5e7eb' },
-  sheetHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 8, borderBottomWidth: 1, borderColor: '#f1f5f9' },
-  sheetTitle: { fontSize: 14, fontWeight: '700', color: '#111827' },
-  sheetClose: { fontSize: 12, fontWeight: '600', color: '#16a34a' },
-  sheetRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderColor: '#f1f5f9' },
-  sheetRowTitle: { fontSize: 13, fontWeight: '600', color: '#111827' },
-  sheetRowPrice: { fontSize: 11, color: '#16a34a', marginTop: 2 },
-  sheetEditBtn: { paddingHorizontal: 12, paddingVertical: 8, backgroundColor: '#f3f4f6', borderRadius: 16 },
-  sheetEditText: { fontSize: 11, fontWeight: '600', color: '#111827' },
-})

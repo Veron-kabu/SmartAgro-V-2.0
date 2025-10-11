@@ -5,6 +5,7 @@ import { useEffect } from 'react'
 import { useProfile } from "../../context/profile"
 import UserDashboard from "../dashboard/UserDashboard"
 import { router } from 'expo-router'
+import { profileStyles as styles, COLORS } from "../../assets/styles/(tabs)/profile.styles"
 
 export default function ProfileTab() {
   const { profile, loading } = useProfile()
@@ -19,18 +20,18 @@ export default function ProfileTab() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator />
-        <Text style={{ marginTop: 8 }}>Loading profile…</Text>
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Loading profile…</Text>
       </View>
     )
   }
 
   if (isAdmin) {
     return (
-      <View style={{ flex:1, alignItems:'center', justifyContent:'center' }}>
-        <ActivityIndicator />
-        <Text style={{ marginTop:8 }}>Opening admin console…</Text>
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Opening admin console…</Text>
       </View>
     )
   }

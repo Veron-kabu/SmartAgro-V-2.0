@@ -58,11 +58,15 @@ export function ProfileProvider({ children }) {
             user.username || (email ? email.split("@")[0] : `user_${(user.id || "").slice(-6)}`)
           const full_name = [user.firstName, user.lastName].filter(Boolean).join(" ") || null
           const phone = user.phoneNumbers?.[0]?.phoneNumber || null
+          // Get the role from Clerk's unsafeMetadata, default to 'buyer'
+          const role = user.unsafeMetadata?.role || 'buyer'
+          
           await postJSON(`/api/users`, {
             username: derivedUsername,
             email,
             full_name,
             phone,
+            role, // Include the role from sign-up
           })
           // Re-fetch after creating
           const created = await getJSON(`/api/users/profile`)

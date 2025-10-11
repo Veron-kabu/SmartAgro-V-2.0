@@ -1,13 +1,14 @@
 "use client"
 
 import { useEffect, useMemo, useState, useCallback } from 'react'
-import { View, Text, StyleSheet, SectionList, ActivityIndicator, TouchableOpacity, Alert } from 'react-native'
+import { View, Text, SectionList, ActivityIndicator, TouchableOpacity, Alert } from 'react-native'
 import { useRouter } from 'expo-router'
 import { getJSON, patchJSON } from '../../context/api'
 import { groupOrders, formatCurrency, formatDate, statusBadgeColor, nextStatusesFor } from '../../utils/orders'
 import { OrderTimeline } from '../../components/OrderTimeline'
 import { track } from '../../utils/analytics'
 import { ANALYTICS_EVENTS } from '../../constants/analyticsEvents'
+import { farmerOrdersStyles as styles } from '../../assets/styles/orders.styles'
 
 export default function FarmerOrders() {
   const router = useRouter()
@@ -151,20 +152,3 @@ export default function FarmerOrders() {
     />
   )
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f9fafb' },
-  card: { backgroundColor: '#fff', margin: 16, padding: 16, borderRadius: 12, elevation: 2 },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#111827' },
-  muted: { color: '#6b7280', fontSize: 12 },
-  bold: { fontWeight: '700', color: '#111827' },
-  badge: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  badgePending: { borderWidth: 1, borderColor: '#16a34a' },
-  badgeText: { fontSize: 10, fontWeight: '700' },
-  syncingText: { fontSize: 10, color: '#065f46', fontWeight: '600' },
-  button: { backgroundColor: '#16a34a', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
-  buttonText: { color: '#fff', fontWeight: '700' },
-  skelTitle: { height: 14, backgroundColor: '#e5e7eb', borderRadius: 6, width: '60%' },
-  skelLine: { height: 10, backgroundColor: '#e5e7eb', borderRadius: 6, width: '40%', marginTop: 8 },
-})

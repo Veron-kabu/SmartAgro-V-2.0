@@ -133,7 +133,7 @@ export const ChatProvider = ({ children }) => {
         const { collection, query, orderBy, onSnapshot } = await import('firebase/firestore');
         
         const messagesRef = collection(firebaseDatabase, 'chatRooms', currentChatRoom.id, 'messages');
-        const q = query(messagesRef, orderBy('createdAt', 'desc'));
+        const q = query(messagesRef, orderBy('createdAt', 'asc')); // Changed to 'asc' for oldest first
 
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
           console.log('Messages query result:', querySnapshot.size, 'messages');
@@ -167,7 +167,7 @@ export const ChatProvider = ({ children }) => {
     
     try {
       console.log('Sending message:', text);
-      const { collection, addDoc } = await import('firebase/firestore');
+      const { collection, addDoc, doc, updateDoc } = await import('firebase/firestore');
       
       const messagesRef = collection(firebaseDatabase, 'chatRooms', currentChatRoom.id, 'messages');
       await addDoc(messagesRef, {
@@ -179,6 +179,14 @@ export const ChatProvider = ({ children }) => {
           avatar: clerkUser.imageUrl || 'https://i.pravatar.cc/300'
         }
       });
+
+      // Update chat room with last message info
+      const chatRoomRef = doc(firebaseDatabase, 'chatRooms', currentChatRoom.id);
+      await updateDoc(chatRoomRef, {
+        lastMessage: text,
+        lastMessageTime: new Date()
+      });
+
       console.log('Message sent successfully');
     } catch (error) {
       console.error('Error sending message:', error);

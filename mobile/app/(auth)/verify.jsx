@@ -1,347 +1,188 @@
 import { useSignUp, useSignIn } from '@clerk/clerk-expo'
 import { useLocalSearchParams, useRouter } from 'expo-router'
-import { useEffect, useRef, useState } from 'react'
-import { Alert, Button, Text, TextInput, View } from 'react-native'
-
-const COOLDOWN_SECONDS = 60
+import { useState } from 'react'
+import {
+  View,
+  Text,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+} from 'react-native'
+import { authStyles } from "../../assets/styles/auth.styles"
+import { Image } from "expo-image"
+import { COLORS } from "../../constants/colors"
 
 export default function VerifyScreen() {
   const router = useRouter()
-  const { email, mode, sentAt } = useLocalSearchParams()
+  const { email, mode } = useLocalSearchParams()
   const { isLoaded: signUpLoaded, signUp, setActive: setActiveFromSignUp } = useSignUp()
   const { isLoaded: signInLoaded, signIn, setActive: setActiveFromSignIn } = useSignIn()
-
-  const [emailInput, setEmailInput] = useState(email ? String(email) : '')
-  const initialEmail = (email ? String(email) : '').trim().toLowerCase()
-
-  const [lastSentAt, setLastSentAt] = useState(() => {
-    const ts = Number(sentAt)
-    return Number.isFinite(ts) && ts > 0 ? ts : Date.now()
-  })
-  const [resendIn, setResendIn] = useState(0)
-
-  // 6-digit segmented input state
-  const [codeDigits, setCodeDigits] = useState(Array(6).fill(''))
+  
   const [code, setCode] = useState('')
-  const inputRefs = useRef([])
-  const [isVerifying, setIsVerifying] = useState(false)
-  const lastAutoSubmitCodeRef = useRef('')
+  const [loading, setLoading] = useState(false)
 
-  // Cooldown ticker
-  useEffect(() => {
-    const tick = () => {
-      const elapsed = Math.floor((Date.now() - lastSentAt) / 1000)
-      const remaining = Math.max(0, COOLDOWN_SECONDS - elapsed)
-      setResendIn(remaining)
+  const handleVerification = async () => {
+    if (!code.trim()) {
+      Alert.alert('Error', 'Please enter the verification code')
+      return
     }
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
-  }, [lastSentAt])
 
-  function updateCodeFromDigits(nextDigits) {
-    setCode(nextDigits.join(''))
-  }
+    setLoading(true)
 
-  function handleDigitChange(index, value) {
-    const digits = String(value || '').replace(/\D/g, '')
-    setCodeDigits((prev) => {
-      const next = [...prev]
-      if (digits.length <= 1) {
-        next[index] = digits
-        updateCodeFromDigits(next)
-        if (digits && index < 5) {
-          const nextRef = inputRefs.current[index + 1]
-          nextRef && nextRef.focus?.()
-        }
-        return next
-      }
-      // Handle paste of multiple digits into a single cell
-      let i = index
-      for (const d of digits) {
-        if (i > 5) break
-        next[i++] = d
-      }
-      updateCodeFromDigits(next)
-      const focusIndex = Math.min(5, index + digits.length)
-      const fRef = inputRefs.current[focusIndex]
-      fRef && fRef.focus?.()
-      return next
-    })
-  }
-
-  function handleKeyPress(index, e) {
-    if (e?.nativeEvent?.key === 'Backspace') {
-      setCodeDigits((prev) => {
-        const next = [...prev]
-        if (!next[index] && index > 0) {
-          const prevIndex = index - 1
-          next[prevIndex] = ''
-          updateCodeFromDigits(next)
-          const pRef = inputRefs.current[prevIndex]
-          pRef && pRef.focus?.()
-          return next
-        }
-        next[index] = ''
-        updateCodeFromDigits(next)
-        return next
-      })
-    }
-  }
-
-  // Build a callable verify function in a ref so effects can call it without re-deps churn
-  const verifyRef = useRef(null)
-  useEffect(() => {
-    verifyRef.current = async () => {
-      if (isVerifying) return
-      setIsVerifying(true)
-      try {
-        const codeVal = String(code || '').trim()
-        const cleanCode = codeVal.replace(/\D/g, '')
-        if (cleanCode.length < 6) {
-          Alert.alert('Invalid code', 'Please enter the 6-digit code we emailed you')
-          return
-        }
-        const emailVal = String(emailInput || '').trim()
-
-        if (mode === 'sign-up') {
-          if (signUpLoaded && signUp?.attemptEmailAddressVerification) {
-            await signUp.reload?.()
-            if (!signUp.emailAddressId && emailVal) {
-              try {
-                await signUp.create({ emailAddress: emailVal })
-                await signUp.reload?.()
-              } catch (_e) {}
-            }
-            try {
-              const result = await signUp.attemptEmailAddressVerification({ code: cleanCode })
-              if (result.status === 'complete') {
-                await setActiveFromSignUp({ session: result.createdSessionId })
-                router.replace('/')
-                return
-              }
-            } catch (err) {
-              console.warn('Sign-up verify error:', err)
-              try {
-                await signUp.reload?.()
-                if (signUp.status === 'complete' && signUp.createdSessionId) {
-                  await setActiveFromSignUp({ session: signUp.createdSessionId })
-                  router.replace('/')
-                  return
-                }
-              } catch (_e) {}
-              throw err
-            }
-            await signUp.reload?.()
-            if (signUp.status === 'complete' && signUp.createdSessionId) {
-              await setActiveFromSignUp({ session: signUp.createdSessionId })
-              router.replace('/')
-              return
-            }
-          }
-        } else if (mode === 'sign-in') {
-          if (signInLoaded && signIn?.attemptFirstFactor) {
-            if (!emailVal) {
-              Alert.alert('Email required', 'Enter your email to verify the code')
-              return
-            }
-            await signIn.reload?.()
-            const currentId = (signIn && signIn.identifier) ? String(signIn.identifier).toLowerCase() : ''
-            if (!currentId || currentId !== emailVal.toLowerCase()) {
-              try {
-                await signIn.create({ identifier: emailVal })
-              } catch (_e) {
-                await signIn.reload?.()
-              }
-            }
-            // Do NOT prepare here; that would invalidate the old code
-            try {
-              const result = await signIn.attemptFirstFactor({ strategy: 'email_code', code: cleanCode })
-              if (result.status === 'complete') {
-                await setActiveFromSignIn({ session: result.createdSessionId })
-                router.replace('/')
-                return
-              }
-            } catch (err) {
-              console.warn('Sign-in first factor error:', err)
-              throw err
-            }
-          }
-        } else {
-          // Fallbacks
-          if (signUpLoaded && signUp?.attemptEmailAddressVerification) {
-            const result = await signUp.attemptEmailAddressVerification({ code: cleanCode })
-            if (result.status === 'complete') {
-              await setActiveFromSignUp({ session: result.createdSessionId })
-              router.replace('/')
-              return
-            }
-          }
-          if (signInLoaded && signIn?.attemptFirstFactor) {
-            if (!emailVal) {
-              Alert.alert('Email required', 'Enter your email to verify the code')
-              return
-            }
-            await signIn.reload?.()
-            try {
-              const result = await signIn.attemptFirstFactor({ strategy: 'email_code', code: cleanCode })
-              if (result.status === 'complete') {
-                await setActiveFromSignIn({ session: result.createdSessionId })
-                router.replace('/')
-                return
-              }
-            } catch (err) {
-              console.warn('Sign-in fallback first factor error:', err)
-              throw err
-            }
-          }
-        }
-
-        Alert.alert('Verification', 'Unable to verify. Check the code and try again. If it persists, tap Resend Code.')
-      } catch (err) {
-        console.error('Verification failed', err)
-        const msg = err?.errors?.[0]?.longMessage || err?.errors?.[0]?.message || err?.message || 'Please try again'
-        Alert.alert('Verification failed', String(msg))
-      } finally {
-        setIsVerifying(false)
-      }
-    }
-  }, [code, emailInput, isVerifying, mode, router, setActiveFromSignIn, setActiveFromSignUp, signIn, signInLoaded, signUp, signUpLoaded])
-
-  // Auto-submit when all 6 digits are filled
-  useEffect(() => {
-    const allFilled = codeDigits.every((d) => d && d.length === 1)
-    if (allFilled && !isVerifying) {
-      const joined = codeDigits.join('')
-      if (lastAutoSubmitCodeRef.current === joined) {
-        return
-      }
-      lastAutoSubmitCodeRef.current = joined
-      const t = setTimeout(() => {
-        verifyRef.current && verifyRef.current()
-      }, 50)
-      return () => clearTimeout(t)
-    }
-  }, [codeDigits, isVerifying])
-
-  async function onVerifyPress() {
-    if (verifyRef.current) {
-      await verifyRef.current()
-    }
-  }
-
-  async function onResendCode() {
     try {
       if (mode === 'sign-up') {
-        if (signUpLoaded && signUp?.prepareEmailAddressVerification) {
-          await signUp.reload?.()
-          let emailId = signUp.emailAddressId
-          if (!emailId && emailInput) {
-            try {
-              await signUp.create({ emailAddress: String(emailInput).trim() })
-              await signUp.reload?.()
-              emailId = signUp.emailAddressId
-            } catch (_e) {}
-          }
-          if (emailId) {
-            await signUp.prepareEmailAddressVerification({ strategy: 'email_code', emailAddressId: emailId })
-          } else {
-            await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
-          }
-          setLastSentAt(Date.now())
-          // Reset inputs on resend
-          setCodeDigits(Array(6).fill(''))
-          setCode('')
-          lastAutoSubmitCodeRef.current = ''
-          Alert.alert('Code sent', 'Please check your email for a new code')
+        if (!signUpLoaded || !signUp) {
+          Alert.alert('Error', 'Sign-up not ready. Please restart the process.')
           return
+        }
+
+        console.log('Attempting sign-up verification with code:', code)
+        const signUpAttempt = await signUp.attemptEmailAddressVerification({ code })
+        console.log('Verification result:', signUpAttempt.status)
+
+        if (signUpAttempt.status === 'complete') {
+          await setActiveFromSignUp({ session: signUpAttempt.createdSessionId })
+          router.replace('/home')
+        } else {
+          Alert.alert('Error', 'Verification failed. Please try again.')
+          console.error('Verification not complete:', signUpAttempt)
+        }
+      } else if (mode === 'sign-in') {
+        if (!signInLoaded || !signIn) {
+          Alert.alert('Error', 'Sign-in not ready. Please restart the process.')
+          return
+        }
+
+        console.log('Attempting sign-in verification with code:', code)
+        const result = await signIn.attemptFirstFactor({ 
+          strategy: 'email_code', 
+          code: code 
+        })
+        console.log('Sign-in verification result:', result.status)
+
+        if (result.status === 'complete') {
+          await setActiveFromSignIn({ session: result.createdSessionId })
+          router.replace('/home')
+        } else {
+          Alert.alert('Error', 'Verification failed. Please try again.')
+        }
+      }
+    } catch (err) {
+      console.error('Verification failed:', err)
+      const errorMessage = err?.errors?.[0]?.longMessage || 
+                          err?.errors?.[0]?.message || 
+                          err?.message || 
+                          'Verification failed. Please try again.'
+      Alert.alert('Error', errorMessage)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResendCode = async () => {
+    try {
+      if (mode === 'sign-up') {
+        if (signUpLoaded && signUp) {
+          await signUp.prepareEmailAddressVerification({ strategy: 'email_code' })
+          Alert.alert('Success', 'New verification code sent!')
         }
       } else if (mode === 'sign-in') {
         if (signInLoaded && signIn) {
-          const emailVal = String(emailInput || '').trim()
-          if (!emailVal) {
-            Alert.alert('Email required', 'Enter your email to receive a code')
-            return
-          }
-          await signIn.reload?.()
-          const currentId = (signIn && signIn.identifier) ? String(signIn.identifier).toLowerCase() : ''
-          if (!currentId || currentId !== emailVal.toLowerCase()) {
-            try {
-              await signIn.create({ identifier: emailVal })
-            } catch (_e) {
-              await signIn.reload?.()
-            }
-          }
-          const factors = Array.isArray(signIn.supportedFirstFactors) ? signIn.supportedFirstFactors : []
-          const emailCodeFactor = factors.find((f) => f?.strategy === 'email_code' && f?.emailAddressId)
-          if (emailCodeFactor?.emailAddressId) {
-            await signIn.prepareFirstFactor({ strategy: 'email_code', emailAddressId: emailCodeFactor.emailAddressId })
-          } else {
-            await signIn.prepareFirstFactor({ strategy: 'email_code' })
-          }
-          setLastSentAt(Date.now())
-          // Reset inputs on resend
-          setCodeDigits(Array(6).fill(''))
-          setCode('')
-          lastAutoSubmitCodeRef.current = ''
-          Alert.alert('Code sent', 'Please check your email for a new code')
-          return
+          await signIn.prepareFirstFactor({ strategy: 'email_code' })
+          Alert.alert('Success', 'New verification code sent!')
         }
       }
-      Alert.alert('Unable to resend', 'Please go back and start the flow again')
-    } catch (e) {
-      console.error('Resend code failed', e)
-      Alert.alert('Resend failed', e?.errors?.[0]?.message || 'Please try again')
+    } catch (err) {
+      console.error('Resend failed:', err)
+      Alert.alert('Error', 'Failed to resend code. Please try again.')
+    }
+  }
+
+  const handleBack = () => {
+    if (mode === 'sign-up') {
+      router.push('/(auth)/sign-up')
+    } else {
+      router.push('/(auth)/sign-in')
     }
   }
 
   return (
-    <View style={{ padding: 24 }}>
-      <View style={{ backgroundColor: '#eef6ff', borderColor: '#bfdbfe', borderWidth: 1, padding: 12, borderRadius: 8, marginBottom: 12 }}>
-        <Text style={{ color: '#1d4ed8', fontWeight: '600' }}>
-          Code sent to: {emailInput || (email ? String(email) : 'your email')}
-        </Text>
-        <Text style={{ color: '#1d4ed8' }}>
-          at {new Date(lastSentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          {resendIn > 0 ? ` • Resend available in ${resendIn}s` : ' • You can resend now'}
-        </Text>
-      </View>
-      <Text style={{ fontSize: 24, marginBottom: 16 }}>Verify Email</Text>
-      <TextInput
-        placeholder="Email (required for sign-in via code)"
-        value={emailInput}
-        onChangeText={setEmailInput}
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType="email-address"
-        style={{ borderWidth: 1, borderColor: '#ccc', padding: 12, marginBottom: 8, borderRadius: 8 }}
-      />
-      {emailInput.trim().toLowerCase() !== initialEmail && (
-        <Text style={{ color: '#b45309', marginBottom: 8 }}>
-          You changed the email. The code must match this email. If you requested a code for a different address, tap Resend.
-        </Text>
-      )}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
-        {codeDigits.map((d, i) => (
-          <TextInput
-            key={i}
-            ref={(r) => { inputRefs.current[i] = r }}
-            value={d}
-            onChangeText={(val) => handleDigitChange(i, val)}
-            onKeyPress={(e) => handleKeyPress(i, e)}
-            keyboardType="number-pad"
-            maxLength={1}
-            style={{ width: 48, height: 56, borderWidth: 1, borderColor: '#ccc', textAlign: 'center', fontSize: 20, borderRadius: 8 }}
-          />
-        ))}
-      </View>
-      <Button title="Verify" onPress={onVerifyPress} />
-      <View style={{ height: 12 }} />
-      <Button
-        title={resendIn > 0 ? `Resend Code (${resendIn}s)` : 'Resend Code'}
-        onPress={onResendCode}
-        disabled={resendIn > 0}
-      />
+    <View style={authStyles.container}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={authStyles.keyboardView}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
+      >
+        <ScrollView
+          contentContainerStyle={authStyles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Image Container */}
+          <View style={authStyles.imageContainer}>
+            <Image
+              source={require("../../assets/images/i3.png")}
+              style={authStyles.image}
+              contentFit="contain"
+            />
+          </View>
+
+          {/* Title */}
+          <Text style={authStyles.title}>Verify Your Email</Text>
+          <Text style={authStyles.subtitle}>
+            We&apos;ve sent a verification code to {email ? String(email) : 'your email'}
+          </Text>
+
+          <View style={authStyles.formContainer}>
+            {/* Verification Code Input */}
+            <View style={authStyles.inputContainer}>
+              <TextInput
+                style={authStyles.textInput}
+                placeholder="Enter verification code"
+                placeholderTextColor={COLORS.textLight}
+                value={code}
+                onChangeText={setCode}
+                keyboardType="number-pad"
+                autoCapitalize="none"
+                maxLength={6}
+              />
+            </View>
+
+            {/* Verify Button */}
+            <TouchableOpacity
+              style={[authStyles.authButton, loading && authStyles.buttonDisabled]}
+              onPress={handleVerification}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              <Text style={authStyles.buttonText}>
+                {loading ? "Verifying..." : "Verify Email"}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Resend Code */}
+            <TouchableOpacity 
+              style={authStyles.linkContainer} 
+              onPress={handleResendCode}
+            >
+              <Text style={authStyles.linkText}>
+                Didn&apos;t receive the code? <Text style={authStyles.link}>Resend</Text>
+              </Text>
+            </TouchableOpacity>
+
+            {/* Back Button */}
+            <TouchableOpacity style={authStyles.linkContainer} onPress={handleBack}>
+              <Text style={authStyles.linkText}>
+                <Text style={authStyles.link}>
+                  Back to {mode === 'sign-up' ? 'Sign Up' : 'Sign In'}
+                </Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   )
 }

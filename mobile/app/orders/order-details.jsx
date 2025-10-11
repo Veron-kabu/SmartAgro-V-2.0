@@ -1,9 +1,10 @@
 "use client";
 import { useLocalSearchParams } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView } from 'react-native'
+import { View, Text, ActivityIndicator, ScrollView } from 'react-native'
 import { getJSON } from '../../context/api'
 import { formatCurrency, formatDate, statusBadgeColor } from '../../utils/orders'
+import { orderDetailStyles as styles } from '../../assets/styles/orders.styles'
 import { OrderTimeline } from '../../components/OrderTimeline'
 import { track } from '../../utils/analytics'
 import { ANALYTICS_EVENTS } from '../../constants/analyticsEvents'
@@ -78,20 +79,3 @@ export default function OrderDetails() {
     </ScrollView>
   )
 }
-
-const styles = StyleSheet.create({
-  container: { flex:1, backgroundColor:'#f9fafb' },
-  center: { flex:1, justifyContent:'center', alignItems:'center', padding:16 },
-  error: { color:'#dc2626' },
-  headerRow: { flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:4 },
-  title: { fontSize:20, fontWeight:'700', color:'#111827' },
-  muted: { color:'#6b7280', fontSize:12 },
-  badge: { borderRadius:999, paddingHorizontal:10, paddingVertical:4 },
-  badgeText: { fontSize:10, fontWeight:'700' },
-  section: { backgroundColor:'#fff', padding:12, borderRadius:10, marginTop:16 },
-  sectionLabel: { fontSize:14, fontWeight:'700', color:'#111827', marginBottom:4 },
-  value: { color:'#111827', fontSize:13, marginTop:2 },
-  historyRow: { flexDirection:'row', justifyContent:'space-between', paddingVertical:6, borderBottomWidth:1, borderColor:'#f1f5f9' },
-  historyStatus: { fontSize:12, fontWeight:'600', color:'#111827' },
-  historyTime: { fontSize:11, color:'#64748b' },
-})

@@ -4,7 +4,6 @@ import {
   Text,
   FlatList,
   TouchableOpacity,
-  StyleSheet,
   ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,8 +11,9 @@ import { useRouter, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useChat } from '../../context/chat';
+import { messagesTabStyles as styles, COLORS } from '../../assets/styles/chats/messages.tab.styles';
 
-export default function ChatRooms() {
+export default function ChatIndex() {
   const { chatRooms, setCurrentChatRoom, isFirebaseReady } = useChat();
   const { isLoaded: authIsLoaded, isSignedIn } = useAuth();
   const { user, isLoaded: userIsLoaded } = useUser();
@@ -25,188 +25,187 @@ export default function ChatRooms() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerShown: true,
-      title: 'Messages',
-      headerStyle: {
-        backgroundColor: '#16a34a',
-      },
-      headerTintColor: '#fff',
-      headerTitleStyle: {
-        fontWeight: 'bold',
-      },
-      headerRight: () => (
-        <View style={{ flexDirection: 'row' }}>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => router.push('/chat/test')}
-          >
-            <Ionicons name="bug" size={20} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => router.push('/chat/new-chat')}
-          >
-            <Ionicons name="add" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      ),
+      headerShown: false, // Use custom header
     });
-  }, [navigation, router]);
+  }, [navigation]);
 
   const handleChatRoomPress = (chatRoom) => {
     setCurrentChatRoom(chatRoom);
-    router.push('/chat/messages');
+    router.push('/chat/conversation');
   };
 
-  const renderChatRoom = ({ item }) => (
-    <TouchableOpacity
-      style={styles.chatRoomItem}
-      onPress={() => handleChatRoomPress(item)}
-    >
-      <View style={styles.avatarContainer}>
-        <Ionicons name="person-circle" size={50} color="#16a34a" />
-      </View>
-      <View style={styles.chatRoomInfo}>
-        <Text style={styles.chatRoomName}>{item.name}</Text>
-        {item.lastMessage && (
-          <Text style={styles.lastMessage} numberOfLines={1}>
-            {item.lastMessage}
-          </Text>
-        )}
-        {item.lastMessageTime && (
-          <Text style={styles.timestamp}>
-            {item.lastMessageTime.toDate?.()?.toLocaleDateString() || 
-             new Date(item.lastMessageTime).toLocaleDateString()}
-          </Text>
-        )}
-      </View>
-      <Ionicons name="chevron-forward" size={20} color="#9ca3af" />
-    </TouchableOpacity>
+  const renderDivider = () => (
+    <View style={styles.divider} />
   );
 
-  if (!clerkIsLoaded || !isFirebaseReady) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.emptyContainer}>
-          <ActivityIndicator size="large" color="#16a34a" />
-          <Text style={styles.emptyText}>Loading...</Text>
-          <Text style={styles.emptySubtext}>
-            {!clerkIsLoaded ? 'Initializing authentication...' : 'Connecting to chat service...'}
-          </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const renderChatRoom = ({ item }) => {
+    // Extract the other participant's name/email to display as username
+    const currentUserEmail = user?.emailAddresses?.[0]?.emailAddress || user?.id;
+    const otherParticipant = item.participants?.find(p => p !== currentUserEmail);
+    
+    // Get display name - prefer username format over email
+    let displayName = item.name;
+    if (item.name && item.name.includes('@')) {
+      displayName = item.name.replace('Chat with ', '').split('@')[0];
+    } else if (otherParticipant && otherParticipant.includes('@')) {
+      displayName = otherParticipant.split('@')[0];
+    }
+    
+    // Get first letter of display name for avatar
+    const avatarLetter = displayName ? displayName.charAt(0).toUpperCase() : 'U';
+    
+    // Format timestamp for WhatsApp-like display
+    const formatTime = (timestamp) => {
+      if (!timestamp) return '';
+      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      const now = new Date();
+      const diffInHours = Math.abs(now - date) / 36e5;
+      
+      if (diffInHours < 24) {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      } else if (diffInHours < 168) { // Less than a week
+        return date.toLocaleDateString([], { weekday: 'short' });
+      } else {
+        return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      }
+    };
 
-  if (!isSignedIn || !user) {
+    // Simulate online status (you can replace this with real data)
+    const isOnline = Math.random() > 0.5; // Random for demo
+
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.emptyContainer}>
-          <Ionicons name="person-outline" size={80} color="#9ca3af" />
-          <Text style={styles.emptyText}>Please sign in</Text>
-          <Text style={styles.emptySubtext}>
-            You need to be signed in to use the chat feature
-          </Text>
+      <TouchableOpacity
+        style={styles.chatRoomItem}
+        onPress={() => handleChatRoomPress(item)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.avatarContainer}>
+          <View style={styles.profileImage}>
+            <Text style={styles.avatarText}>{avatarLetter}</Text>
+          </View>
+          {isOnline && <View style={styles.onlineIndicator} />}
         </View>
-      </SafeAreaView>
+        <View style={styles.chatRoomInfo}>
+          <Text style={styles.chatRoomName}>{displayName}</Text>
+          {item.lastMessage ? (
+            <Text style={styles.lastMessage} numberOfLines={1}>
+              {item.lastMessage}
+            </Text>
+          ) : (
+            <Text style={styles.noMessageText} numberOfLines={1}>
+              No messages yet
+            </Text>
+          )}
+        </View>
+        <View style={styles.chatRoomMeta}>
+          {item.lastMessageTime && (
+            <Text style={styles.timestamp}>
+              {formatTime(item.lastMessageTime)}
+            </Text>
+          )}
+        </View>
+      </TouchableOpacity>
     );
-  }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
-      {chatRooms.length === 0 ? (
+      {/* 
+        LOADING STATE SECTION
+        - Shows when app is still initializing
+        - Displays spinner and loading text
+        - Waits for Clerk auth and Firebase to be ready
+      */}
+      {(!clerkIsLoaded || !isFirebaseReady) && (
         <View style={styles.emptyContainer}>
-          <Ionicons name="chatbubbles-outline" size={80} color="#9ca3af" />
-          <Text style={styles.emptyText}>No conversations yet</Text>
-          <Text style={styles.emptySubtext}>
-            Start a new conversation to connect with other users
-          </Text>
-          <TouchableOpacity
-            style={styles.startChatButton}
-            onPress={() => router.push('/chat/new-chat')}
-          >
-            <Text style={styles.startChatButtonText}>Start New Chat</Text>
-          </TouchableOpacity>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={COLORS.loadingColor} />
+            <Text style={styles.loadingText}>Loading...</Text>
+            <Text style={styles.loadingSubtext}>
+              {!clerkIsLoaded ? 'Initializing authentication...' : 'Connecting to chat service...'}
+            </Text>
+          </View>
         </View>
-      ) : (
-        <FlatList
-          data={chatRooms}
-          renderItem={renderChatRoom}
-          keyExtractor={(item) => item.id}
-          style={styles.list}
-        />
+      )}
+
+      {/* 
+        NOT SIGNED IN STATE SECTION
+        - Shows when user is not authenticated
+        - Displays sign-in prompt with person icon
+        - Explains they need to sign in to use chat
+      */}
+      {clerkIsLoaded && isFirebaseReady && (!isSignedIn || !user) && (
+        <View style={styles.emptyContainer}>
+          <View style={styles.emptyIconContainer}>
+            <Ionicons name="person-outline" size={64} color={COLORS.emptyStateIconColor} />
+          </View>
+          <Text style={styles.emptyText}>Please sign in</Text>
+          <Text style={styles.emptySubtext}>
+            You need to be signed in to use the chat feature and connect with farmers and buyers
+          </Text>
+        </View>
+      )}
+
+      {/* 
+        MESSAGES LIST SECTION (Main Chat Screen)
+        - Shows list of all chat conversations
+        - Includes custom header with "Messages" title and action buttons
+        - Shows empty state if no chats exist, or FlatList of chat rooms
+      */}
+      {clerkIsLoaded && isFirebaseReady && isSignedIn && user && (
+        <>
+          {/* Custom Header with title and action buttons */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Messages</Text>
+            <View style={styles.headerActions}>
+              <TouchableOpacity
+                style={styles.headerButton}
+                onPress={() => router.push('/chat/test')}
+              >
+                <Ionicons name="bug" size={20} color={COLORS.text} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.headerButton}
+                onPress={() => router.push('/chat/new-chat')}
+              >
+                <Ionicons name="add" size={24} color={COLORS.text} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Chat Rooms List or Empty State */}
+          {chatRooms.length === 0 ? (
+            // Empty state: No chats exist yet
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconContainer}>
+                <Ionicons name="chatbubbles-outline" size={64} color={COLORS.emptyStateIconColor} />
+              </View>
+              <Text style={styles.emptyText}>No chats yet</Text>
+              <Text style={styles.emptySubtext}>
+                Tap the + button to start a conversation with farmers and buyers
+              </Text>
+              <TouchableOpacity
+                style={styles.startChatButton}
+                onPress={() => router.push('/chat/new-chat')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.startChatButtonText}>New Chat</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            // List of existing chat rooms
+            <FlatList
+              data={chatRooms}
+              renderItem={renderChatRoom}
+              keyExtractor={(item) => item.id}
+              style={styles.list}
+              showsVerticalScrollIndicator={false}
+              ItemSeparatorComponent={renderDivider}
+            />
+          )}
+        </>
       )}
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  headerButton: {
-    marginRight: 15,
-  },
-  list: {
-    flex: 1,
-  },
-  chatRoomItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  avatarContainer: {
-    marginRight: 15,
-  },
-  chatRoomInfo: {
-    flex: 1,
-  },
-  chatRoomName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  lastMessage: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginBottom: 2,
-  },
-  timestamp: {
-    fontSize: 12,
-    color: '#9ca3af',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
-  },
-  emptyText: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#374151',
-    marginTop: 20,
-    marginBottom: 8,
-  },
-  emptySubtext: {
-    fontSize: 16,
-    color: '#6b7280',
-    textAlign: 'center',
-    marginBottom: 30,
-  },
-  startChatButton: {
-    backgroundColor: '#16a34a',
-    paddingHorizontal: 30,
-    paddingVertical: 12,
-    borderRadius: 25,
-  },
-  startChatButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});
