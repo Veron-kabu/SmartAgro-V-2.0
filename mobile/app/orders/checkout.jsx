@@ -4,6 +4,7 @@ import { useCart } from '../../context/cart'
 import { useEffect, useState, useCallback } from 'react'
 import { validateCartItems } from '../../utils/cartValidation'
 import { checkoutStyles as styles } from '../../assets/styles/orders.styles'
+import { COLORS } from '../../constants/colors'
 
 export default function CheckoutPlaceholder() {
   const router = useRouter()
@@ -54,7 +55,7 @@ export default function CheckoutPlaceholder() {
       <Text style={styles.title}>Checkout (Validation)</Text>
       {validating && (
         <View style={{ marginTop:16, flexDirection:'row', alignItems:'center' }}>
-          <ActivityIndicator size='small' color='#16a34a' />
+          <ActivityIndicator size='small' color={COLORS.primary} />
           <Text style={[styles.desc,{ marginLeft:8 }]}>Validating cart…</Text>
         </View>
       )}
@@ -65,7 +66,7 @@ export default function CheckoutPlaceholder() {
           <Text style={styles.bannerText}>{pendingPriceChanges.length} price change(s) detected.</Text>
           <View style={styles.bannerActions}>
             <TouchableOpacity onPress={keepOldPrices} style={styles.bannerBtn}><Text style={styles.bannerBtnText}>Keep Old</Text></TouchableOpacity>
-            <TouchableOpacity onPress={applyAllPriceChanges} style={[styles.bannerBtn, styles.bannerBtnPrimary]}><Text style={[styles.bannerBtnText,{color:'#fff'}]}>Apply All</Text></TouchableOpacity>
+            <TouchableOpacity onPress={applyAllPriceChanges} style={[styles.bannerBtn, styles.bannerBtnPrimary]}><Text style={[styles.bannerBtnText,{color: COLORS.white}]}>Apply All</Text></TouchableOpacity>
           </View>
         </View>
       )}
@@ -75,11 +76,11 @@ export default function CheckoutPlaceholder() {
           <View style={{ marginTop:16 }}>
             <Text style={styles.adjustTitle}>Adjustments</Text>
             {adjustments.map(a => {
-              let icon = 'ℹ️'; let color = '#374151'; let text = ''
-              if (a.type === 'removed') { icon = '❌'; color = '#dc2626'; text = `Removed: ${a.reason || 'Unavailable'}` }
-              else if (a.type === 'quantity') { icon = '🔄'; color = '#d97706'; text = `Quantity clamped to ${a.newQuantity}` }
-              else if (a.type === 'price') { icon = '💲'; color = '#2563eb'; text = `Price changed ${a.oldPrice} → ${a.newPrice}` }
-              else if (a.type === 'error') { icon = '⚠️'; color = '#dc2626'; text = `Validation failed (${a.reason || 'Unknown'})` }
+              let icon = 'ℹ️'; let color = COLORS.text; let text = ''
+              if (a.type === 'removed') { icon = '❌'; color = COLORS.error; text = `Removed: ${a.reason || 'Unavailable'}` }
+              else if (a.type === 'quantity') { icon = '🔄'; color = COLORS.warningText || COLORS.text; text = `Quantity clamped to ${a.newQuantity}` }
+              else if (a.type === 'price') { icon = '💲'; color = COLORS.primary; text = `Price changed ${a.oldPrice} → ${a.newPrice}` }
+              else if (a.type === 'error') { icon = '⚠️'; color = COLORS.error; text = `Validation failed (${a.reason || 'Unknown'})` }
               return (
                 <View key={a.id + a.type} style={styles.adjustRow}>
                   <Text style={[styles.adjustIcon,{ opacity:0.9 }]}>{icon}</Text>

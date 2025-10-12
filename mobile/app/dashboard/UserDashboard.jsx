@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient'
 import { useUser } from '@clerk/clerk-expo'
 import { useLogout } from '../../hooks/useLogout'
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { Ionicons } from '@expo/vector-icons'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useProfile } from '../../context/profile'
 import { getJSON, postJSON, patchJSON } from '../../context/api'
@@ -13,6 +14,7 @@ import { useDashboardStats } from '../../hooks/useDashboardStats'
 import { router } from 'expo-router'
 import { useToast } from '../../context/toast'
 import { profileStyles as styles } from '../../assets/styles/(tabs)/profile.styles'
+import { COLORS } from '../../constants/colors'
 import { userDashboardStyles as modalStyles } from '../../assets/styles/userDashboard.styles'
 
 // Floating FabActions removed for farmer: actions integrated into sections
@@ -20,7 +22,7 @@ import { userDashboardStyles as modalStyles } from '../../assets/styles/userDash
 // Shared dashboard for Buyer and Farmer with identical UI; location stays hidden
 export default function UserDashboard({ expectedRole = 'buyer', fallbackName = 'User' }) {
   const { user } = useUser()
-  const { profile, refresh } = useProfile()
+  const { profile, refresh, applyLocalUpdate } = useProfile()
   const [loading, setLoading] = useState(true)
   const [dashboardData, setDashboardData] = useState(null)
   const [recentProducts, setRecentProducts] = useState([])
@@ -33,7 +35,7 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
   const [editFullName, setEditFullName] = useState(profile?.fullName || '')
   const [pickingImage, setPickingImage] = useState(false)
   // media & stats hooks
-  const { avatarUrl, bannerUrl, bannerResolving } = useDashboardMedia(profile)
+  const { avatarUrl, bannerUrl, bannerResolving, setBannerUrl } = useDashboardMedia(profile)
   const { stats } = useDashboardStats(!loading, 60000)
   // Password change state
   const [showPwd, setShowPwd] = useState(false)
@@ -53,6 +55,11 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
     orders: 'dashboard:collapse:orders',
     funds: 'dashboard:collapse:funds'
   })
+
+  // Banner image error handling guards to prevent endless retry loops
+  const bannerRetryRef = useRef(0)
+  const bannerResolveBusyRef = useRef(false)
+  const bannerLogOnceRef = useRef(false)
 
   // Simple currency formatter (later can use Intl if locale / polyfill present)
   const formatCurrency = useCallback((value, currency = (earnings?.currency || 'KES')) => {
@@ -84,9 +91,10 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
 
   const patchProfile = useCallback(async (payload) => {
     const updated = await patchJSON('/api/users/profile', payload)
-    await refresh()
+    // Apply local update to avoid a full-screen reload
+    applyLocalUpdate?.(updated)
     return updated
-  }, [refresh])
+  }, [applyLocalUpdate])
 
   const onPickImage = useCallback(async () => {
     if (pickingImage) return
@@ -99,7 +107,10 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
       const fileResp = await fetch(uri)
       const blob = await fileResp.blob()
       const presign = await postJSON('/api/uploads/avatar-presign', { contentType: mime || 'image/jpeg', contentLength: blob.size })
-      await fetch(presign.uploadUrl, { method: 'PUT', headers: { 'Content-Type': presign.contentType }, body: blob })
+      const putResp = await fetch(presign.uploadUrl, { method: 'PUT', headers: { 'Content-Type': presign.contentType }, body: blob })
+      if (!putResp.ok) {
+        throw new Error(`S3 upload failed (${putResp.status})`)
+      }
       await patchProfile({ profile_image_url: presign.publicUrl })
       // Fire-and-forget blurhash generation
       ;(async () => {
@@ -119,11 +130,90 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
     }
   }, [pickingImage, patchProfile, toast])
 
-  // Banner handlers removed (feature deferred)
-  const onPickBanner = useCallback(() => {
-    toast.show('Banner feature coming soon', { type: 'info' })
-  }, [toast])
-  // onRemoveBanner intentionally omitted while banner feature disabled
+  const onPickBanner = useCallback(async () => {
+    if (pickingImage) return
+    try {
+      setPickingImage(true)
+      const picked = await pickImageFromLibrary({ base64: false })
+      if (!picked) return
+      const { uri, mime } = picked
+      const fileResp = await fetch(uri)
+      const blob = await fileResp.blob()
+      // Mirror avatar flow exactly: always use avatar-presign for consistent behavior
+      const presign = await postJSON('/api/uploads/avatar-presign', { contentType: mime || 'image/jpeg', contentLength: blob.size })
+      const putResp = await fetch(presign.uploadUrl, { method: 'PUT', headers: { 'Content-Type': presign.contentType }, body: blob })
+      if (!putResp.ok) {
+        throw new Error(`S3 upload failed (${putResp.status})`)
+      }
+      await patchProfile({ banner_image_url: presign.publicUrl })
+  // Reset error/retry guards after a successful update
+  bannerRetryRef.current = 0
+  bannerLogOnceRef.current = false
+      // Optional: compute blurhash on the fly
+      ;(async () => {
+        try {
+          const resp = await fetch('/api/utils/blurhash', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageUrl: presign.publicUrl }) })
+          if (resp.ok) {
+            const data = await resp.json()
+            if (data.blurhash) await patchProfile({ banner_image_blurhash: data.blurhash })
+          }
+        } catch {}
+      })()
+      toast.show('Banner updated', { type: 'success' })
+    } catch (e) {
+      toast.show(e?.message || 'Failed to update banner', { type: 'error' })
+    } finally {
+      setPickingImage(false)
+    }
+  }, [pickingImage, patchProfile, toast])
+
+  const onRemoveBanner = useCallback(async () => {
+    try {
+      await patchProfile({ banner_image_url: null, banner_image_blurhash: null })
+      // Optimistic UI update
+      if (typeof setBannerUrl === 'function') setBannerUrl(null)
+      // Reset guards when removing so next set starts clean
+      bannerRetryRef.current = 0
+      bannerLogOnceRef.current = false
+      toast.show('Banner removed', { type: 'success' })
+    } catch (e) {
+      toast.show(e?.message || 'Failed to remove banner', { type: 'error' })
+    }
+  }, [patchProfile, setBannerUrl, toast])
+
+  // Quick actions for media via small icon buttons
+  const openBannerActions = useCallback(() => {
+    Alert.alert(
+      'Banner',
+      'Choose an action',
+      [
+        { text: 'Change', onPress: () => onPickBanner() },
+        { text: 'Remove', style: 'destructive', onPress: () => onRemoveBanner() },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    )
+  }, [onPickBanner, onRemoveBanner])
+
+  const onRemoveAvatar = useCallback(async () => {
+    try {
+      await patchProfile({ profile_image_url: null, profile_image_blurhash: null })
+      toast.show('Profile image removed', { type: 'success' })
+    } catch (e) {
+      toast.show(e?.message || 'Failed to remove profile image', { type: 'error' })
+    }
+  }, [patchProfile, toast])
+
+  const openAvatarActions = useCallback(() => {
+    Alert.alert(
+      'Profile photo',
+      'Choose an action',
+      [
+        { text: 'Change', onPress: () => onPickImage() },
+        { text: 'Remove', style: 'destructive', onPress: () => onRemoveAvatar() },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    )
+  }, [onPickImage, onRemoveAvatar])
 
   useEffect(() => {
     let mounted = true
@@ -324,25 +414,55 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
                 blurhash={profile?.bannerImageBlurhash}
                 style={styles.coverImage}
                 onError={async (event) => {
-                  const payload = event || {}
-                  try { console.log('Banner image load error', payload) } catch {}
-                  // Banner disabled: minimal logging only.
+                  try {
+                    if (!bannerLogOnceRef.current) {
+                      console.log('Banner image load error', event)
+                      bannerLogOnceRef.current = true
+                    }
+                    if (bannerResolveBusyRef.current) return
+                    // Stop after a few attempts, show placeholder
+                    if (bannerRetryRef.current >= 3) { setBannerUrl(null); return }
+                    bannerResolveBusyRef.current = true
+                    const raw = profile?.bannerImageUrl || profile?.banner_image_url
+                    if (!raw) return
+                    const q = encodeURIComponent(raw)
+                    // First try generic resolver
+                    let r = await getJSON(`/api/uploads/resolve-avatar-url?force=1&url=${q}`)
+                    if (r?.url) { setBannerUrl(r.url); return }
+                    // Derive key and try direct signed-url endpoint as a fallback
+                    try {
+                      const u = new URL(raw)
+                      const key = u.pathname.startsWith('/') ? u.pathname.slice(1) : u.pathname
+                      const s = await getJSON(`/api/uploads/avatar-signed-url?key=${encodeURIComponent(key)}`)
+                      if (s?.url) setBannerUrl(s.url)
+                    } catch {}
+                  } catch (_e) {
+                    // Silent: if resolve fails, keep placeholder gradient
+                  } finally {
+                    bannerResolveBusyRef.current = false
+                    bannerRetryRef.current += 1
+                  }
                 }}
               />
             ) : (
-              <LinearGradient colors={['#d1fae5', '#bbf7d0', '#86efac']} style={[styles.coverImage, styles.bannerPlaceholder]} start={{x:0,y:0}} end={{x:1,y:1}}>
-                {bannerResolving || pickingImage ? <ActivityIndicator size="small" color="#065f46" /> : null}
-                <Text style={styles.bannerPlaceholderText}>Tap to add banner</Text>
+              <LinearGradient colors={[COLORS.background, COLORS.border, COLORS.primary]} style={[styles.coverImage, styles.bannerPlaceholder]} start={{x:0,y:0}} end={{x:1,y:1}}>
+                {bannerResolving || pickingImage ? <ActivityIndicator size="small" color={COLORS.primary} /> : null}
               </LinearGradient>
             )}
             <View style={styles.bannerOverlay}>
-              <Text style={styles.bannerEditHint}>{bannerUrl ? 'Tap to change banner' : 'Add a farm banner'}</Text>
+              <TouchableOpacity onPress={openBannerActions} activeOpacity={0.85} style={{ position: 'absolute', right: 12, bottom: 8, padding: 6 }} accessibilityLabel="Banner actions">
+                <Ionicons name="ellipsis-horizontal-circle" size={22} color={COLORS.primary} />
+              </TouchableOpacity>
             </View>
             {/* Banner remove button hidden while feature deferred */}
           </TouchableOpacity>
           <View style={styles.avatarWrapper}>
             <TouchableOpacity onPress={onPickImage} disabled={pickingImage} activeOpacity={0.85}>
               <BlurhashImage uri={avatarUrl || profile?.profileImageUrl || 'https://via.placeholder.com/96'} blurhash={profile?.profileImageBlurhash} style={styles.avatarLarge} />
+            </TouchableOpacity>
+            {/* Avatar actions icon */}
+            <TouchableOpacity onPress={openAvatarActions} activeOpacity={0.85} style={{ position: 'absolute', right: '25%', bottom: -10, padding: 6 }} accessibilityLabel="Profile photo actions">
+              <Ionicons name="ellipsis-horizontal-circle" size={22} color={COLORS.primary} />
             </TouchableOpacity>
           </View>
         </View>

@@ -70,7 +70,7 @@ router.patch('/users/profile', ensureAuth(), async (req,res) => {
   try {
     const me = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
     if (me.length === 0) return res.status(404).json({ error: 'User not found' })
-  const { username, email, full_name, phone, location, profile_image_url, profile_image_blurhash } = req.body || {}
+  const { username, email, full_name, phone, location, profile_image_url, profile_image_blurhash, banner_image_url, banner_image_blurhash } = req.body || {}
     if (typeof username === 'string' && username.trim()) {
       const taken = await db.select().from(usersTable).where(eq(usersTable.username, username.trim()))
       if (taken.length > 0 && taken[0].id !== me[0].id) return res.status(409).json({ error: 'conflict', field: 'username', message: 'Username already taken' })
@@ -98,12 +98,31 @@ router.patch('/users/profile', ensureAuth(), async (req,res) => {
         try {
           const u = new URL(val)
           if (!allowlistHosts.includes(u.host)) return res.status(400).json({ error: 'Invalid image URL host' })
-          updates.profileImageUrl = val
+          // Strip any query/fragments (avoid storing presigned GET URLs)
+          updates.profileImageUrl = `${u.protocol}//${u.host}${u.pathname}`
         } catch { return res.status(400).json({ error: 'Invalid image URL' }) }
       }
     }
     if (typeof profile_image_blurhash !== 'undefined') updates.profileImageBlurhash = profile_image_blurhash || null
-  // Banner fields removed (feature deferred)
+    // Banner fields (optional)
+    if (typeof banner_image_url !== 'undefined') {
+      const { AWS_S3_BUCKET, AWS_S3_REGION, AWS_CLOUDFRONT_DOMAIN } = ENV
+      const allowlistHosts = []
+      if (AWS_S3_BUCKET && AWS_S3_REGION) allowlistHosts.push(`${AWS_S3_BUCKET}.s3.${AWS_S3_REGION}.amazonaws.com`)
+      if (AWS_CLOUDFRONT_DOMAIN) allowlistHosts.push(AWS_CLOUDFRONT_DOMAIN)
+      const val = banner_image_url || null
+      if (val === null) updates.bannerImageUrl = null
+      else if (allowlistHosts.length === 0) updates.bannerImageUrl = val
+      else {
+        try {
+          const u = new URL(val)
+          if (!allowlistHosts.includes(u.host)) return res.status(400).json({ error: 'Invalid banner URL host' })
+          // Strip any query/fragments (avoid storing presigned GET URLs)
+          updates.bannerImageUrl = `${u.protocol}//${u.host}${u.pathname}`
+        } catch { return res.status(400).json({ error: 'Invalid banner URL' }) }
+      }
+    }
+    if (typeof banner_image_blurhash !== 'undefined') updates.bannerImageBlurhash = banner_image_blurhash || null
     updates.updatedAt = new Date()
     const updated = await db.update(usersTable).set(updates).where(eq(usersTable.clerkUserId, req.auth.userId)).returning()
     return res.json(updated[0])

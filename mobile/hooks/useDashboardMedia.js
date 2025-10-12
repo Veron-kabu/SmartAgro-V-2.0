@@ -3,10 +3,8 @@ import { getJSON } from '../context/api'
 
 export function useDashboardMedia(profile) {
   const [avatarUrl, setAvatarUrl] = useState(null)
-  // Banner feature deferred – keep API surface but no functionality.
-  const [bannerUrl] = useState(null)
-  const [bannerResolving] = useState(false)
-  const setBannerUrl = () => {}
+  const [bannerUrl, setBannerUrl] = useState(null)
+  const [bannerResolving, setBannerResolving] = useState(false)
   const storageModeRef = useRef(null)
   const storageCheckedRef = useRef(false)
 
@@ -68,17 +66,44 @@ export function useDashboardMedia(profile) {
     return setupRefresh(profile?.profileImageUrl || profile?.profile_image_url, setAvatarUrl)
   }, [profile?.profileImageUrl, profile?.profile_image_url, setupRefresh])
 
-  // (Banner resolve logic removed – deferred implementation)
+  // Banner initial resolve & refresh (reuses generic resolver)
+  useEffect(() => {
+    (async () => {
+      try {
+        const raw = profile?.bannerImageUrl || profile?.banner_image_url || null
+        if (!raw) { setBannerUrl(null); return }
+        setBannerResolving(true)
+        const q = encodeURIComponent(raw)
+        // Force sign on initial resolve to avoid race with storage-health fetch and prevent 403s
+        let r = await getJSON(`/api/uploads/resolve-avatar-url?force=1&url=${q}`)
+        if (r && r.url === raw && !/X-Amz-Signature/i.test(raw)) {
+          try { r = await getJSON(`/api/uploads/resolve-avatar-url?force=1&url=${q}`) } catch {}
+        }
+        const nextUrl = (r?.url || raw)
+        // Important: Do NOT append cache-busting to signed URLs (would invalidate signature)
+        setBannerUrl(nextUrl)
+      } catch {
+        const fallback = profile?.bannerImageUrl || profile?.banner_image_url || null
+        setBannerUrl(fallback || null)
+      } finally {
+        setBannerResolving(false)
+      }
+    })()
+  }, [profile?.bannerImageUrl, profile?.banner_image_url])
+
+  useEffect(() => {
+    return setupRefresh(profile?.bannerImageUrl || profile?.banner_image_url, setBannerUrl)
+  }, [profile?.bannerImageUrl, profile?.banner_image_url, setupRefresh])
 
   // Warn in development if placeholder CloudFront domain is present to explain 403/DNS errors
   useEffect(() => {
-    const raw = profile?.profileImageUrl || profile?.profile_image_url
+    const raw = (profile?.profileImageUrl || profile?.profile_image_url || profile?.bannerImageUrl || profile?.banner_image_url)
     if (!raw) return
     if (/your-cloudfront-domain/i.test(raw) && !global.__CF_PLACEHOLDER_WARNED__) {
       global.__CF_PLACEHOLDER_WARNED__ = true
-      console.warn('[useDashboardMedia] Placeholder CloudFront domain detected in avatar URL. Banner feature disabled currently.')
+      console.warn('[useDashboardMedia] Placeholder CloudFront domain detected in media URL (avatar/banner). Check ENV.AWS_CLOUDFRONT_DOMAIN.')
     }
-  }, [profile?.profileImageUrl, profile?.profile_image_url])
+  }, [profile?.profileImageUrl, profile?.profile_image_url, profile?.bannerImageUrl, profile?.banner_image_url])
 
   return { avatarUrl, bannerUrl, bannerResolving, setBannerUrl, setAvatarUrl }
 }

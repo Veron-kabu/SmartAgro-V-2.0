@@ -164,7 +164,7 @@ export default function MarketScreen() {
                       <View style={homeStyles.metaItem}>
                         <Ionicons name="cash-outline" size={16} color={COLORS.white} />
                         <Text style={homeStyles.metaText}>
-                          ${featuredProduct.price}/{featuredProduct.unit}
+                          Ksh {featuredProduct.price}/{featuredProduct.unit}
                         </Text>
                       </View>
                       <View style={homeStyles.metaItem}>

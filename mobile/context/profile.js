@@ -8,6 +8,8 @@ import { getJSON, postJSON, setAuthTokenGetter } from "./api"
 const ProfileContext = createContext({
   profile: null,
   refresh: async () => {},
+  // Apply a local update to the profile to avoid a full refetch/re-render
+  applyLocalUpdate: (updated) => {},
   loading: true,
   error: null,
 })
@@ -91,7 +93,13 @@ export function ProfileProvider({ children }) {
     refresh()
   }, [isSignedIn, refresh])
 
-  return <ProfileContext.Provider value={{ profile, refresh, loading, error }}>{children}</ProfileContext.Provider>
+  const applyLocalUpdate = useCallback((updated) => {
+    if (!updated) return
+    // Replace with server-updated shape to keep parity
+    setProfile(updated)
+  }, [])
+
+  return <ProfileContext.Provider value={{ profile, refresh, applyLocalUpdate, loading, error }}>{children}</ProfileContext.Provider>
 }
 
 export function useProfile() {

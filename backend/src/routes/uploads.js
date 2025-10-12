@@ -153,6 +153,7 @@ function presignFactory(kind) {
 router.post('/uploads/avatar-presign', ensureAuth(), presignFactory('avatars'))
 // Product image presign (used by mobile when creating listings). Falls back to avatar-presign on client if absent.
 router.post('/uploads/product-presign', ensureAuth(), presignFactory('products'))
-// Banner presign removed (feature deferred); avatar resolver is generic for any stored image.
+// Banner image presign mirrors avatar flow; kept separate for cleaner S3 prefixes and permissions if needed.
+router.post('/uploads/banner-presign', ensureAuth(), presignFactory('banners'))
 
 export default router

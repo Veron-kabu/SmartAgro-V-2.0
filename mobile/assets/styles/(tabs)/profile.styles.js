@@ -53,7 +53,8 @@ export const profileStyles = StyleSheet.create({
     right: 0,
     paddingVertical: 8,
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    // Remove any dark shade over the banner
+    backgroundColor: 'transparent',
   },
   bannerEditHint: {
     color: COLORS.white,

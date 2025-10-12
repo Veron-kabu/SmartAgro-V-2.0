@@ -85,7 +85,7 @@ export const ordersTable = pgTable("orders", {
 // =======================
 export const orderStatusHistoryTable = pgTable("order_status_history", {
   id: serial("id").primaryKey(),
-  orderId: integer("order_id").references(() => ordersTable.id).notNull(),
+  orderId: integer("order_id").references(() => ordersTable.id, { onDelete: 'cascade' }).notNull(),
   fromStatus: varchar("from_status", { length: 20 }),
   toStatus: varchar("to_status", { length: 20 }).notNull(),
   changedByUserId: integer("changed_by_user_id").references(() => usersTable.id).notNull(),
@@ -107,7 +107,7 @@ export const favoritesTable = pgTable("favorites", {
 // =======================
 export const reviewsTable = pgTable("reviews", {
   id: serial("id").primaryKey(),
-  orderId: integer("order_id").references(() => ordersTable.id).notNull(),
+  orderId: integer("order_id").references(() => ordersTable.id, { onDelete: 'cascade' }).notNull(),
   reviewerId: integer("reviewer_id").references(() => usersTable.id).notNull(),
   reviewedId: integer("reviewed_id").references(() => usersTable.id).notNull(),
   rating: integer("rating"), // 1 to 5

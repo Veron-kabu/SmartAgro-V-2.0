@@ -5,7 +5,8 @@ import { useEffect } from 'react'
 import { useProfile } from "../../context/profile"
 import UserDashboard from "../dashboard/UserDashboard"
 import { router } from 'expo-router'
-import { profileStyles as styles, COLORS } from "../../assets/styles/(tabs)/profile.styles"
+import { profileStyles as styles } from "../../assets/styles/(tabs)/profile.styles"
+import { COLORS } from "../../constants/colors"
 
 export default function ProfileTab() {
   const { profile, loading } = useProfile()
