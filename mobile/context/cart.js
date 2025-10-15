@@ -10,6 +10,7 @@ const CartContext = createContext({
   removeItem: () => {},
   updateQuantity: () => {},
   updateItemPrice: () => {},
+  updateItemFields: () => {},
   clearCart: () => {},
   getTotalPrice: () => 0,
   getTotalItems: () => 0,
@@ -96,6 +97,12 @@ export function CartProvider({ children }) {
     setItems((currentItems) => currentItems.map(i => i.id === productId ? { ...i, price: newPrice } : i))
   }
 
+  // Generic updater to merge additional fields into an item (e.g., images)
+  const updateItemFields = (productId, fields) => {
+    if (!productId || !fields || typeof fields !== 'object') return
+    setItems((currentItems) => currentItems.map(i => i.id === productId ? { ...i, ...fields } : i))
+  }
+
   const getTotalPrice = () => {
     return items.reduce((total, item) => total + item.price * item.quantity, 0)
   }
@@ -112,6 +119,7 @@ export function CartProvider({ children }) {
         removeItem,
         updateQuantity,
         updateItemPrice,
+        updateItemFields,
         clearCart,
         getTotalPrice,
         getTotalItems,

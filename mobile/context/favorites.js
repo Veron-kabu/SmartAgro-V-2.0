@@ -12,7 +12,7 @@ const FavoritesContext = createContext({
   favorites: [],
   loading: false,
   error: null,
-  toggleFavorite: async (_id) => {},
+  toggleFavorite: async (_id, _snapshot) => {},
   refreshFavorites: () => {},
   isFavorited: (_id) => false,
 })
@@ -35,24 +35,48 @@ export function FavoritesProvider({ children }) {
 
   useEffect(() => { if (!initialized.current) { initialized.current = true; load() } }, [load])
 
-  const toggleFavorite = useCallback(async (productId) => {
+  const toggleFavorite = useCallback(async (productId, snapshot) => {
+    // Optimistic update for snappy UI
+    const optimistic = (prev) => {
+      const isFav = prev.some(f => f.product?.id === productId)
+      if (isFav) {
+        // remove optimistically
+        return prev.filter(f => f.product?.id !== productId)
+      } else {
+        // add optimistically with snapshot if provided
+        const productObj = snapshot ? { ...snapshot, id: productId } : { id: productId }
+        return [{ id: Date.now(), createdAt: new Date().toISOString(), product: productObj, farmer: null }, ...prev]
+      }
+    }
+
+    // Apply optimistic change immediately
+    setFavorites(optimistic)
+    // Notify screens with snapshot to avoid skeletons
+    try { emitAppEvent('favorite:changed', { productId, favorited: !favorites.some(f => f.product?.id === productId), snapshot }) } catch {}
+
     try {
       const res = await postJSON(`/api/favorites/${productId}/toggle`, {})
+      // Reconcile with server answer
       setFavorites(prev => {
-        const isFav = prev.some(f => f.product?.id === productId)
-        if (isFav && res?.favorited === false) {
+        const isFavNow = prev.some(f => f.product?.id === productId)
+        if (res?.favorited) {
+          if (isFavNow) return prev
+          const productObj = snapshot ? { ...snapshot, id: productId } : { id: productId }
+          return [{ id: res.id || Date.now(), createdAt: new Date().toISOString(), product: productObj, farmer: null }, ...prev]
+        } else {
+          if (!isFavNow) return prev
           return prev.filter(f => f.product?.id !== productId)
-        } else if (!isFav && res?.favorited) {
-          return [{ id: res.id || Date.now(), createdAt: new Date().toISOString(), product: { id: productId }, farmer: null }, ...prev]
         }
-        return prev
       })
-      emitAppEvent('favorite:changed', { productId, favorited: res?.favorited })
-      return res?.favorited
+      emitAppEvent('favorite:changed', { productId, favorited: res?.favorited, snapshot })
+      return !!res?.favorited
     } catch (e) {
+      // Revert optimistic change on error
+      setFavorites(prev => optimistic(prev))
+      emitAppEvent('favorite:changed', { productId, favorited: favorites.some(f => f.product?.id === productId), snapshot })
       throw e
     }
-  }, [])
+  }, [favorites])
 
   const refreshFavorites = useCallback(() => load(), [load])
   const isFavorited = useCallback((productId) => favorites.some(f => f.product?.id === productId), [favorites])

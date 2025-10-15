@@ -60,17 +60,15 @@ export default function ChatConversation() {
       return;
     }
 
-    // Extract display name for header
+    // Header title should be the other participant based on current user
     let headerTitle = 'Chat';
     const currentUserEmail = user?.emailAddresses?.[0]?.emailAddress || user?.id;
     const otherParticipant = currentChatRoom.participants?.find(p => p !== currentUserEmail);
-    
-    if (currentChatRoom.name && currentChatRoom.name.includes('@')) {
-      headerTitle = currentChatRoom.name.replace('Chat with ', '').split('@')[0];
-    } else if (otherParticipant && otherParticipant.includes('@')) {
-      headerTitle = otherParticipant.split('@')[0];
-    } else {
-      headerTitle = currentChatRoom.name || 'Chat';
+    if (otherParticipant) {
+      headerTitle = otherParticipant.includes('@') ? otherParticipant.split('@')[0] : otherParticipant;
+    } else if (currentChatRoom?.name) {
+      const n = currentChatRoom.name.replace(/^Chat with\s+/i, '');
+      headerTitle = n.includes('@') ? n.split('@')[0] : n;
     }
 
     navigation.setOptions({

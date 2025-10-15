@@ -116,16 +116,16 @@ const FavoritesScreen = () => {
     const unsub = subscribeAppEvents(evt => {
       if (!mounted) return
       if (evt.type === 'favorite:changed') {
-        const { productId, favorited } = evt.payload || {}
+        const { productId, favorited, snapshot } = evt.payload || {}
         if (!productId) return
         setFavoriteProducts(prev => {
           const exists = prev.some(f => f.id === productId)
           if (favorited) {
             if (exists) return prev
             // Add skeletal entry first
-            const entry = { id: productId, title: 'Loading...', __hydrating: true }
-            // Hydrate asynchronously
-            hydrateProduct(productId)
+            const entry = snapshot ? { ...snapshot, id: productId } : { id: productId, title: 'Loading...', __hydrating: true }
+            // Hydrate asynchronously if snapshot missing important fields
+            if (!snapshot) hydrateProduct(productId)
             return [entry, ...prev]
           } else {
             if (!exists) return prev
@@ -187,12 +187,17 @@ const FavoritesScreen = () => {
                   color={COLORS.text} 
                 />
                 <Ionicons name="cart" size={20} color={COLORS.primary} style={favoritesStyles.cartIcon} />
-                <Text style={favoritesStyles.cartTitle}>Cart ({cartItems.length})</Text>
+                <Text style={favoritesStyles.cartTitle}>Cart</Text>
+                {!showCart && (
+                  <View style={favoritesStyles.countBadge}>
+                    <Text style={favoritesStyles.countBadgeText}>{cartItems.length}</Text>
+                  </View>
+                )}
               </View>
               <View style={favoritesStyles.cartActions}>
-                <Text style={favoritesStyles.cartTotal}>KSH {getTotalPrice().toFixed(2)}</Text>
+                {/* Removed inline total from header to declutter */}
                 <TouchableOpacity onPress={clearCart} activeOpacity={0.7}>
-                  <Text style={favoritesStyles.clearText}>Clear</Text>
+                  <View style={favoritesStyles.clearPill}><Text style={favoritesStyles.clearText}>Clear</Text></View>
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>
@@ -242,7 +247,7 @@ const FavoritesScreen = () => {
                         {...panResponder.panHandlers}
                       >
                         <Image 
-                          source={{ uri: ci.images?.[0] || ci.imageUrl || 'https://via.placeholder.com/60' }} 
+                          source={{ uri: (Array.isArray(ci.images) && ci.images[0]) || ci.imageUrl || (typeof ci.image === 'string' ? ci.image : undefined) || 'https://via.placeholder.com/60' }} 
                           style={favoritesStyles.cartItemImage} 
                         />
                         <View style={favoritesStyles.cartItemInfo}>

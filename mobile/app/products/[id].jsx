@@ -57,14 +57,29 @@ export default function ProductDetail() {
   const addToCart = () => {
     if (!product) return
     if (product.quantityAvailable <= 0) return
-    addItem({ id: product.id, title: product.title, price: Number(product.price)||0, unit: product.unit, farmerId: product.farmerId }, qty)
+    // Include primary image so it renders in cart list
+    const primaryImage = Array.isArray(product.images) && product.images.length ? product.images[0] : undefined
+    addItem({ id: product.id, title: product.title, price: Number(product.price)||0, unit: product.unit, farmerId: product.farmerId, images: product.images || (primaryImage ? [primaryImage] : []), imageUrl: primaryImage }, qty)
     Alert.alert('Added', 'Product added to cart')
   }
 
   const toggleFavorite = async () => {
     if (!numericId) return
     try {
-      const updated = await toggleFavCtx(numericId)
+      const snapshot = product ? {
+        title: product.title,
+        price: product.price,
+        unit: product.unit,
+        images: product.images,
+        imageBlurhashes: product.imageBlurhashes,
+        location: product.location,
+        quantityAvailable: product.quantityAvailable,
+        status: product.status,
+        farmerId: product.farmerId,
+        isOrganic: product.isOrganic,
+        description: product.description,
+      } : undefined
+      const updated = await toggleFavCtx(numericId, snapshot)
       setFavorited(updated)
       track(ANALYTICS_EVENTS.PRODUCT_FAVORITE_TOGGLED, { productId: numericId, favorited: updated })
     } catch (_e) {

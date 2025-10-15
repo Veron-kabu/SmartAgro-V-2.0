@@ -3,12 +3,13 @@
 import { Tabs } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import { View, Text } from 'react-native'
-import { useCart } from '../../context/cart'
+import { useFavorites } from '../../context/favorites'
 import { ChatProvider } from '../../context/chat'
 
 export default function TabsLayout() {
-  const { items: cartItems } = useCart()
-  const cartCount = cartItems.reduce((n,i)=> n + (i.quantity||0), 0)
+  // Show the number of FAVORITES on the Favorites tab (not cart items)
+  const { favorites } = useFavorites()
+  const favCount = Array.isArray(favorites) ? favorites.length : 0
   return (
     <ChatProvider>
       <Tabs
@@ -55,9 +56,9 @@ export default function TabsLayout() {
             tabBarIcon: ({ color, size }) => (
               <View>
                 <Ionicons name="heart" size={size} color={color} />
-                {cartCount > 0 && (
+                {favCount > 0 && (
                   <View style={{ position:'absolute', top:-4, right:-10, backgroundColor:'#ef4444', borderRadius:10, minWidth:18, paddingHorizontal:4, height:18, alignItems:'center', justifyContent:'center' }}>
-                    <Text style={{ color:'#fff', fontSize:10, fontWeight:'700' }} numberOfLines={1}>{cartCount > 99 ? '99+' : cartCount}</Text>
+                    <Text style={{ color:'#fff', fontSize:10, fontWeight:'700' }} numberOfLines={1}>{favCount > 99 ? '99+' : favCount}</Text>
                   </View>
                 )}
               </View>

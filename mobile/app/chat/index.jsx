@@ -39,16 +39,18 @@ export default function ChatIndex() {
   );
 
   const renderChatRoom = ({ item }) => {
-    // Extract the other participant's name/email to display as username
+    // Compute display name: prefer the other participant relative to current user
     const currentUserEmail = user?.emailAddresses?.[0]?.emailAddress || user?.id;
     const otherParticipant = item.participants?.find(p => p !== currentUserEmail);
-    
-    // Get display name - prefer username format over email
-    let displayName = item.name;
-    if (item.name && item.name.includes('@')) {
-      displayName = item.name.replace('Chat with ', '').split('@')[0];
-    } else if (otherParticipant && otherParticipant.includes('@')) {
-      displayName = otherParticipant.split('@')[0];
+    let displayName = '';
+    if (otherParticipant) {
+      displayName = otherParticipant.includes('@') ? otherParticipant.split('@')[0] : otherParticipant;
+    } else if (item.name) {
+      // Fallback to room name, stripping common prefixes and email domains if present
+      const n = item.name.replace(/^Chat with\s+/i, '');
+      displayName = n.includes('@') ? n.split('@')[0] : n;
+    } else {
+      displayName = 'Chat';
     }
     
     // Get first letter of display name for avatar

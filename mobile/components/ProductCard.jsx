@@ -24,7 +24,19 @@ export default function ProductCard({ product }) {
       return;
     }
     try {
-      await toggleFavCtx(product.id);
+      await toggleFavCtx(product.id, {
+        title: product.title,
+        price: product.price,
+        unit: product.unit,
+        images: product.images,
+        imageBlurhashes: product.imageBlurhashes,
+        location: product.location,
+        quantityAvailable: product.quantityAvailable,
+        status: product.status,
+        farmerId: product.farmerId,
+        isOrganic: product.isOrganic,
+        description: product.description,
+      });
     } catch (e) {
       Alert.alert('Error', e?.message || 'Failed to toggle favorite');
     }

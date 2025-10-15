@@ -21,7 +21,7 @@ export default function NewChat() {
   const [emailError, setEmailError] = useState('');
   const [emailFocused, setEmailFocused] = useState(false);
   const [nameFocused, setNameFocused] = useState(false);
-  const { createChatRoom, setCurrentChatRoom, isFirebaseReady } = useChat();
+  const { createChatRoom, setCurrentChatRoom, isFirebaseReady, getCurrentUser } = useChat();
   const router = useRouter();
   const navigation = useNavigation();
 
@@ -71,7 +71,9 @@ export default function NewChat() {
       
       if (chatRoomId) {
         // Set the current chat room and navigate to conversation
-        setCurrentChatRoom({ id: chatRoomId, name: roomName });
+        // Include participants for immediate correct header rendering
+        const me = getCurrentUser();
+        setCurrentChatRoom({ id: chatRoomId, name: roomName, participants: [me?._id || 'me', email.trim()] });
         router.replace('/chat/conversation');
       } else {
         Alert.alert('Error', 'Failed to create chat room. Please try again.');

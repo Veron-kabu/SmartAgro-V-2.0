@@ -74,6 +74,21 @@ export const favoritesStyles = StyleSheet.create({
     fontWeight: "600",
     color: COLORS.text,
   },
+  countBadge: {
+    marginLeft: 8,
+    backgroundColor: '#ef4444',
+    borderRadius: 10,
+    minWidth: 18,
+    paddingHorizontal: 6,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
+  },
   cartActions: {
     flexDirection: "row",
     alignItems: "center",
@@ -84,10 +99,17 @@ export const favoritesStyles = StyleSheet.create({
     fontWeight: "700",
     color: COLORS.primary,
   },
+  clearPill: {
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
   clearText: {
     fontSize: 12,
     color: "#ef4444",
-    fontWeight: "600",
+    fontWeight: "700",
   },
   cartContent: {
     padding: 16,
