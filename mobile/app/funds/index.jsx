@@ -24,11 +24,7 @@ export default function FundsIndex() {
           <Text style={styles.cardTitle}>Transactions</Text>
           <Text style={styles.cardHint}>Income and payouts</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={() => router.push('/funds/withdrawals')}>
-          <View style={styles.iconWrap}><Ionicons name="card-outline" size={22} color={COLORS.white} /></View>
-          <Text style={styles.cardTitle}>Withdrawals</Text>
-          <Text style={styles.cardHint}>Cash out funds</Text>
-        </TouchableOpacity>
+          {/** Withdrawals removed */}
       </View>
     </View>
   )

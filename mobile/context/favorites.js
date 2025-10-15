@@ -1,6 +1,8 @@
 "use client"
 
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
+import AsyncStorage from '@react-native-async-storage/async-storage'
+import { useUser } from '@clerk/clerk-expo'
 import { getJSON, postJSON } from './api'
 
 // Simple in-app event bus so other tabs can react without a full state library
@@ -22,18 +24,36 @@ export function FavoritesProvider({ children }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const initialized = useRef(false)
+  const { user } = useUser()
+  const storageKey = user?.id ? `fav:cache:${user.id}` : 'fav:cache:guest'
 
   const load = useCallback(async () => {
     setLoading(true); setError(null)
+    // 1) Hydrate from cache immediately for instant UI
+    try {
+      const cached = await AsyncStorage.getItem(storageKey)
+      if (cached) {
+        const parsed = JSON.parse(cached)
+        if (Array.isArray(parsed)) setFavorites(parsed)
+      }
+    } catch {}
+    // 2) Then fetch from server to ensure data is accurate
     try {
       const data = await getJSON('/api/favorites')
       if (Array.isArray(data)) setFavorites(data)
     } catch (e) {
       setError(e?.message || 'Failed to load favorites')
     } finally { setLoading(false) }
-  }, [])
+  }, [storageKey])
 
-  useEffect(() => { if (!initialized.current) { initialized.current = true; load() } }, [load])
+  useEffect(() => { load(); initialized.current = true }, [load])
+
+  // Persist favorites to cache whenever they change
+  useEffect(() => {
+    (async () => {
+      try { await AsyncStorage.setItem(storageKey, JSON.stringify(favorites || [])) } catch {}
+    })()
+  }, [favorites, storageKey])
 
   const toggleFavorite = useCallback(async (productId, snapshot) => {
     // Optimistic update for snappy UI

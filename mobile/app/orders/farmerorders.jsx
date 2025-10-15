@@ -1,17 +1,18 @@
+"use client"
+
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { View, Text, SectionList, ActivityIndicator, TouchableOpacity, Alert } from 'react-native'
-import { useRouter, useLocalSearchParams } from 'expo-router'
+import EmptyState from '../../components/EmptyState'
+import { useRouter } from 'expo-router'
 import { getJSON, patchJSON } from '../../context/api'
 import { groupOrders, formatCurrency, formatDate, statusBadgeColor, nextStatusesFor } from '../../utils/orders'
 import { OrderTimeline } from '../../components/OrderTimeline'
 import { track } from '../../utils/analytics'
 import { ANALYTICS_EVENTS } from '../../constants/analyticsEvents'
 import { farmerOrdersStyles as styles } from '../../assets/styles/orders.styles'
-import { COLORS } from '../../constants/colors'
 
 export default function FarmerOrders() {
   const router = useRouter()
-  const params = useLocalSearchParams()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -56,8 +57,7 @@ export default function FarmerOrders() {
     return () => clearInterval(id)
   }, [])
 
-  const { current, completed } = useMemo(() => groupOrders(orders), [orders])
-  const view = String(params?.view || '').toLowerCase()
+  const { current } = useMemo(() => groupOrders(orders), [orders])
   const canLoadMore = orders.length < total
 
   async function updateStatus(orderId, status) {
@@ -75,15 +75,9 @@ export default function FarmerOrders() {
     }
   }
 
-  const sections = useMemo(() => {
-    if (view === 'incoming') {
-      return [{ key: 'current', title: 'Incoming Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (current.length ? current : [{ __empty: true }]) }]
-    }
-    return [
-      { key: 'current', title: 'Incoming Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (current.length ? current : [{ __empty: true }]) },
-      { key: 'completed', title: 'Fulfilled Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (completed.length ? completed : [{ __empty: true }]) },
-    ]
-  }, [view, loading, orders.length, current, completed])
+  const sections = [
+    { key: 'current', title: 'Incoming Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (current.length ? current : [{ __empty: true }]) },
+  ]
 
   return (
     <SectionList
@@ -99,17 +93,21 @@ export default function FarmerOrders() {
         <View style={[styles.card, { paddingBottom: 8 }]}>
           <View style={styles.rowBetween}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
-            {loading ? <ActivityIndicator size="small" color={COLORS.primary} /> : null}
+            {loading ? <ActivityIndicator size="small" color="#16a34a" /> : null}
           </View>
         </View>
       )}
       renderItem={({ item }) => {
         if (item.__skeleton) return (<View style={styles.card}><View style={styles.skelTitle} /><View style={styles.skelLine} /></View>)
-        if (item.__empty) return (<View style={styles.card}><Text style={styles.muted}>No orders yet.</Text></View>)
+        if (item.__empty) return (
+          <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+            <EmptyState context="incomingOrders" />
+          </View>
+        )
     const badge = statusBadgeColor(item.status)
-    const nexts = nextStatusesFor(item.status)
-    const labelMap = { accepted: 'Accept', rejected: 'Reject', shipped: 'Ship', cancelled: 'Cancel', delivered: 'Mark Delivered' }
-    const actions = nexts.map(ns => ({ label: labelMap[ns] || ns, next: ns }))
+  const nexts = nextStatusesFor(item.status).filter(ns => ns !== 'delivered')
+  const labelMap = { accepted: 'Accept', rejected: 'Reject', shipped: 'Ship', cancelled: 'Cancel', delivered: 'Mark Delivered' }
+  const actions = nexts.map(ns => ({ label: labelMap[ns] || ns, next: ns }))
 
         return (
           <TouchableOpacity style={styles.card} activeOpacity={0.75} onPress={() => router.push(`/orders/order-details?id=${item.id}`)}>
@@ -121,7 +119,7 @@ export default function FarmerOrders() {
                 </View>
                 {item.__optimistic && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <ActivityIndicator size="small" color={COLORS.primary} />
+                    <ActivityIndicator size="small" color="#16a34a" />
                     {item.__optimisticAt && Date.now() - item.__optimisticAt > 2000 && (
                       <Text style={styles.syncingText}>Syncing...</Text>
                     )}
@@ -138,9 +136,9 @@ export default function FarmerOrders() {
               <OrderTimeline status={item.status} compact />
             </View>
             {actions.length ? (
-              <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 12 }}>
                 {actions.map(a => (
-                  <TouchableOpacity key={a.label} style={[styles.button, item.__optimistic && { opacity: 0.6 }]} disabled={item.__optimistic} onPress={() => updateStatus(item.id, a.next)}>
+                  <TouchableOpacity key={a.label} style={[styles.button, { marginRight: 8, marginBottom: 8 }, item.__optimistic && { opacity: 0.6 }]} disabled={item.__optimistic} onPress={() => updateStatus(item.id, a.next)}>
                     <Text style={styles.buttonText}>{a.label}</Text>
                   </TouchableOpacity>
                 ))}
@@ -151,7 +149,7 @@ export default function FarmerOrders() {
       }}
       ListFooterComponent={canLoadMore ? (
         <View style={{ paddingVertical: 12, alignItems: 'center' }}>
-          {loadingMore ? <ActivityIndicator size="small" color={COLORS.primary} /> : null}
+          {loadingMore ? <ActivityIndicator size="small" color="#16a34a" /> : null}
         </View>
       ) : null}
       stickySectionHeadersEnabled={false}

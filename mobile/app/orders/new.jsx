@@ -54,7 +54,8 @@ export default function NewOrderScreen() {
         emitAppEvent('product:stockChanged', { productId, remaining: created.remainingQuantity, status: created.productStatus })
       }
       show('Order placed!', { type: 'success' })
-  router.replace('/orders/buyerorders')
+  // After placing an order, go to the same screen as Profile > Orders > Sent Orders
+  router.replace('/orders/buyerorders?view=sent')
     } catch (e) {
       Alert.alert('Order Failed', e?.body || e?.message || 'Could not create order')
     } finally { setSubmitting(false) }
@@ -87,7 +88,7 @@ export default function NewOrderScreen() {
   const total = qtyNum * effectiveUnit
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 20 }} style={{ flex:1, backgroundColor: '#f9fafb' }}>
+    <ScrollView contentContainerStyle={{ padding: 20 }} style={{ flex:1, backgroundColor: '#f9fafb' }} keyboardShouldPersistTaps="handled">
       <View style={styles.card}>
         <Text style={styles.title}>New Order</Text>
         <Text style={styles.label}>Product</Text>

@@ -4,14 +4,12 @@ import { Tabs } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import { View, Text } from 'react-native'
 import { useFavorites } from '../../context/favorites'
-import { ChatProvider } from '../../context/chat'
 
 export default function TabsLayout() {
   // Show the number of FAVORITES on the Favorites tab (not cart items)
   const { favorites } = useFavorites()
   const favCount = Array.isArray(favorites) ? favorites.length : 0
   return (
-    <ChatProvider>
       <Tabs
         initialRouteName="home"
         screenOptions={{
@@ -73,6 +71,5 @@ export default function TabsLayout() {
           }}
         />
       </Tabs>
-    </ChatProvider>
   )
 }

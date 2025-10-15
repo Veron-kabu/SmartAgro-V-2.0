@@ -6,6 +6,7 @@ import { searchStyles } from "../../assets/styles/(tabs)/search.styles";
 import { COLORS } from "../../constants/colors";
 import { Ionicons } from "@expo/vector-icons";
 import ProductCard from "../../components/ProductCard";
+import EmptyState from "../../components/EmptyState";
 import LoadingSpinner from "../../components/LoadingSpinner";
 
 const SearchScreen = () => {
@@ -130,7 +131,7 @@ const SearchScreen = () => {
             columnWrapperStyle={searchStyles.row}
             contentContainerStyle={searchStyles.productsGrid}
             showsVerticalScrollIndicator={false}
-            ListEmptyComponent={<NoResultsFound />}
+            ListEmptyComponent={<EmptyState context="search" />}
           />
         )}
       </View>
@@ -140,15 +141,5 @@ const SearchScreen = () => {
 
 export default SearchScreen;
 
-function NoResultsFound() {
-  return (
-    <View style={searchStyles.emptyState}>
-      <Ionicons name="search-outline" size={64} color={COLORS.textLight} />
-      <Text style={searchStyles.emptyTitle}>No products found</Text>
-      <Text style={searchStyles.emptyDescription}>
-        Try adjusting your search or try different keywords
-      </Text>
-    </View>
-  );
-}
+
 

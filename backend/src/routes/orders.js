@@ -120,6 +120,10 @@ router.patch('/orders/:id/status', ensureAuth(), requireRole(['farmer','admin'])
     const existing = await db.select().from(ordersTable).where(eq(ordersTable.id, orderId))
     if (existing.length === 0) return res.status(404).json({ error: 'Order not found' })
     const prevStatus = existing[0].status
+    // Restrict 'delivered' to buyer flow only (farmers cannot mark delivered)
+    if (req.userRole !== 'admin' && String(status).toLowerCase() === 'delivered') {
+      return res.status(403).json({ error: 'Only the buyer can mark an order as delivered' })
+    }
     const updated = await db.update(ordersTable).set({ status }).where(eq(ordersTable.id, orderId)).returning()
     if (updated.length === 0) return res.status(404).json({ error: 'Order not found' })
     const actor = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
@@ -132,6 +136,33 @@ router.patch('/orders/:id/status', ensureAuth(), requireRole(['farmer','admin'])
       })
     }
     res.json(updated[0])
+      router.post('/orders/:id/mark-delivered', ensureAuth(), async (req,res) => {
+        try {
+          const orderId = Number(req.params.id)
+          if (isNaN(orderId)) return res.status(400).json({ error: 'Invalid order ID' })
+          // Resolve db user id
+          let dbUserId = req.auth?.dbUserId
+          if (!dbUserId) {
+            const rows = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
+            dbUserId = rows[0]?.id
+            if (dbUserId) req.auth.dbUserId = dbUserId
+          }
+          if (!dbUserId) return res.status(401).json({ error: 'Unauthorized' })
+          const existing = await db.select().from(ordersTable).where(eq(ordersTable.id, orderId))
+          if (existing.length === 0) return res.status(404).json({ error: 'Order not found' })
+          const ord = existing[0]
+          if (ord.buyerId !== dbUserId) return res.status(403).json({ error: 'Only the buyer can mark this order as delivered' })
+          const current = String(ord.status || '').toLowerCase()
+          if (current !== 'shipped') return res.status(400).json({ error: 'Order must be shipped before it can be marked delivered' })
+          const updatedArr = await db.update(ordersTable).set({ status: 'delivered', updatedAt: new Date() }).where(eq(ordersTable.id, orderId)).returning()
+          // Record history
+          await db.insert(orderStatusHistoryTable).values({ orderId, fromStatus: ord.status, toStatus: 'delivered', changedByUserId: dbUserId })
+          return res.json({ ok: true, order: updatedArr[0] })
+        } catch (e) {
+          console.error('mark-delivered error', e)
+          return res.status(500).json({ error: 'Failed to mark delivered' })
+        }
+      })
   } catch (e) { console.error('Error updating order status:', e); res.status(500).json({ error: 'Failed to update order status' }) }
 })
 
@@ -158,6 +189,41 @@ router.patch('/orders/:id', ensureAuth(), requireRole(['farmer','admin']), async
     }
     res.json(updated[0])
   } catch (e) { console.error('Error updating order (compat route):', e); res.status(500).json({ error: 'Failed to update order' }) }
+})
+
+// Buyer-initiated cancellation: allowed only when order is still pending and the requester is the buyer
+router.post('/orders/:id/cancel', ensureAuth(), requireRole(['buyer','farmer']), async (req, res) => {
+  try {
+    const orderId = Number(req.params.id)
+    if (isNaN(orderId)) return res.status(400).json({ error: 'Invalid order ID' })
+    // Current user
+    const meArr = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
+    if (!meArr.length) return res.status(403).json({ error: 'Access denied' })
+    const me = meArr[0]
+    // Fetch order
+    const existingArr = await db.select().from(ordersTable).where(eq(ordersTable.id, orderId))
+    if (!existingArr.length) return res.status(404).json({ error: 'Order not found' })
+    const existing = existingArr[0]
+    // Only the buyer who created it can cancel
+    if (existing.buyerId !== me.id) return res.status(403).json({ error: 'Only the buyer can cancel this order' })
+    const current = (existing.status || '').toLowerCase()
+    if (current !== 'pending') return res.status(400).json({ error: 'Order cannot be cancelled at this stage' })
+
+    // Update status -> cancelled
+    const updatedArr = await db.update(ordersTable).set({ status: 'cancelled' }).where(eq(ordersTable.id, orderId)).returning()
+    const updated = updatedArr[0]
+    // Record history
+    await db.insert(orderStatusHistoryTable).values({
+      orderId: orderId,
+      fromStatus: existing.status,
+      toStatus: 'cancelled',
+      changedByUserId: me.id,
+    })
+    return res.json(updated)
+  } catch (e) {
+    console.error('Error cancelling order:', e)
+    return res.status(500).json({ error: 'Failed to cancel order' })
+  }
 })
 
 // Order detail with history (buyer or farmer of the order or admin)

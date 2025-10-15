@@ -6,6 +6,7 @@ import { useResolvedUrls } from "../../hooks/useResolvedUrls"
 import { useAuth } from "@clerk/clerk-expo"
 import { useProfile } from "../../context/profile"
 import { Ionicons } from "@expo/vector-icons"
+import EmptyState from "../../components/EmptyState"
 import { getJSON } from "../../context/api"
 import { subscribeAppEvents } from "../../context/favorites"
 import { homeStyles } from "../../assets/styles/(tabs)/home.styles"
@@ -212,13 +213,7 @@ export default function MarketScreen() {
             />
           ) : (
             <View style={homeStyles.emptyState}>
-              <Ionicons name="storefront-outline" size={64} color={COLORS.textLight} />
-              <Text style={homeStyles.emptyTitle}>No products found</Text>
-              <Text style={homeStyles.emptyDescription}>
-                {selectedCategory
-                  ? "Try selecting a different category"
-                  : "Check back later for fresh products"}
-              </Text>
+              <EmptyState context="products" />
             </View>
           )}
         </View>

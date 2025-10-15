@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { View, Text, ActivityIndicator, FlatList } from 'react-native'
 import { getJSON } from '../../context/api'
 import { earningsStyles as styles } from '../../assets/styles/dashboard.styles'
+import EmptyState from '../../components/EmptyState'
 
 export default function TransactionsScreen() {
   const [items, setItems] = useState([])
@@ -32,7 +33,7 @@ export default function TransactionsScreen() {
   if (loading) return <View style={styles.center}><ActivityIndicator size="small" /><Text style={styles.muted}> Loading transactions...</Text></View>
   if (error) return <View style={styles.center}><Text style={styles.muted}>{error}</Text></View>
 
-  if (!items.length) return <View style={styles.center}><Text style={styles.muted}>No transactions yet.</Text></View>
+  if (!items.length) return <View style={styles.center}><EmptyState context="funds" /></View>
 
   return (
     <FlatList

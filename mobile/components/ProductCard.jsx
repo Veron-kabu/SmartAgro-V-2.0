@@ -5,6 +5,7 @@ import { COLORS } from "../constants/colors";
 import { productCardStyles } from "../assets/styles/(tabs)/home.styles";
 import BlurhashImage from "./BlurhashImage";
 import { useResolvedUrls } from "../hooks/useResolvedUrls";
+import { getJSON } from "../context/api";
 import { useProfile } from "../context/profile";
 import { useFavorites } from "../context/favorites";
 import { useChat } from "../context/chat";
@@ -34,6 +35,7 @@ export default function ProductCard({ product }) {
         quantityAvailable: product.quantityAvailable,
         status: product.status,
         farmerId: product.farmerId,
+        farmerEmail: product.farmerEmail,
         isOrganic: product.isOrganic,
         description: product.description,
       });
@@ -43,9 +45,22 @@ export default function ProductCard({ product }) {
   };
 
   const handleStartChat = async () => {
-    if (!product.farmerEmail) {
-      Alert.alert('Error', 'Farmer contact information not available');
-      return;
+    // Try to derive contact email from multiple possible fields
+    const deriveEmail = (p) => p?.farmerEmail || p?.farmer?.email || p?.farmerEmailAddress || p?.contactEmail || p?.farmer?.emailAddress
+
+    let contactEmail = deriveEmail(product)
+    // If not present (e.g., coming from a minimal favorite object), fetch product details once
+    if (!contactEmail && product?.id) {
+      try {
+        const full = await getJSON(`/api/products/${product.id}`)
+        contactEmail = deriveEmail(full)
+      } catch (_) {
+        // ignore fetch errors here; we'll show the alert below if still missing
+      }
+    }
+    if (!contactEmail) {
+      Alert.alert('Error', 'Farmer contact information not available')
+      return
     }
 
     if (profile?.id && product.farmerId === profile.id) {
@@ -54,13 +69,11 @@ export default function ProductCard({ product }) {
     }
 
     try {
-      const roomName = `Chat about ${product.title}`;
-      
-      console.log('Starting chat with farmer:', product.farmerEmail);
-      const chatRoom = await createOrFindChatRoom(product.farmerEmail, roomName);
-      
+  const roomName = `Chat about ${product.title}`;
+  const chatRoom = await createOrFindChatRoom(contactEmail, roomName);
       if (chatRoom) {
         setCurrentChatRoom(chatRoom);
+        // Navigate straight to the chat interface
         router.push('/chat/conversation');
       } else {
         Alert.alert('Error', 'Failed to start chat. Please try again.');

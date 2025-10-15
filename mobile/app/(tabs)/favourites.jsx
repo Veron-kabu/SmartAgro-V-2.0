@@ -12,7 +12,7 @@ import { useCart } from '../../context/cart'
 import { favoritesStyles } from "../../assets/styles/(tabs)/favorites.styles";
 import { Ionicons } from "@expo/vector-icons";
 import ProductCard from "../../components/ProductCard";
-import NoFavoritesFound from "../../components/NoFavoritesFound";
+import EmptyState from "../../components/EmptyState";
 import LoadingSpinner from "../../components/LoadingSpinner";
 import { router } from 'expo-router'
 
@@ -65,6 +65,7 @@ const FavoritesScreen = () => {
           ...favorite.product,
           id: favorite.product?.id || favorite.id,
           favoriteId: favorite.id,
+          farmerEmail: favorite.product?.farmerEmail || favorite?.farmer?.email || favorite?.product?.farmer?.email,
         }));
         setFavoriteProducts(transformedFavorites);
       } else {
@@ -101,6 +102,7 @@ const FavoritesScreen = () => {
             price: data.price,
             unit: data.unit,
             images: data.images,
+            farmerEmail: data.farmerEmail,
             location: data.location,
             farmerId: data.farmerId
           } : it))
@@ -331,7 +333,7 @@ const FavoritesScreen = () => {
               columnWrapperStyle={favoritesStyles.row}
               contentContainerStyle={favoritesStyles.productsGrid}
               scrollEnabled={false}
-              ListEmptyComponent={<NoFavoritesFound />}
+              ListEmptyComponent={<EmptyState context="favorites" />}
             />
           )}
         </View>

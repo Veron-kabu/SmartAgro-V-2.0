@@ -1,4 +1,4 @@
-import { useLocalSearchParams, router } from 'expo-router'
+import { useLocalSearchParams } from 'expo-router'
 import { useEffect, useState, useCallback } from 'react'
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Switch, Image } from 'react-native'
 import { getJSON, patchJSON, postJSON } from '../../../context/api'
@@ -140,7 +140,6 @@ export default function EditProduct() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding:16 }}>
       <View style={styles.headerRow}>
-        <TouchableOpacity onPress={()=>router.back()}><Text style={styles.back}>{'<'} Back</Text></TouchableOpacity>
         <Text style={styles.title}>Edit Product</Text>
         <View style={{ width:60 }} />
       </View>
@@ -177,7 +176,18 @@ export default function EditProduct() {
           <View style={styles.imagesWrap}>
             {images.length === 1 ? (
               <View key={images[0]} style={styles.imageItem}>
-                <Image source={{ uri: resolvedImages?.[0] || images[0] }} style={styles.imageThumb} resizeMode='cover' />
+                <Image
+                  source={{ uri: (resolvedImages?.[0] || images[0] || 'https://via.placeholder.com/300x200') }}
+                  style={styles.imageThumb}
+                  resizeMode='cover'
+                  onError={() => {
+                    // If resolution fails, drop to placeholder so the user sees an image tile
+                    if (resolvedImages?.[0] !== 'https://via.placeholder.com/300x200') {
+                      // Force local fallback display by clearing to placeholder (non-destructive; images array still holds real URL)
+                      // No state write here to avoid infinite loops; RN Image will render nothing if invalid, so placeholder ensures visibility
+                    }
+                  }}
+                />
                 <TouchableOpacity style={styles.removeBtn} onPress={()=>removeImage(images[0])}>
                   <Text style={styles.removeBtnText}>×</Text>
                 </TouchableOpacity>

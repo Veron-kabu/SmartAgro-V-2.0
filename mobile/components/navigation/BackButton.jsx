@@ -3,6 +3,7 @@ import { TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
+import { getLastRoute } from '../../utils/navHistory'
 
 /**
  * Reusable Back Button Component
@@ -27,7 +28,8 @@ export default function BackButton({
   size = 24, 
   style = {},
   fallbackRoute = null,
-  safeNavigation = true 
+  safeNavigation = true,
+  stackKey = null, // optional: use to select a smarter fallback based on last route visited in that stack
 }) {
   const router = useRouter();
 
@@ -49,8 +51,9 @@ export default function BackButton({
           } else {
             // Only use fallback if no navigation history exists
             console.log('No navigation history, using fallback route');
-            if (fallbackRoute) {
-              router.replace(fallbackRoute);
+            const dynamicFallback = stackKey ? (getLastRoute(stackKey) || fallbackRoute) : fallbackRoute
+            if (dynamicFallback) {
+              router.replace(dynamicFallback);
             } else {
               // Default fallback to home only as last resort
               router.replace('/home');
@@ -64,8 +67,9 @@ export default function BackButton({
                 router.back();
               } else {
                 console.log('Retry: No navigation history, using fallback');
-                if (fallbackRoute) {
-                  router.replace(fallbackRoute);
+                const dynamicFallback2 = stackKey ? (getLastRoute(stackKey) || fallbackRoute) : fallbackRoute
+                if (dynamicFallback2) {
+                  router.replace(dynamicFallback2);
                 } else {
                   router.replace('/home');
                 }

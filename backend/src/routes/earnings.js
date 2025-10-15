@@ -38,9 +38,9 @@ router.get('/earnings/farmer/summary', ensureAuth(), async (req,res) => {
       const key = d.toISOString().slice(0,10)
       dailyBuckets[key] = 0
     }
-    let totalRevenue = 0
-    let totalDelivered = 0
-    let activeOrders = 0
+  let totalRevenue = 0
+  let totalDelivered = 0
+  let activeOrders = 0
     const perListing = new Map()
     for (const o of orders) {
       const amt = Number(o.totalAmount) || 0
@@ -55,7 +55,9 @@ router.get('/earnings/farmer/summary', ensureAuth(), async (req,res) => {
         totalRevenue += amt
         totalDelivered += 1
       } else {
-        activeOrders += 1
+        // Count only actionable orders as 'active' (exclude cancelled/rejected)
+        const lower = (o.status||'').toLowerCase()
+        if (['pending','accepted','shipped'].includes(lower)) activeOrders += 1
       }
       const created = o.createdAt instanceof Date ? o.createdAt : new Date(o.createdAt)
       if (!isNaN(created)) {

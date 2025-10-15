@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getJSON, patchJSON, deleteJSON } from '../../context/api'
 import { emitAppEvent } from '../../context/favorites'
 import { useProfile } from '../../context/profile'
+import EmptyState from '../../components/EmptyState'
 import { router } from 'expo-router'
 import BlurhashImage from '../../components/BlurhashImage'
 import { useResolvedUrls } from '../../hooks/useResolvedUrls'
@@ -328,7 +329,13 @@ export default function MyListings() {
 				contentContainerStyle={(showEmptyBase || showNoMatches) && { flexGrow: 1, justifyContent:'center', alignItems:'center', paddingHorizontal:16 }}
 				renderItem={renderItem}
 				refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-				ListEmptyComponent={<Text style={styles.empty}>{showEmptyBase ? 'No listings yet. Post one!' : 'No matches – adjust your filters.'}</Text>}
+				ListEmptyComponent={showEmptyBase ? (
+					<View style={{ paddingHorizontal:16, paddingTop: 12 }}>
+						<EmptyState context="listings" />
+					</View>
+				) : (
+					<Text style={styles.empty}>No matches – adjust your filters.</Text>
+				)}
 				onEndReachedThreshold={0.4}
 				onEndReached={() => loadMore()}
 				ListFooterComponent={loadingMore ? <View style={{ paddingVertical: 24 }}><ActivityIndicator /></View> : null}

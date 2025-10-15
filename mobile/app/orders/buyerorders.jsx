@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { View, Text, SectionList, ActivityIndicator, TouchableOpacity } from 'react-native'
+import EmptyState from '../../components/EmptyState'
 import { useRouter, useLocalSearchParams } from 'expo-router'
-import { getJSON } from '../../context/api'
+import { getJSON, postJSON } from '../../context/api'
 import { groupOrders, formatCurrency, formatDate, statusBadgeColor } from '../../utils/orders'
 import { OrderTimeline } from '../../components/OrderTimeline'
 import { buyerOrdersStyles as styles } from '../../assets/styles/orders.styles'
@@ -108,7 +109,11 @@ export default function BuyerOrders() {
       )}
       renderItem={({ item, section }) => {
         if (item.__skeleton) return (<View style={styles.card}><View style={styles.skelTitle} /><View style={styles.skelLine} /></View>)
-        if (item.__empty) return (<View style={styles.card}><Text style={styles.muted}>No orders yet.</Text></View>)
+        if (item.__empty) return (
+          <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+            <EmptyState context="orders" />
+          </View>
+        )
         const badge = statusBadgeColor(item.status)
         return (
           <TouchableOpacity style={styles.card} activeOpacity={0.75} onPress={() => router.push(`/orders/order-details?id=${item.id}`)}>
@@ -124,6 +129,43 @@ export default function BuyerOrders() {
             <View style={{ marginTop: 10 }}>
               <OrderTimeline status={item.status} compact />
             </View>
+            {String(item.status).toLowerCase() === 'pending' && (
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 }}>
+                <TouchableOpacity
+                  onPress={async () => {
+                    try {
+                      await postJSON(`/api/orders/${item.id}/cancel`, {})
+                      // Update local list optimistically
+                      setOrders(prev => prev.map(o => o.id === item.id ? { ...o, status: 'cancelled' } : o))
+                    } catch (_e) {
+                      // Optionally surface error via toast/alert
+                    }
+                  }}
+                  activeOpacity={0.85}
+                  style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#ef4444' }}
+                >
+                  <Text style={{ color: '#ef4444', fontWeight: '600' }}>Cancel Order</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {String(item.status).toLowerCase() === 'shipped' && (
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 }}>
+                <TouchableOpacity
+                  onPress={async () => {
+                    try {
+                      await postJSON(`/api/orders/${item.id}/mark-delivered`, {})
+                      setOrders(prev => prev.map(o => o.id === item.id ? { ...o, status: 'delivered' } : o))
+                    } catch (_e) {
+                      // If fails, we can alert or ignore silently
+                    }
+                  }}
+                  activeOpacity={0.85}
+                  style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#16a34a' }}
+                >
+                  <Text style={{ color: '#16a34a', fontWeight: '700' }}>Mark Delivered</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </TouchableOpacity>
         )
       }}

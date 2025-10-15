@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useChat } from '../../context/chat';
 import { messagesTabStyles as styles, COLORS } from '../../assets/styles/chats/messages.tab.styles';
+import EmptyState from '../../components/EmptyState';
 
 export default function ChatIndex() {
   const { chatRooms, setCurrentChatRoom, isFirebaseReady } = useChat();
@@ -177,22 +178,14 @@ export default function ChatIndex() {
 
           {/* Chat Rooms List or Empty State */}
           {chatRooms.length === 0 ? (
-            // Empty state: No chats exist yet
             <View style={styles.emptyContainer}>
-              <View style={styles.emptyIconContainer}>
-                <Ionicons name="chatbubbles-outline" size={64} color={COLORS.emptyStateIconColor} />
-              </View>
-              <Text style={styles.emptyText}>No chats yet</Text>
-              <Text style={styles.emptySubtext}>
-                Tap the + button to start a conversation with farmers and buyers
-              </Text>
-              <TouchableOpacity
-                style={styles.startChatButton}
-                onPress={() => router.push('/chat/new-chat')}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.startChatButtonText}>New Chat</Text>
-              </TouchableOpacity>
+              <EmptyState
+                context="messages"
+                title="No chats yet"
+                actionLabel="New Chat"
+                actionIcon="add"
+                onAction={() => router.push('/chat/new-chat')}
+              />
             </View>
           ) : (
             // List of existing chat rooms

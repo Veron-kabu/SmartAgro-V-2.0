@@ -5,6 +5,7 @@ import { ClerkProvider, useAuth } from "@clerk/clerk-expo"
 import { ProfileProvider } from "../context/profile"
 import { FavoritesProvider } from "../context/favorites"
 import { CartProvider, useCart } from "../context/cart"
+import { ChatProvider } from "../context/chat"
 import { ToastProvider, useToast } from "../context/toast"
 import { getJSON } from '../context/api'
 import { validateCartItems } from '../utils/cartValidation'
@@ -97,16 +98,18 @@ export default function RootLayout() {
           <ProfileProvider>
             <FavoritesProvider>
               <CartProvider>
-                <ForegroundCartValidator />
-                <SwipeBackGesture 
-                  edgeWidth={60}
-                  threshold={100}
-                  velocityThreshold={0.4}
-                  hapticFeedback={true}
-                  fallbackRoute="/home"
-                >
-                  <Stack screenOptions={{ headerShown: false }} />
-                </SwipeBackGesture>
+                <ChatProvider>
+                  <ForegroundCartValidator />
+                  <SwipeBackGesture 
+                    edgeWidth={60}
+                    threshold={100}
+                    velocityThreshold={0.4}
+                    hapticFeedback={true}
+                    fallbackRoute="/home"
+                  >
+                    <Stack screenOptions={{ headerShown: false }} />
+                  </SwipeBackGesture>
+                </ChatProvider>
               </CartProvider>
             </FavoritesProvider>
           </ProfileProvider>

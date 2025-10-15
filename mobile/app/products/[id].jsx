@@ -76,6 +76,7 @@ export default function ProductDetail() {
         quantityAvailable: product.quantityAvailable,
         status: product.status,
         farmerId: product.farmerId,
+        farmerEmail: product.farmerEmail,
         isOrganic: product.isOrganic,
         description: product.description,
       } : undefined
