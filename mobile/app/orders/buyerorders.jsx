@@ -1,15 +1,15 @@
-"use client"
-
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { View, Text, SectionList, ActivityIndicator, TouchableOpacity } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import { getJSON } from '../../context/api'
 import { groupOrders, formatCurrency, formatDate, statusBadgeColor } from '../../utils/orders'
 import { OrderTimeline } from '../../components/OrderTimeline'
 import { buyerOrdersStyles as styles } from '../../assets/styles/orders.styles'
+import { COLORS } from '../../constants/colors'
 
 export default function BuyerOrders() {
   const router = useRouter()
+  const params = useLocalSearchParams()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -17,6 +17,8 @@ export default function BuyerOrders() {
   const [total, setTotal] = useState(0)
   const [offset, setOffset] = useState(0)
   const limit = 25
+  const listRef = useRef(null)
+  const [focusedKey, setFocusedKey] = useState(null)
 
   const load = useCallback(async (nextOffset = 0) => {
     if (nextOffset === 0) setLoading(true)
@@ -45,15 +47,49 @@ export default function BuyerOrders() {
   useEffect(() => { load(0) }, [load])
 
   const { current, completed } = useMemo(() => groupOrders(orders), [orders])
+  const view = String(params?.view || '').toLowerCase() || (params?.focus ? String(params.focus).toLowerCase() : '')
   const canLoadMore = orders.length < total
 
-  const sections = [
-    { key: 'current', title: 'Current Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (current.length ? current : [{ __empty: true }]) },
-    { key: 'completed', title: 'Completed Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (completed.length ? completed : [{ __empty: true }]) },
-  ]
+  const sections = useMemo(() => {
+    // Decide which single view to show
+    if (view === 'current') {
+      return [{ key: 'current', title: 'Current Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (current.length ? current : [{ __empty: true }]) }]
+    }
+    if (view === 'fulfilled' || view === 'completed') {
+      return [{ key: 'completed', title: 'Fulfilled Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (completed.length ? completed : [{ __empty: true }]) }]
+    }
+    if (view === 'sent') {
+      // Sent orders are equivalent to buyer orders overall; show all current+fulfilled together under a single heading
+      const all = [...current, ...completed]
+      return [{ key: 'sent', title: 'Sent Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (all.length ? all : [{ __empty: true }]) }]
+    }
+    // Default: show both as before
+    return [
+      { key: 'current', title: 'Current Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (current.length ? current : [{ __empty: true }]) },
+    { key: 'completed', title: 'Fulfilled Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (completed.length ? completed : [{ __empty: true }]) },
+    ]
+  }, [view, loading, orders.length, current, completed])
+
+  // Auto-scroll to section based on focus/view param and briefly highlight header
+  useEffect(() => {
+    const raw = String(params?.focus || params?.view || '').toLowerCase()
+    if (!raw || !listRef.current || loading) return
+    const key = raw === 'fulfilled' ? 'completed' : raw
+    const index = sections.findIndex(s => s.key === key)
+    if (index >= 0) {
+      setTimeout(() => {
+        try {
+          listRef.current.scrollToLocation({ sectionIndex: index, itemIndex: 0, animated: true, viewPosition: 0 })
+          setFocusedKey(key)
+          setTimeout(() => setFocusedKey(null), 1600)
+        } catch {}
+      }, 0)
+    }
+  }, [params?.focus, params?.view, loading, sections])
 
   return (
     <SectionList
+      ref={listRef}
       sections={sections}
       keyExtractor={(item, index) => String(item?.id ?? index)}
       contentContainerStyle={{ paddingBottom: 24 }}
@@ -63,10 +99,10 @@ export default function BuyerOrders() {
       onEndReachedThreshold={0.3}
       onEndReached={() => { if (canLoadMore && !loadingMore) load(offset + limit) }}
       renderSectionHeader={({ section }) => (
-        <View style={[styles.card, { paddingBottom: 8 }]}>
+        <View style={[styles.card, { paddingBottom: 8 }, focusedKey === section.key && styles.sectionHeaderFocused]}>
           <View style={styles.rowBetween}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
-            {loading ? <ActivityIndicator size="small" color="#16a34a" /> : null}
+            {loading ? <ActivityIndicator size="small" color={COLORS.primary} /> : null}
           </View>
         </View>
       )}
@@ -93,7 +129,7 @@ export default function BuyerOrders() {
       }}
       ListFooterComponent={canLoadMore ? (
         <View style={{ paddingVertical: 12, alignItems: 'center' }}>
-          {loadingMore ? <ActivityIndicator size="small" color="#16a34a" /> : null}
+          {loadingMore ? <ActivityIndicator size="small" color={COLORS.primary} /> : null}
         </View>
       ) : null}
       stickySectionHeadersEnabled={false}

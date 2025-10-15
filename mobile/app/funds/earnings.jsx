@@ -53,10 +53,29 @@ export default function EarningsScreen() {
   const trend = summary?.trend || []
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ padding:16, paddingBottom: 40 }}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>Earnings Overview</Text>
         <TouchableOpacity onPress={() => fetchEarnings(true)} style={styles.refreshBtn}><Text style={styles.refreshText}>↻</Text></TouchableOpacity>
+      </View>
+      {/* Hero summary */}
+      <View style={styles.heroCard}>
+        <Text style={styles.metricLabel}>Total Revenue</Text>
+        <Text style={styles.heroValue}>{formatCurrency(summary?.totalRevenue)}</Text>
+        <View style={styles.heroRow}>
+          <View style={styles.heroItem}>
+            <Text style={styles.heroLabel}>Delivered</Text>
+            <Text style={styles.heroMetric}>{summary?.deliveredOrders}</Text>
+          </View>
+          <View style={styles.heroItem}>
+            <Text style={styles.heroLabel}>Active</Text>
+            <Text style={styles.heroMetric}>{summary?.activeOrders}</Text>
+          </View>
+          <View style={styles.heroItem}>
+            <Text style={styles.heroLabel}>Active Listings</Text>
+            <Text style={styles.heroMetric}>{summary?.activeListings ?? (summary?.listings||[]).filter(l=>l.status==='active').length}</Text>
+          </View>
+        </View>
       </View>
       <View style={styles.metricsGrid}>
         <View style={styles.metricCard}><Text style={styles.metricLabel}>Total Revenue</Text><Text style={styles.metricValue}>{formatCurrency(summary?.totalRevenue)}</Text></View>
@@ -65,7 +84,7 @@ export default function EarningsScreen() {
   <View style={styles.metricCard}><Text style={styles.metricLabel}>Listings (Active)</Text><Text style={styles.metricValue}>{summary?.activeListings ?? listings.filter(l=>l.status==='active').length}</Text></View>
       </View>
 
-      <Text style={styles.sectionHeading}>7-Day Revenue Trend</Text>
+  <Text style={styles.sectionHeading}>7-Day Revenue Trend</Text>
       <View style={styles.chartRow}>
         {trend.map(day => {
           const max = Math.max(...trend.map(t=>t.revenue||0),1)

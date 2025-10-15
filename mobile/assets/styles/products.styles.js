@@ -1,16 +1,17 @@
 import { StyleSheet } from 'react-native';
+import { COLORS, OVERLAY } from '../../constants/colors';
 
 // Product Detail Page Styles
 export const productDetailStyles = StyleSheet.create({
   container: { 
     flex: 1, 
-    backgroundColor: '#f3f4f6' 
+    backgroundColor: COLORS.background 
   },
   heroWrap: { 
     position: 'relative', 
     width: '100%', 
-    height: 260, 
-    backgroundColor: '#e5e7eb' 
+    height: 300, 
+    backgroundColor: COLORS.border 
   },
   heroImage: { 
     width: '100%', 
@@ -29,10 +30,10 @@ export const productDetailStyles = StyleSheet.create({
     width:8, 
     height:8, 
     borderRadius:4, 
-    backgroundColor:'rgba(255,255,255,0.4)' 
+    backgroundColor: OVERLAY.dim 
   },
   dotActive: { 
-    backgroundColor:'#fff' 
+    backgroundColor: COLORS.white 
   },
   topButtons: { 
     position: 'absolute', 
@@ -44,7 +45,7 @@ export const productDetailStyles = StyleSheet.create({
     alignItems: 'center' 
   },
   navBtn: { 
-    backgroundColor: 'rgba(255,255,255,0.8)', 
+    backgroundColor: OVERLAY.light, 
     width: 40, 
     height: 40, 
     borderRadius: 20, 
@@ -54,10 +55,10 @@ export const productDetailStyles = StyleSheet.create({
   navBtnText: { 
     fontSize: 18, 
     fontWeight: '700', 
-    color: '#111827' 
+    color: COLORS.text 
   },
   circleBtn: { 
-    backgroundColor: 'rgba(255,255,255,0.8)', 
+    backgroundColor: OVERLAY.light, 
     width: 40, 
     height: 40, 
     borderRadius: 20, 
@@ -66,20 +67,20 @@ export const productDetailStyles = StyleSheet.create({
   },
   circleBtnText: { 
     fontSize: 16, 
-    color: '#111827', 
+    color: COLORS.text, 
     fontWeight: '600' 
   },
   discountBadge: { 
     position: 'absolute', 
     top: 40, 
     left: 16, 
-    backgroundColor: '#ef4444', 
+    backgroundColor: COLORS.error, 
     paddingHorizontal: 10, 
     paddingVertical: 6, 
     borderRadius: 16 
   },
   discountBadgeText: { 
-    color: '#fff', 
+    color: COLORS.white, 
     fontSize: 11, 
     fontWeight: '800', 
     letterSpacing: 0.5 
@@ -88,20 +89,20 @@ export const productDetailStyles = StyleSheet.create({
     position: 'absolute', 
     top: 40, 
     right: 16, 
-    backgroundColor: '#1f2937', 
+    backgroundColor: COLORS.text, 
     paddingHorizontal: 10, 
     paddingVertical: 6, 
     borderRadius: 16 
   },
   discountBadgeSecondaryText: { 
-    color: '#fff', 
+    color: COLORS.white, 
     fontSize: 10, 
     fontWeight: '700', 
     letterSpacing: 0.5 
   },
   sheet: { 
     marginTop: -28, 
-    backgroundColor: '#fff', 
+    backgroundColor: COLORS.card, 
     borderTopLeftRadius: 32, 
     borderTopRightRadius: 32, 
     padding: 24, 
@@ -110,17 +111,17 @@ export const productDetailStyles = StyleSheet.create({
   title: { 
     fontSize: 20, 
     fontWeight: '700', 
-    color: '#111827', 
+    color: COLORS.text, 
     marginBottom: 6 
   },
   price: { 
     fontSize: 20, 
     fontWeight: '700', 
-    color: '#111827' 
+    color: COLORS.text 
   },
   origPrice: { 
     fontSize: 14, 
-    color: '#6b7280', 
+    color: COLORS.textLight, 
     textDecorationLine:'line-through', 
     fontWeight:'600', 
     marginBottom:2 
@@ -128,11 +129,11 @@ export const productDetailStyles = StyleSheet.create({
   unit: { 
     fontSize: 12, 
     fontWeight: '600', 
-    color: '#6b7280' 
+    color: COLORS.textLight 
   },
   desc: { 
     fontSize: 13, 
-    color: '#475569', 
+    color: COLORS.textLight, 
     marginTop: 10, 
     lineHeight: 18 
   },
@@ -142,12 +143,12 @@ export const productDetailStyles = StyleSheet.create({
   },
   metaLabel: { 
     fontSize: 12, 
-    color: '#6b7280', 
+    color: COLORS.textLight, 
     width: 110 
   },
   metaValue: { 
     fontSize: 12, 
-    color: '#111827', 
+    color: COLORS.text, 
     fontWeight: '600' 
   },
   qtyRow: { 
@@ -159,12 +160,12 @@ export const productDetailStyles = StyleSheet.create({
   qtyLabel: { 
     fontSize: 14, 
     fontWeight: '600', 
-    color: '#111827' 
+    color: COLORS.text 
   },
   qtyControls: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    backgroundColor: '#f1f5f9', 
+    backgroundColor: COLORS.background, 
     borderRadius: 24, 
     paddingHorizontal: 8, 
     paddingVertical: 6 
@@ -173,72 +174,72 @@ export const productDetailStyles = StyleSheet.create({
     width: 30, 
     height: 30, 
     borderRadius: 15, 
-    backgroundColor: '#fff', 
+    backgroundColor: COLORS.white, 
     alignItems: 'center', 
     justifyContent: 'center', 
-    shadowColor: '#000', 
+    shadowColor: COLORS.shadow, 
     shadowOpacity: 0.05, 
     shadowRadius: 4 
   },
   qtyBtnText: { 
     fontSize: 16, 
     fontWeight: '700', 
-    color: '#111827' 
+    color: COLORS.text 
   },
   qtyValue: { 
     minWidth: 28, 
     textAlign: 'center', 
     fontSize: 16, 
     fontWeight: '600', 
-    color: '#111827' 
+    color: COLORS.text 
   },
   extPrice: { 
     marginLeft: 'auto', 
     fontSize: 14, 
     fontWeight: '700', 
-    color: '#111827' 
+    color: COLORS.text 
   },
   addBtn: { 
     marginTop: 18, 
-    backgroundColor: '#111827', 
+    backgroundColor: COLORS.primary, 
     paddingVertical: 14, 
     borderRadius: 32, 
     alignItems: 'center' 
   },
   addBtnDisabled: { 
-    backgroundColor: '#9ca3af' 
+    backgroundColor: COLORS.textLight 
   },
   addBtnText: { 
-    color: '#fff', 
+    color: COLORS.white, 
     fontSize: 14, 
     fontWeight: '700', 
     letterSpacing: 0.5 
   },
   circleBtnActive: { 
-    backgroundColor: '#111827' 
+    backgroundColor: COLORS.primary 
   },
   circleBtnTextActive: { 
-    color: '#fff' 
+    color: COLORS.white 
   },
   retryBtn: { 
-    backgroundColor: '#111827', 
+    backgroundColor: COLORS.primary, 
     paddingHorizontal: 18, 
     paddingVertical: 10, 
     borderRadius: 24 
   },
   retryBtnText: { 
-    color: '#fff', 
+    color: COLORS.white, 
     fontWeight: '600' 
   },
   secondaryActionBtn: { 
     flex:1, 
-    backgroundColor: '#f1f5f9', 
+    backgroundColor: COLORS.background, 
     paddingVertical: 14, 
     borderRadius: 28, 
     alignItems:'center' 
   },
   secondaryActionBtnText: { 
-    color:'#111827', 
+    color: COLORS.text, 
     fontWeight:'700', 
     fontSize:14 
   },
@@ -247,7 +248,7 @@ export const productDetailStyles = StyleSheet.create({
 // Product Edit Page Styles
 export const productEditStyles = StyleSheet.create({
   container:{ 
-    flex:1, backgroundColor:'#f8fafc' 
+    flex:1, backgroundColor: COLORS.background 
   },
   headerRow:{ 
     flexDirection:'row', 
@@ -256,36 +257,36 @@ export const productEditStyles = StyleSheet.create({
     marginBottom:12 
   },
   back:{ 
-    color:'#111827', 
+    color: COLORS.text, 
     fontSize:14, 
     fontWeight:'600' 
   },
   title:{ 
     fontSize:16, 
     fontWeight:'700', 
-    color:'#111827' 
+    color: COLORS.text 
   },
   label:{ 
     fontSize:12, 
     fontWeight:'600', 
-    color:'#374151', 
+    color: COLORS.textLight, 
     marginTop:16, 
     marginBottom:6 
   },
   input:{ 
-    backgroundColor:'#fff', 
+    backgroundColor: COLORS.white, 
     borderWidth:1, 
-    borderColor:'#e5e7eb', 
+    borderColor: COLORS.inputBorder, 
     borderRadius:20, 
     paddingHorizontal:16, 
     paddingVertical:10, 
     fontSize:13 
   },
   inputError:{ 
-    borderColor:'#ef4444' 
+    borderColor: COLORS.error 
   },
   fieldError:{ 
-    color:'#ef4444', 
+    color: COLORS.error, 
     fontSize:11, 
     marginTop:4 
   },
@@ -297,30 +298,30 @@ export const productEditStyles = StyleSheet.create({
   },
   saveBtn:{ 
     marginTop:28, 
-    backgroundColor:'#111827', 
+    backgroundColor: COLORS.primary, 
     paddingVertical:14, 
     borderRadius:28, 
     alignItems:'center' 
   },
   saveText:{ 
-    color:'#fff', 
+    color: COLORS.white, 
     fontWeight:'700', 
     fontSize:14 
   },
   error:{ 
-    color:'#dc2626', 
+    color: COLORS.error, 
     textAlign:'center' 
   },
   retry:{ 
     marginTop:12, 
     alignSelf:'center', 
-    backgroundColor:'#111827', 
+    backgroundColor: COLORS.primary, 
     paddingHorizontal:16, 
     paddingVertical:10, 
     borderRadius:24 
   },
   retryText:{ 
-    color:'#fff', 
+    color: COLORS.white, 
     fontWeight:'600' 
   },
   imagesWrap:{ 
@@ -339,13 +340,13 @@ export const productEditStyles = StyleSheet.create({
     width:'100%', 
     height:'100%', 
     borderRadius:16, 
-    backgroundColor:'#e2e8f0' 
+    backgroundColor: COLORS.divider 
   },
   removeBtn:{ 
     position:'absolute', 
     top:-6, 
     right:-6, 
-    backgroundColor:'#111827', 
+    backgroundColor: COLORS.text, 
     width:22, 
     height:22, 
     borderRadius:11, 
@@ -353,7 +354,7 @@ export const productEditStyles = StyleSheet.create({
     justifyContent:'center' 
   },
   removeBtnText:{ 
-    color:'#fff', 
+    color: COLORS.white, 
     fontSize:14, 
     fontWeight:'700', 
     lineHeight:16 
@@ -362,20 +363,20 @@ export const productEditStyles = StyleSheet.create({
     width:76, 
     height:76, 
     borderRadius:16, 
-    backgroundColor:'#f1f5f9', 
+    backgroundColor: COLORS.background, 
     borderWidth:1, 
-    borderColor:'#e2e8f0', 
+    borderColor: COLORS.border, 
     alignItems:'center', 
     justifyContent:'center' 
   },
   addImageText:{ 
     fontSize:28, 
-    color:'#64748b', 
+    color: COLORS.textLight, 
     marginTop:-4 
   },
   imagesHint:{ 
     fontSize:11, 
-    color:'#64748b', 
+    color: COLORS.textLight, 
     marginTop:2, 
     marginLeft:4 
   },
@@ -385,7 +386,7 @@ export const productEditStyles = StyleSheet.create({
   },
   charCount:{ 
     fontSize:10, 
-    color:'#94a3b8', 
+    color: COLORS.textLight, 
     marginTop:4, 
     alignSelf:'flex-end', 
     marginRight:4 

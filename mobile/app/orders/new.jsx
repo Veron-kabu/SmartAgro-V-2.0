@@ -1,5 +1,3 @@
-"use client"
-
 import { useLocalSearchParams, router } from 'expo-router'
 import { useEffect, useState, useCallback } from 'react'
 import { View, Text, ActivityIndicator, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native'
@@ -11,6 +9,7 @@ import { emitAppEvent } from '../../context/favorites'
 import { useToast } from '../../context/toast'
 import { newOrderStyles as styles } from '../../assets/styles/orders.styles'
 import { useProfile } from '../../context/profile'
+import { COLORS } from '../../constants/colors'
 
 export default function NewOrderScreen() {
   const { product: productParam } = useLocalSearchParams()
@@ -62,14 +61,14 @@ export default function NewOrderScreen() {
   }
 
   if (!profile) {
-    return <View style={styles.center}><ActivityIndicator color="#16a34a" /></View>
+  return <View style={styles.center}><ActivityIndicator color={COLORS.primary} /></View>
   }
   // Allow both buyers and farmers to place orders (farmers act as buyers for others' listings)
   if (!['buyer','farmer'].includes(profile.role)) {
     return <View style={styles.center}><Text style={styles.muted}>Only buyers or farmers can place orders.</Text></View>
   }
 
-  if (loading) return <View style={styles.center}><ActivityIndicator color="#16a34a" /></View>
+  if (loading) return <View style={styles.center}><ActivityIndicator color={COLORS.primary} /></View>
   if (!product) return <View style={styles.center}><Text style={styles.muted}>Product not found.</Text></View>
 
   const isSelfOwned = profile.role === 'farmer' && product?.farmerId === profile.id

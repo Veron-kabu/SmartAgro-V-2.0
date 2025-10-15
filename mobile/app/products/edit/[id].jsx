@@ -2,6 +2,7 @@ import { useLocalSearchParams, router } from 'expo-router'
 import { useEffect, useState, useCallback } from 'react'
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Switch, Image } from 'react-native'
 import { getJSON, patchJSON, postJSON } from '../../../context/api'
+import { useResolvedUrls } from '../../../hooks/useResolvedUrls'
 import * as ImagePicker from 'expo-image-picker'
 import { track } from '../../../utils/analytics'
 import { ANALYTICS_EVENTS } from '../../../constants/analyticsEvents'
@@ -21,10 +22,13 @@ export default function EditProduct() {
   const [orig, setOrig] = useState(null)
   const [dirty, setDirty] = useState(false)
   // Images state
-  const [images, setImages] = useState([]) // current working set
-  const [imagesAdded, setImagesAdded] = useState([]) // newly uploaded URLs this session
-  const [imagesRemoved, setImagesRemoved] = useState([]) // existing URLs marked for removal
+  const [images, setImages] = useState([]) // single image array (0 or 1)
+  const [imagesAdded, setImagesAdded] = useState([]) // 0 or 1
+  const [imagesRemoved, setImagesRemoved] = useState([]) // removal when replacing
   const [addingImage, setAddingImage] = useState(false)
+
+  // Resolve image URLs (handles private S3 URLs) for display
+  const resolvedImages = useResolvedUrls(images)
 
   const load = useCallback(async () => {
     if (!numericId) return
@@ -37,7 +41,8 @@ export default function EditProduct() {
       setDiscount(String(p.discountPercent || 0))
       setActive(p.status === 'active')
   setDescription(typeof p.description === 'string' ? p.description : '')
-      setImages(Array.isArray(p.images) ? p.images : [])
+  // Enforce single image locally
+  setImages(Array.isArray(p.images) && p.images.length ? [p.images[0]] : [])
       setImagesAdded([]); setImagesRemoved([])
     } catch (e) { setError(e?.message || 'Failed to load product') }
     finally { setLoading(false) }
@@ -71,11 +76,9 @@ export default function EditProduct() {
       }
       await fetch(presign.uploadUrl, { method: 'PUT', headers: { 'Content-Type': presign.contentType }, body: blob })
       const url = presign.publicUrl
-      setImages(prev => {
-        const next = [...prev, url].slice(0,10)
-        return next
-      })
-      setImagesAdded(prev => [...prev, url])
+      // Replacing any existing image
+      setImages([url])
+      setImagesAdded([url])
       markDirty()
     } catch (e) {
       Alert.alert('Image error', e?.message || 'Failed to add image')
@@ -85,12 +88,10 @@ export default function EditProduct() {
   }, [markDirty])
 
   const removeImage = (url) => {
-    setImages(prev => prev.filter(i => i !== url))
-    setImagesAdded(prev => prev.includes(url) ? prev.filter(i => i !== url) : prev)
-    // Only push to removed if it existed originally and not newly added
-    if (orig?.images?.includes(url)) {
-      setImagesRemoved(prev => prev.includes(url) ? prev : [...prev, url])
-    }
+    setImages([])
+    setImagesAdded([])
+    // Only push to removed if it existed originally
+    if (orig?.images?.includes(url)) setImagesRemoved(prev => prev.includes(url) ? prev : [...prev, url])
     markDirty()
   }
 
@@ -172,25 +173,24 @@ export default function EditProduct() {
           />
           <Text style={styles.charCount}>{description.length}/1000</Text>
 
-          <Text style={styles.label}>Images</Text>
+          <Text style={styles.label}>Image</Text>
           <View style={styles.imagesWrap}>
-            {images.map((img) => (
-              <View key={img} style={styles.imageItem}>
-                <Image source={{ uri: img }} style={styles.imageThumb} resizeMode='cover' />
-                <TouchableOpacity style={styles.removeBtn} onPress={()=>removeImage(img)}>
+            {images.length === 1 ? (
+              <View key={images[0]} style={styles.imageItem}>
+                <Image source={{ uri: resolvedImages?.[0] || images[0] }} style={styles.imageThumb} resizeMode='cover' />
+                <TouchableOpacity style={styles.removeBtn} onPress={()=>removeImage(images[0])}>
                   <Text style={styles.removeBtnText}>×</Text>
                 </TouchableOpacity>
               </View>
-            ))}
-            {images.length < 10 && (
+            ) : (
               <TouchableOpacity style={styles.addImage} onPress={pickAndUploadImage} activeOpacity={0.85}>
-                {addingImage ? <ActivityIndicator size='small' color='#111827' /> : (
+                {addingImage ? <ActivityIndicator size='small' color={styles?.saveBtn?.backgroundColor || '#111827'} /> : (
                   <Text style={styles.addImageText}>+</Text>
                 )}
               </TouchableOpacity>
             )}
           </View>
-          <Text style={styles.imagesHint}>{images.length}/10 images</Text>
+          <Text style={styles.imagesHint}>{images.length}/1 image</Text>
 
           <View style={styles.switchRow}>
             <Text style={styles.label}>Active</Text>
@@ -198,7 +198,7 @@ export default function EditProduct() {
           </View>
 
           <TouchableOpacity disabled={!canSave} onPress={save} style={[styles.saveBtn, !canSave && { opacity:0.5 }]}>
-            {saving ? <ActivityIndicator color='#fff' /> : <Text style={styles.saveText}>Save Changes</Text>}
+            {saving ? <ActivityIndicator color={styles?.saveText?.color || '#fff'} /> : <Text style={styles.saveText}>Save Changes</Text>}
           </TouchableOpacity>
         </View>
       )}

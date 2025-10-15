@@ -1,3 +1,4 @@
+import { COLORS } from '../../constants/colors'
 import { View, Text, ActivityIndicator, ScrollView, TouchableOpacity, RefreshControl, Switch } from 'react-native'
 import { useProfile } from '../../context/profile'
 import { useCallback, useEffect, useState } from 'react'
@@ -161,7 +162,7 @@ export default function AdminDashboard() {
           >
             {runningSync ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <ActivityIndicator size="small" color="#fff" />
+                <ActivityIndicator size="small" color={COLORS.white} />
                 <Text style={{ color: '#fff', fontWeight: '600', fontSize: 12 }}>Syncing…</Text>
               </View>
             ) : (
@@ -190,7 +191,7 @@ export default function AdminDashboard() {
         >
           {signingOut ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color={COLORS.white} />
               <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Logging out…</Text>
             </View>
           ) : (

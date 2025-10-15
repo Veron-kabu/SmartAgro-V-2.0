@@ -1,5 +1,5 @@
 import { StyleSheet } from 'react-native';
-import { COLORS } from '../../constants/colors';
+import { COLORS, BACKDROP, OVERLAY } from '../../constants/colors';
 
 // Post Listing Page Styles
 export const postListingStyles = StyleSheet.create({
@@ -82,8 +82,8 @@ export const myListingsStyles = StyleSheet.create({
   headerActions:{ flexDirection:'row', alignItems:'center' },
   headerBtn:{ paddingHorizontal:12, paddingVertical:6, backgroundColor: COLORS.background, borderRadius:16 },
   headerBtnText:{ fontSize:12, fontWeight:'600', color: COLORS.text },
-  selectOverlay:{ position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor:'rgba(0,0,0,0.15)', justifyContent:'flex-start', alignItems:'flex-end', padding:6 },
-  checkbox:{ width:22, height:22, borderRadius:12, borderWidth:2, borderColor: COLORS.white, backgroundColor:'rgba(255,255,255,0.4)', alignItems:'center', justifyContent:'center' },
+  selectOverlay:{ position:'absolute', top:0, left:0, right:0, bottom:0, backgroundColor: BACKDROP.light, justifyContent:'flex-start', alignItems:'flex-end', padding:6 },
+  checkbox:{ width:22, height:22, borderRadius:12, borderWidth:2, borderColor: COLORS.white, backgroundColor: OVERLAY.dim, alignItems:'center', justifyContent:'center' },
   checkboxChecked:{ backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   checkboxMark:{ color: COLORS.white, fontSize:12, fontWeight:'700' },
   cardSelected:{ borderColor: COLORS.primary, borderWidth:2 },

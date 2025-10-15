@@ -1,5 +1,5 @@
 import { StyleSheet, Dimensions } from "react-native";
-import { COLORS } from "../../constants/colors";
+import { COLORS, BACKDROP } from "../../constants/colors";
 
 const { height } = Dimensions.get("window");
 
@@ -38,7 +38,7 @@ export const productDetailStyles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "rgba(0, 0, 0, 0.3)",
+  backgroundColor: BACKDROP.medium,
     justifyContent: "center",
     alignItems: "center",
     backdropFilter: "blur(10px)",
@@ -69,7 +69,7 @@ export const productDetailStyles = StyleSheet.create({
     fontWeight: "bold",
     color: COLORS.white,
     marginBottom: 8,
-    textShadowColor: "rgba(0, 0, 0, 0.75)",
+  textShadowColor: BACKDROP.heavy,
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 3,
   },
@@ -83,7 +83,7 @@ export const productDetailStyles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 16,
     fontWeight: "500",
-    textShadowColor: "rgba(0, 0, 0, 0.75)",
+  textShadowColor: BACKDROP.heavy,
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
   },

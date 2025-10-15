@@ -9,6 +9,11 @@ import { takeToken } from '../utils/rateLimit.js'
 
 const router = Router()
 
+// Allowed product categories (ids) - keep in sync with mobile/constants/categories.js (excluding 'all')
+const ALLOWED_CATEGORIES = new Set([
+  'vegetables','fruits','grains','roots','nuts','dairy','eggs'
+])
+
 router.get('/products', async (req,res) => {
   try {
     const { category, min_price, max_price, is_organic, limit, cursor } = req.query
@@ -108,14 +113,23 @@ router.post('/products', ensureAuth(), requireRole(['farmer']), async (req,res) 
     const key = `product_create_${req.auth.userId}`
     if (!takeToken(key, { capacity: 10, refillRatePerSec: 0.25 })) return res.status(429).json({ error: 'Too many product creations, slow down' })
     const user = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
-  const { title, category, price, unit, quantity_available, location, discount_percent } = req.body
+  let { title, category, price, unit, quantity_available, location, discount_percent } = req.body
     if (!title || !category || !price || !unit || !quantity_available || !location) return res.status(400).json({ error: 'Missing required product fields' })
+    // Normalize and validate category
+    category = String(category || '').toLowerCase()
+    if (!ALLOWED_CATEGORIES.has(category)) {
+      return res.status(400).json({ error: 'Invalid category', allowed: Array.from(ALLOWED_CATEGORIES) })
+    }
   const { description, minimum_order, harvest_date, expiry_date, images, is_organic } = req.body
+    // Enforce single image: keep only the first URL if provided
+    const safeImages = Array.isArray(images) && images.length > 0
+      ? [String(images[0])]
+      : []
     const inserted = await db.insert(productsTable).values({
       farmerId: user[0].id,
       title,
       description,
-      category,
+  category,
   // Price accepted as Ksh (string/number). Validation happens below; Drizzle decimal will store exactly.
   price,
       unit,
@@ -124,15 +138,15 @@ router.post('/products', ensureAuth(), requireRole(['farmer']), async (req,res) 
       harvestDate: harvest_date,
       expiryDate: expiry_date,
       location,
-  images,
+  images: safeImages,
       isOrganic: is_organic,
   discountPercent: typeof discount_percent === 'number' ? Math.min(Math.max(discount_percent, 0), 90) : 0,
       imageBlurhashes: [],
     }).returning()
     ;(async () => {
       try {
-        if (Array.isArray(images) && images.length > 0) {
-          const slice = images.slice(0,6)
+        if (Array.isArray(safeImages) && safeImages.length > 0) {
+          const slice = safeImages.slice(0,1)
           const concurrency = 3
           const queue = [...slice]
           const hashes = []
@@ -223,11 +237,19 @@ router.patch('/products/:id', ensureAuth(), requireRole(['farmer','admin']), asy
         }
       }
       if (Array.isArray(images_add)) {
+        // Prepend new images so the first one becomes the primary image
         for (const a of images_add) {
-          if (typeof a === 'string' && a.startsWith('http') && !current.includes(a)) current.push(a)
+          if (typeof a === 'string' && a.startsWith('http')) current.unshift(a)
+        }
+        // De-duplicate while preserving first occurrence (prefer the new image at the front)
+        const seen = new Set()
+        for (let i = 0; i < current.length; i++) {
+          const url = current[i]
+          if (seen.has(url)) { current.splice(i,1); i--; } else { seen.add(url) }
         }
       }
-      nextImages = current.slice(0,10) // hard cap to prevent unbounded growth
+      // Enforce single image only
+      nextImages = current.slice(0,1)
       updates.images = nextImages
       // Reset blurhashes so backfill job can regenerate if images changed
       updates.imageBlurhashes = []

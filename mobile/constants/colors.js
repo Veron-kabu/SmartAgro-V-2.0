@@ -371,3 +371,18 @@ export const THEMES = {
 
 // 👇 change this to switch theme
 export const COLORS = THEMES.forest;
+
+// Common semi-transparent overlays used across components (kept separate from theme hues)
+export const OVERLAY = {
+  light: 'rgba(255,255,255,0.8)',
+  dim: 'rgba(255,255,255,0.4)'
+};
+
+// Backdrop overlays (black with varying alpha) for scrims, modals, image masks
+export const BACKDROP = {
+  light: 'rgba(0,0,0,0.15)',
+  medium: 'rgba(0,0,0,0.3)',
+  dim: 'rgba(0,0,0,0.4)',
+  dark: 'rgba(0,0,0,0.5)',
+  heavy: 'rgba(0,0,0,0.75)'
+};

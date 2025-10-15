@@ -1,8 +1,10 @@
 import { useLocalSearchParams, router } from 'expo-router'
 import { useEffect, useState, useCallback } from 'react'
-import { View, Text, TouchableOpacity, ScrollView, Alert, Share, Dimensions, Image } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView, Alert, Share, Dimensions, Image, StyleSheet } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { getJSON } from '../../context/api'
 import { useFavorites } from '../../context/favorites'
+import { useResolvedUrls } from '../../hooks/useResolvedUrls'
 import BlurhashImage from '../../components/BlurhashImage'
 import Shimmer from '../../components/Shimmer'
 import { useCart } from '../../context/cart'
@@ -10,6 +12,7 @@ import { track } from '../../utils/analytics'
 import { ANALYTICS_EVENTS } from '../../constants/analyticsEvents'
 import { BackButton } from '../../components/navigation'
 import { productDetailStyles as styles } from '../../assets/styles/products.styles'
+import { COLORS } from '../../constants/colors'
 
 export default function ProductDetail() {
   const { id } = useLocalSearchParams()
@@ -24,6 +27,7 @@ export default function ProductDetail() {
   const screenWidth = Dimensions.get('window').width
   const { addItem } = useCart()
   const { toggleFavorite: toggleFavCtx, isFavorited } = useFavorites()
+  const resolvedImages = useResolvedUrls(product?.images || [])
 
   const load = useCallback(async () => {
     if (!numericId || isNaN(numericId)) {
@@ -80,8 +84,8 @@ export default function ProductDetail() {
   }
 
   const headerCarousel = () => {
-    const imgs = product?.images || []
-    if (!imgs.length) return <View style={[styles.heroImage, { backgroundColor: '#d1d5db' }]} />
+  const imgs = (resolvedImages && resolvedImages.length > 0) ? resolvedImages : (product?.images || [])
+  if (!imgs.length) return <View style={[styles.heroImage, { backgroundColor: COLORS.divider }]} />
     return (
       <ScrollView
         horizontal
@@ -142,20 +146,22 @@ export default function ProductDetail() {
           )}
           <View style={styles.topButtons}>
             <BackButton 
-              color="#333"
+              color={COLORS.text}
               size={20}
               style={styles.navBtn}
               fallbackRoute="/home"
             />
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <TouchableOpacity style={[styles.circleBtn, (favorited || isFavorited(numericId)) && styles.circleBtnActive]} onPress={toggleFavorite} disabled={checkingFav}>
-                <Text style={[styles.circleBtnText, (favorited || isFavorited(numericId)) && styles.circleBtnTextActive]}>{(favorited || isFavorited(numericId)) ? '★' : '☆'}</Text>
+                <Ionicons name={(favorited || isFavorited(numericId)) ? 'heart' : 'heart-outline'} size={18} color={(favorited || isFavorited(numericId)) ? COLORS.white : COLORS.text} />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.circleBtn} onPress={shareProduct}><Text style={styles.circleBtnText}>↗</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.circleBtn} onPress={shareProduct}>
+                <Ionicons name="share-social-outline" size={18} color={COLORS.text} />
+              </TouchableOpacity>
             </View>
           </View>
           {product?.discountPercent > 0 && (
-            <View style={[styles.discountBadge, { backgroundColor: '#111827' }]}><Text style={styles.discountBadgeText}>-{product.discountPercent}%</Text></View>
+            <View style={[styles.discountBadge, { backgroundColor: COLORS.warningText }]}><Text style={styles.discountBadgeText}>-{product.discountPercent}%</Text></View>
           )}
           {product?.isOrganic && (
             <View style={[styles.discountBadgeSecondary]}><Text style={styles.discountBadgeSecondaryText}>ORGANIC</Text></View>
@@ -164,7 +170,7 @@ export default function ProductDetail() {
 
         {error ? (
           <View style={{ padding: 16, alignItems:'center' }}>
-            <Text style={{ color: '#dc2626', marginBottom:12 }}>{error}</Text>
+            <Text style={{ color: COLORS.error, marginBottom:12 }}>{error}</Text>
             <TouchableOpacity onPress={load} style={styles.retryBtn}><Text style={styles.retryBtnText}>Retry</Text></TouchableOpacity>
           </View>
         ) : !product ? null : (
@@ -175,14 +181,14 @@ export default function ProductDetail() {
                 const status = (product.status || '').toLowerCase()
                 const qty = Number(product.quantityAvailable||0)
                 let label = 'Active'
-                let bg = '#dcfce7'; let fg = '#065f46'
+                let bg = COLORS.inputBackground; let fg = COLORS.text
                 if (status && status !== 'active') {
-                  if (status === 'sold') { label='Sold'; bg='#fee2e2'; fg='#991b1b' }
-                  else if (status === 'expired') { label='Expired'; bg='#e5e7eb'; fg='#374151' }
-                  else if (status === 'inactive') { label='Inactive'; bg='#fef3c7'; fg='#92400e' }
+                  if (status === 'sold') { label='Sold'; bg=COLORS.errorLight; fg=COLORS.error }
+                  else if (status === 'expired') { label='Expired'; bg=COLORS.divider; fg=COLORS.text }
+                  else if (status === 'inactive') { label='Inactive'; bg=COLORS.errorLight; fg=COLORS.warning }
                   else { label = status }
                 }
-                if (qty === 0) { label='Out of Stock'; bg='#fee2e2'; fg='#991b1b' }
+                if (qty === 0) { label='Out of Stock'; bg=COLORS.errorLight; fg=COLORS.error }
                 return <Text style={{ backgroundColor:bg, color:fg, fontSize:10, fontWeight:'700', paddingHorizontal:10, paddingVertical:4, borderRadius:12 }}>{label}</Text>
               })()}
             </View>

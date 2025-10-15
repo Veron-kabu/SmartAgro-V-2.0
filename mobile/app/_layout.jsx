@@ -33,6 +33,7 @@ const tokenCache = {
 }
 
 const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY
+const telemetryDisabled = /^(true|1)$/i.test(process.env.EXPO_PUBLIC_CLERK_TELEMETRY_DISABLED || '')
 
 if (!publishableKey) {
   throw new Error("Missing Publishable Key. Please set EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY in your .env")
@@ -86,7 +87,7 @@ export default function RootLayout() {
     <ClerkProvider
       publishableKey={publishableKey}
       tokenCache={tokenCache}
-      telemetry={{ disabled: process.env.EXPO_PUBLIC_CLERK_TELEMETRY_DISABLED === 'true' }} // Re-enabled by default after upgrading Clerk; set EXPO_PUBLIC_CLERK_TELEMETRY_DISABLED=true to silence if issues reoccur
+      telemetry={{ disabled: telemetryDisabled }} // Set EXPO_PUBLIC_CLERK_TELEMETRY_DISABLED=true (or 1) to silence telemetry if needed
     >
       <SafeScreen>
         {/* Redirect from '/' based on auth state so we don't need a dedicated index route */}

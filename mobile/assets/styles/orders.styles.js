@@ -88,4 +88,35 @@ export const buyerOrdersStyles = StyleSheet.create({
   badgeText: { fontSize: 10, fontWeight: '700' },
   skelTitle: { height: 14, backgroundColor: COLORS.border, borderRadius: 6, width: '60%' },
   skelLine: { height: 10, backgroundColor: COLORS.border, borderRadius: 6, width: '40%', marginTop: 8 },
+  sectionHeaderFocused: { borderWidth: 1, borderColor: COLORS.primary },
+});
+
+// Orders Hub (index) Styles
+export const ordersHubStyles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: COLORS.background, padding: 16, paddingTop: 24 },
+  title: { fontSize: 24, fontWeight: '800', color: COLORS.text },
+  subtitle: { fontSize: 12, color: COLORS.textLight, marginTop: 4, marginBottom: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  card: {
+    width: '47%',
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    padding: 14,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  iconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  cardTitle: { fontSize: 14, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
+  cardHint: { fontSize: 12, color: COLORS.textLight },
 });

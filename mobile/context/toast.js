@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useRef, useState } from 'react'
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native'
+import { COLORS } from '../constants/colors'
 
 const ToastContext = createContext({ show: (msg, opts) => {} })
 
@@ -48,7 +49,7 @@ export function useToast() { return useContext(ToastContext) }
 const styles = StyleSheet.create({
   toastContainer: { position: 'absolute', bottom: 48, left: 0, right: 0, alignItems: 'center', paddingHorizontal: 24 },
   toast: { backgroundColor: 'rgba(31,41,55,0.95)', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, maxWidth: '90%' },
-  toastText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  toastError: { backgroundColor: '#b91c1c' },
-  toastSuccess: { backgroundColor: '#15803d' },
+  toastText: { color: COLORS.white, fontSize: 13, fontWeight: '600' },
+  toastError: { backgroundColor: COLORS.error },
+  toastSuccess: { backgroundColor: COLORS.online },
 })

@@ -1,5 +1,5 @@
 import { StyleSheet, Dimensions } from "react-native";
-import { COLORS } from "../../../constants/colors";
+import { COLORS, BACKDROP } from "../../../constants/colors";
 
 const { width } = Dimensions.get("window");
 const cardWidth = (width - 48) / 2;
@@ -54,7 +54,7 @@ export const homeStyles = StyleSheet.create({
   },
   featuredOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.3)",
+  backgroundColor: BACKDROP.medium,
     justifyContent: "space-between",
     padding: 20,
   },
@@ -78,7 +78,7 @@ export const homeStyles = StyleSheet.create({
     fontWeight: "800",
     color: COLORS.white,
     marginBottom: 12,
-    textShadowColor: "rgba(0,0,0,0.3)",
+  textShadowColor: BACKDROP.medium,
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },

@@ -6,6 +6,7 @@ import { emitAppEvent } from '../../context/favorites'
 import { useProfile } from '../../context/profile'
 import { router } from 'expo-router'
 import BlurhashImage from '../../components/BlurhashImage'
+import { useResolvedUrls } from '../../hooks/useResolvedUrls'
 import { myListingsStyles as styles } from '../../assets/styles/listings.styles'
 
 export default function MyListings() {
@@ -194,6 +195,11 @@ export default function MyListings() {
 		)
 	}, [deleteListing])
 
+	function ResolvedThumb({ uri, blurhash, style }) {
+		const [resolved] = useResolvedUrls(uri ? [uri] : [])
+		return <BlurhashImage uri={resolved || uri} blurhash={blurhash} style={style} />
+	}
+
 	const renderItem = ({ item }) => {
 		const outOfStock = item.quantityAvailable <= 0
 		const discounted = item.discountPercent > 0
@@ -207,7 +213,7 @@ export default function MyListings() {
 				onLongPress={() => { if (!selectionMode) { setSelectionMode(true); toggleSelect(item.id) } }}
 			>
 				<View style={styles.imageWrapper}>
-					<BlurhashImage uri={item.images?.[0]} blurhash={item.imageBlurhashes?.[0]} style={styles.image} />
+					<ResolvedThumb uri={item.images?.[0]} blurhash={item.imageBlurhashes?.[0]} style={styles.image} />
 					{discounted && (
 						<View style={[styles.badge, styles.badgeDiscount]}>
 							<Text style={styles.badgeText}>-{item.discountPercent}%</Text>

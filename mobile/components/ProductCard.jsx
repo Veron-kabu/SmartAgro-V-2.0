@@ -4,6 +4,7 @@ import { useRouter } from "expo-router";
 import { COLORS } from "../constants/colors";
 import { productCardStyles } from "../assets/styles/(tabs)/home.styles";
 import BlurhashImage from "./BlurhashImage";
+import { useResolvedUrls } from "../hooks/useResolvedUrls";
 import { useProfile } from "../context/profile";
 import { useFavorites } from "../context/favorites";
 import { useChat } from "../context/chat";
@@ -13,6 +14,7 @@ export default function ProductCard({ product }) {
   const { profile } = useProfile();
   const { toggleFavorite: toggleFavCtx, isFavorited } = useFavorites();
   const { createOrFindChatRoom, setCurrentChatRoom } = useChat();
+  const resolvedImages = useResolvedUrls(product?.images || []);
   
   const isOwner = profile?.role === 'farmer' && profile?.id === product.farmerId;
 
@@ -103,7 +105,7 @@ export default function ProductCard({ product }) {
     >
       <View style={productCardStyles.imageContainer}>
         <BlurhashImage
-          uri={product.images?.[0] || "https://via.placeholder.com/200"}
+          uri={resolvedImages?.[0] || product.images?.[0] || "https://via.placeholder.com/200"}
           blurhash={product.imageBlurhashes?.[0]}
           style={productCardStyles.image}
         />
@@ -194,7 +196,7 @@ export default function ProductCard({ product }) {
           <View style={productCardStyles.timeContainer}>
             <Ionicons name="cash-outline" size={14} color={COLORS.textLight} />
             <Text style={productCardStyles.timeText}>
-              ${product.price}/{product.unit}
+              Ksh {product.price}/{product.unit}
             </Text>
           </View>
           <View style={productCardStyles.servingsContainer}>

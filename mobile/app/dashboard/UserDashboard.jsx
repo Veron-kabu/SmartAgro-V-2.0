@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity, TextInput, Alert, Modal, Platform, KeyboardAvoidingView, ScrollView, ActivityIndicator } from 'react-native'
-import { Image as ExpoImage } from 'expo-image'
+// import { Image as ExpoImage } from 'expo-image'
 import BlurhashImage from '../../components/BlurhashImage'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useUser } from '@clerk/clerk-expo'
@@ -12,6 +12,7 @@ import { getJSON, postJSON, patchJSON } from '../../context/api'
 import { useDashboardMedia } from '../../hooks/useDashboardMedia'
 import { useDashboardStats } from '../../hooks/useDashboardStats'
 import { router } from 'expo-router'
+import { useResolvedUrls } from '../../hooks/useResolvedUrls'
 import { useToast } from '../../context/toast'
 import { profileStyles as styles } from '../../assets/styles/(tabs)/profile.styles'
 import { COLORS } from '../../constants/colors'
@@ -37,6 +38,9 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
   // media & stats hooks
   const { avatarUrl, bannerUrl, bannerResolving, setBannerUrl } = useDashboardMedia(profile)
   const { stats } = useDashboardStats(!loading, 60000)
+  // Dashboard listing thumbnail (random from recent products)
+  const [listingThumbRaw, setListingThumbRaw] = useState(null)
+  const [listingThumb] = useResolvedUrls(listingThumbRaw ? [listingThumbRaw] : [])
   // Password change state
   const [showPwd, setShowPwd] = useState(false)
   const [currentPwd, setCurrentPwd] = useState('')
@@ -46,14 +50,11 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
   const toast = useToast()
   // Collapsible sections state
   const [openListings, setOpenListings] = useState(true)
-  const [openOrders, setOpenOrders] = useState(true)
-  const [openFunds, setOpenFunds] = useState(true)
-  const [earnings, setEarnings] = useState(null)
+  // const [openOrders, setOpenOrders] = useState(true) // replaced by single Orders button
+  // Collapsible Funds section removed; single Funds button links to Funds hub
   const { signingOut, logout: confirmLogout } = useLogout()
   const collapseKeys = useRef({
     listings: 'dashboard:collapse:listings',
-    orders: 'dashboard:collapse:orders',
-    funds: 'dashboard:collapse:funds'
   })
 
   // Banner image error handling guards to prevent endless retry loops
@@ -62,11 +63,7 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
   const bannerLogOnceRef = useRef(false)
 
   // Simple currency formatter (later can use Intl if locale / polyfill present)
-  const formatCurrency = useCallback((value, currency = (earnings?.currency || 'KES')) => {
-    const num = Number(value || 0)
-    if (isNaN(num)) return `${currency} 0`
-    return `${currency} ${num.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
-  }, [earnings?.currency])
+  // formatCurrency removed with old Funds metrics section
 
   // Load persisted collapse state
   useEffect(() => {
@@ -76,8 +73,6 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
         const entries = await AsyncStorage.multiGet(keys)
         const map = Object.fromEntries(entries)
         if (map[collapseKeys.current.listings]) setOpenListings(map[collapseKeys.current.listings] === '1')
-        if (map[collapseKeys.current.orders]) setOpenOrders(map[collapseKeys.current.orders] === '1')
-        if (map[collapseKeys.current.funds]) setOpenFunds(map[collapseKeys.current.funds] === '1')
       } catch (e) {
         console.log('collapse restore failed', e.message)
       }
@@ -244,34 +239,60 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
   // Fetch recent products and role-specific dashboard (farmer)
   const fetchData = useCallback(async () => {
     try {
-      const productsRes = await getJSON(`/api/products?limit=5`)
+      // Fetch a larger page and then filter to this farmer's products so the thumbnail comes from your listings
+      const productsRes = await getJSON(`/api/products?limit=50`)
       const list = Array.isArray(productsRes)
         ? productsRes
         : (Array.isArray(productsRes?.items) ? productsRes.items : [])
-      setRecentProducts(list.slice(0, 5))
+      const mine = profile?.id ? list.filter(p => p.farmerId === profile.id) : []
+      setRecentProducts(mine.slice(0, 5))
       if ((profile?.role || expectedRole) === 'farmer') {
         const farmerData = await getJSON(`/api/dashboard/farmer`)
         setDashboardData(farmerData)
-        try {
-          const earn = await getJSON('/api/earnings/farmer/summary')
-          setEarnings(earn)
-        } catch (e) {
-          console.log('earnings fetch failed', e.message)
-        }
       } else {
         setDashboardData(null)
-        setEarnings(null)
       }
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
     }
-  }, [profile?.role, expectedRole])
+  }, [profile?.role, expectedRole, profile?.id])
 
   // loadFarmerListings no longer needed (list handled in separate screen)
 
   useEffect(() => {
     if (!loading) fetchData()
   }, [loading, fetchData])
+
+  // Helper: pick a random listing image (avoid repeating if possible)
+  const pickRandomListingThumb = useCallback(() => {
+    if (!Array.isArray(recentProducts) || recentProducts.length === 0) {
+      setListingThumbRaw(null)
+      return
+    }
+    const withImages = recentProducts.filter(p => Array.isArray(p.images) && p.images.length > 0)
+    if (withImages.length === 0) {
+      setListingThumbRaw(null)
+      return
+    }
+    let next = listingThumbRaw
+    // Try a few times to avoid picking the same image when we have options
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const idx = Math.floor(Math.random() * withImages.length)
+      const candidate = withImages[idx].images[0]
+      if (candidate && candidate !== listingThumbRaw) {
+        next = candidate
+        break
+      }
+      // If we only have one option or keep hitting the same, accept it on the last try
+      if (attempt === 4) next = candidate
+    }
+    setListingThumbRaw(next || null)
+  }, [recentProducts, listingThumbRaw])
+
+  // When recentProducts change, (re)seed the random listing image
+  useEffect(() => {
+    pickRandomListingThumb()
+  }, [recentProducts, pickRandomListingThumb])
 
   // (Removed inline avatar/banner/stats effects in favor of hooks)
 
@@ -475,10 +496,11 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
           </TouchableOpacity>
         </View>
 
-        {/* My Listings Section (collapsible) */}
-        <View style={styles.sectionBlock}>
+  {/* My Listings Section (collapsible) - Farmers only */}
+  {role === 'farmer' && (
+  <View style={styles.sectionBlock}>
           <View style={styles.sectionHeaderRow}>
-            <TouchableOpacity style={styles.sectionTitleBtn} onPress={() => setOpenListings(o=>{ const v=!o; persistCollapse('listings', v); return v })} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.sectionTitleBtn} onPress={() => setOpenListings(o=>{ const v=!o; persistCollapse('listings', v); if (v) { pickRandomListingThumb() }; return v })} activeOpacity={0.7}>
               <Text style={styles.chevron}>{openListings ? '▾' : '▸'}</Text>
               <Text style={styles.sectionHeading}>My Listings</Text>
             </TouchableOpacity>
@@ -493,102 +515,52 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
           {openListings && (
             <View style={styles.rowCards}>
               <TouchableOpacity style={styles.listingCard} activeOpacity={0.85} onPress={() => router.push('/dashboard/my-listings')}>
-                <ExpoImage source={{ uri: recentProducts[0]?.images?.[0] || 'https://via.placeholder.com/300' }} style={styles.listingImage} contentFit="cover" cachePolicy="memory-disk" placeholder={BLUR_HASH_THUMB} />
+                <BlurhashImage
+                  uri={listingThumb || listingThumbRaw || 'https://via.placeholder.com/300'}
+                  style={styles.listingImage}
+                  contentFit="cover"
+                  placeholder={BLUR_HASH_THUMB}
+                />
                 <View style={styles.listingCardFooter}>
-                  <Text style={styles.listingLabel}>Available ▶</Text>
+                  <Text style={styles.listingLabel}>Available </Text>
                   <Text style={styles.listingMetric}>{(stats?.products?.total ?? dashboardData?.totalProducts) ?? 0}</Text>
                 </View>
               </TouchableOpacity>
             </View>
           )}
-        </View>
-        {/* Orders Section (collapsible) */}
+  </View>
+  )}
+  {/* Orders: single action button */}
         <View style={styles.sectionBlock}>
-          <View style={styles.sectionHeaderRow}>
-            <TouchableOpacity style={styles.sectionTitleBtn} onPress={() => setOpenOrders(o=>{ const v=!o; persistCollapse('orders', v); return v })} activeOpacity={0.7}>
-              <Text style={styles.chevron}>{openOrders ? '▾' : '▸'}</Text>
-              <Text style={styles.sectionHeading}>Orders</Text>
-            </TouchableOpacity>
-            <View style={styles.headerActionsRow} />
-          </View>
-          {openOrders && (
-            <View style={styles.rowCards}>
-              <TouchableOpacity
-                style={styles.favoriteCard}
-                activeOpacity={0.85}
-                onPress={() => router.push(role === 'farmer' ? '/orders/farmerorders' : '/orders/buyerorders')}
-              >
-                <ExpoImage
-                  source={{ uri: 'https://images.unsplash.com/photo-1598515214211-a5c90f6108c7?auto=format&fit=crop&w=400&q=60' }}
-                  style={styles.favoriteImage}
-                  contentFit="cover"
-                  cachePolicy="memory-disk"
-                  placeholder={BLUR_HASH_THUMB}
-                />
-                <Text style={styles.favoriteTitle}>{role === 'farmer' ? 'Incoming Orders' : 'My Orders'}</Text>
-                <View style={styles.favoriteMetrics}>
-                  <Text style={styles.metricLine}>Active <Text style={styles.metricValue}>{stats?.orders?.active ?? dashboardData?.activeOrders ?? 0}</Text></Text>
-                  <Text style={styles.metricLine}>Delivered <Text style={styles.metricValue}>{stats?.orders?.delivered ?? 0}</Text></Text>
-                </View>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.favoriteCard, { marginRight: 0 }]}
-                activeOpacity={0.85}
-                onPress={() => router.push('/orders/buyerorders')}
-              >
-                <ExpoImage
-                  source={{ uri: 'https://images.unsplash.com/photo-1560185008-b033106af5c1?auto=format&fit=crop&w=400&q=60' }}
-                  style={styles.favoriteImage}
-                  contentFit="cover"
-                  cachePolicy="memory-disk"
-                  placeholder={BLUR_HASH_THUMB}
-                />
-                <Text style={styles.favoriteTitle}>Sent Orders</Text>
-                <View style={styles.favoriteMetrics}>
-                  <Text style={styles.metricLine}>Total <Text style={styles.metricValue}>{stats?.ordersSent?.total ?? 0}</Text></Text>
-                  <Text style={styles.metricLine}>Completed <Text style={styles.metricValue}>{stats?.ordersSent?.delivered ?? 0}</Text></Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          )}
+          <TouchableOpacity
+            style={styles.ordersButton}
+            activeOpacity={0.9}
+            onPress={() => router.push('/orders')}
+            accessibilityLabel="Orders"
+          >
+            <Ionicons name={role === 'farmer' ? 'newspaper-outline' : 'paper-plane-outline'} size={18} color={COLORS.white} style={styles.ordersButtonIcon} />
+            <Text style={styles.ordersButtonText}>Orders</Text>
+          </TouchableOpacity>
+          <Text style={styles.ordersButtonHint}>Incoming • Sent • Current • Completed</Text>
         </View>
 
-        {/* Funds Section (new, only for farmer) */}
+        {/* Funds: single action button like Orders (farmer only) */}
         {role === 'farmer' && (
           <View style={styles.sectionBlock}>
-            <View style={styles.sectionHeaderRow}>
-              <TouchableOpacity style={styles.sectionTitleBtn} onPress={() => setOpenFunds(o=>{ const v=!o; persistCollapse('funds', v); return v })} activeOpacity={0.7}>
-                <Text style={styles.chevron}>{openFunds ? '▾' : '▸'}</Text>
-                <Text style={styles.sectionHeading}>Funds</Text>
-              </TouchableOpacity>
-              <View style={styles.headerActionsRow} />
-            </View>
-            {openFunds && (
-              <View style={styles.fundsGrid}>
-                <View style={styles.fundCard}>
-                  <Text style={styles.fundLabel}>Total Earned</Text>
-                  <Text style={styles.fundValue}>{formatCurrency(earnings?.totalRevenue ?? dashboardData?.totalRevenue ?? 0)}</Text>
-                </View>
-                <View style={styles.fundCard}>
-                  <Text style={styles.fundLabel}>Active Orders</Text>
-                  <Text style={styles.fundValue}>{stats?.orders?.active ?? dashboardData?.activeOrders ?? 0}</Text>
-                </View>
-                <View style={styles.fundCard}>
-                  <Text style={styles.fundLabel}>Delivered</Text>
-                  <Text style={styles.fundValue}>{stats?.orders?.delivered ?? 0}</Text>
-                </View>
-                <View style={styles.fundCard}>
-                  <Text style={styles.fundLabel}>Products</Text>
-                  <Text style={styles.fundValue}>{stats?.products?.total ?? dashboardData?.totalProducts ?? 0}</Text>
-                </View>
-                <TouchableOpacity style={[styles.fundCard, styles.fundCardFull]} activeOpacity={0.85} onPress={() => router.push('/dashboard/earnings')}>
-                  <Text style={[styles.fundLabel, styles.fundLabelLight]}>View Detailed Earnings & Trends →</Text>
-                  <Text style={[styles.fundValue, styles.fundValueLight]}>Analyze per‑listing performance</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+            <TouchableOpacity
+              style={styles.ordersButton}
+              activeOpacity={0.9}
+              onPress={() => router.push('/funds')}
+              accessibilityLabel="Funds"
+            >
+              <Ionicons name={'wallet-outline'} size={18} color={COLORS.white} style={styles.ordersButtonIcon} />
+              <Text style={styles.ordersButtonText}>Funds</Text>
+            </TouchableOpacity>
+            <Text style={styles.ordersButtonHint}>Earnings • Transactions • Withdrawals</Text>
           </View>
         )}
+
+        {/* Collapsible Funds metrics section removed (replaced by Funds hub button) */}
 
         {/* Switch Role section removed */}
         <View style={styles.logoutContainer}>
@@ -600,7 +572,7 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
           >
             {signingOut ? (
               <View style={styles.logoutRow}>
-                <ActivityIndicator size="small" color="#fff" />
+                <ActivityIndicator size="small" color={COLORS.white} />
                 <Text style={styles.logoutText}>Logging out…</Text>
               </View>
             ) : (

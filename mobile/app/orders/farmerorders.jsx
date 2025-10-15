@@ -1,17 +1,17 @@
-"use client"
-
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { View, Text, SectionList, ActivityIndicator, TouchableOpacity, Alert } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import { getJSON, patchJSON } from '../../context/api'
 import { groupOrders, formatCurrency, formatDate, statusBadgeColor, nextStatusesFor } from '../../utils/orders'
 import { OrderTimeline } from '../../components/OrderTimeline'
 import { track } from '../../utils/analytics'
 import { ANALYTICS_EVENTS } from '../../constants/analyticsEvents'
 import { farmerOrdersStyles as styles } from '../../assets/styles/orders.styles'
+import { COLORS } from '../../constants/colors'
 
 export default function FarmerOrders() {
   const router = useRouter()
+  const params = useLocalSearchParams()
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -57,6 +57,7 @@ export default function FarmerOrders() {
   }, [])
 
   const { current, completed } = useMemo(() => groupOrders(orders), [orders])
+  const view = String(params?.view || '').toLowerCase()
   const canLoadMore = orders.length < total
 
   async function updateStatus(orderId, status) {
@@ -74,10 +75,15 @@ export default function FarmerOrders() {
     }
   }
 
-  const sections = [
-    { key: 'current', title: 'Incoming Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (current.length ? current : [{ __empty: true }]) },
-    { key: 'completed', title: 'Fulfilled Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (completed.length ? completed : [{ __empty: true }]) },
-  ]
+  const sections = useMemo(() => {
+    if (view === 'incoming') {
+      return [{ key: 'current', title: 'Incoming Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (current.length ? current : [{ __empty: true }]) }]
+    }
+    return [
+      { key: 'current', title: 'Incoming Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (current.length ? current : [{ __empty: true }]) },
+      { key: 'completed', title: 'Fulfilled Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (completed.length ? completed : [{ __empty: true }]) },
+    ]
+  }, [view, loading, orders.length, current, completed])
 
   return (
     <SectionList
@@ -93,7 +99,7 @@ export default function FarmerOrders() {
         <View style={[styles.card, { paddingBottom: 8 }]}>
           <View style={styles.rowBetween}>
             <Text style={styles.sectionTitle}>{section.title}</Text>
-            {loading ? <ActivityIndicator size="small" color="#16a34a" /> : null}
+            {loading ? <ActivityIndicator size="small" color={COLORS.primary} /> : null}
           </View>
         </View>
       )}
@@ -115,7 +121,7 @@ export default function FarmerOrders() {
                 </View>
                 {item.__optimistic && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                    <ActivityIndicator size="small" color="#16a34a" />
+                    <ActivityIndicator size="small" color={COLORS.primary} />
                     {item.__optimisticAt && Date.now() - item.__optimisticAt > 2000 && (
                       <Text style={styles.syncingText}>Syncing...</Text>
                     )}
@@ -145,7 +151,7 @@ export default function FarmerOrders() {
       }}
       ListFooterComponent={canLoadMore ? (
         <View style={{ paddingVertical: 12, alignItems: 'center' }}>
-          {loadingMore ? <ActivityIndicator size="small" color="#16a34a" /> : null}
+          {loadingMore ? <ActivityIndicator size="small" color={COLORS.primary} /> : null}
         </View>
       ) : null}
       stickySectionHeadersEnabled={false}

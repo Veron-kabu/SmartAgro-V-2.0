@@ -51,10 +51,13 @@ Product listing, detail, creation, update & soft-delete / restore.
 
 ## uploads.js
 Presigned S3 upload flows for user media.
+- `GET  /api/uploads/storage-health` (auth) — Inspect active storage mode (S3 vs CloudFront, public vs private).
+- `GET  /api/uploads/debug-head?url=<originUrl>` (auth) — Probe object existence via a temporary signed URL.
 - `GET  /api/uploads/avatar-signed-url` (auth) — Temporary GET presign for existing object.
-- `GET  /api/uploads/resolve-avatar-url` (auth) — Re-sign private avatar URL if needed.
-- `POST /api/uploads/avatar-presign` (auth) — Generate PUT presign for avatar upload.
-- `POST /api/uploads/banner-presign` (auth) — Generate PUT presign for banner upload.
+- `GET  /api/uploads/resolve-avatar-url` (auth) — Generic resolver; returns signed URL for private objects.
+- `POST /api/uploads/avatar-presign` (auth) — Generate PUT presign for avatar upload (prefix: `avatars/`).
+- `POST /api/uploads/product-presign` (auth) — Generate PUT presign for product images (prefix: `products/`).
+- `POST /api/uploads/banner-presign` (auth) — Generate PUT presign for banner upload (prefix: `banners/`).
 
 ## users.js
 User creation (first-time), profile retrieval & updates, role switching, public profile subset.

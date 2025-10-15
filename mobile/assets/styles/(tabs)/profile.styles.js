@@ -157,6 +157,35 @@ export const profileStyles = StyleSheet.create({
     marginTop: 24,
     paddingHorizontal: 16,
   },
+  // Orders single button
+  ordersButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    borderRadius: 14,
+    shadowColor: COLORS.shadow,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  ordersButtonIcon: {
+    marginRight: 8,
+  },
+  ordersButtonText: {
+    color: COLORS.white,
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  ordersButtonHint: {
+    textAlign: 'center',
+    color: COLORS.textLight,
+    fontSize: 12,
+    marginTop: 8,
+  },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',

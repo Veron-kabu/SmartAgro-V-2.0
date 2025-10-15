@@ -1,4 +1,5 @@
 import { View, Text, Alert, ScrollView, TouchableOpacity, FlatList, RefreshControl, Image, Animated, PanResponder } from "react-native";
+import { COLORS } from '../../constants/colors'
 import { useClerk, useUser } from "@clerk/clerk-expo";
 import { useEffect, useState, useCallback, useRef } from 'react'
 import Shimmer from '../../components/Shimmer'
@@ -9,7 +10,6 @@ import { subscribeAppEvents } from '../../context/favorites'
 import { useProfile } from '../../context/profile'
 import { useCart } from '../../context/cart'
 import { favoritesStyles } from "../../assets/styles/(tabs)/favorites.styles";
-import { COLORS } from "../../constants/colors";
 import { Ionicons } from "@expo/vector-icons";
 import ProductCard from "../../components/ProductCard";
 import NoFavoritesFound from "../../components/NoFavoritesFound";
@@ -233,7 +233,7 @@ const FavoritesScreen = () => {
                     <View key={ci.id} style={favoritesStyles.cartItemContainer}>
                       <View style={favoritesStyles.swipeDeleteLayer}>
                         <TouchableOpacity style={favoritesStyles.deleteBtn} onPress={performDelete}>
-                          <Ionicons name="trash" size={20} color="#fff" />
+                          <Ionicons name="trash" size={20} color={COLORS.white} />
                           <Text style={favoritesStyles.deleteBtnText}>Remove</Text>
                         </TouchableOpacity>
                       </View>
@@ -279,7 +279,7 @@ const FavoritesScreen = () => {
                   activeOpacity={0.85} 
                   onPress={() => router.push('/orders/checkout')}
                 >
-                  <Ionicons name="card" size={20} color="#fff" style={favoritesStyles.checkoutIcon} />
+                  <Ionicons name="card" size={20} color={COLORS.white} style={favoritesStyles.checkoutIcon} />
                   <Text style={favoritesStyles.checkoutText}>
                     Checkout • KSH {getTotalPrice().toFixed(2)}
                   </Text>

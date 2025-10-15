@@ -1,5 +1,5 @@
 import { StyleSheet, Platform } from 'react-native';
-import { COLORS } from '../../constants/colors';
+import { COLORS, BACKDROP } from '../../constants/colors';
 
 export const userDashboardStyles = StyleSheet.create({
   // Modal styles
@@ -163,7 +163,7 @@ export const userDashboardStyles = StyleSheet.create({
   // Bottom sheet styles (if needed)
   sheetBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: BACKDROP.dim,
     justifyContent: 'flex-end',
   },
   sheetBackdropTouchable: {

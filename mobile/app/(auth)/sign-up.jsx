@@ -148,6 +148,7 @@ const SignUpScreen = () => {
         <ScrollView
           contentContainerStyle={authStyles.scrollContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
           {/* Image Container */}
           <View style={authStyles.imageContainer}>

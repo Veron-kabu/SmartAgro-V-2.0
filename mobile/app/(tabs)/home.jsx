@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { View, Text, ScrollView, TouchableOpacity, RefreshControl, FlatList } from "react-native"
 import { router } from 'expo-router'
 import BlurhashImage from "../../components/BlurhashImage"
+import { useResolvedUrls } from "../../hooks/useResolvedUrls"
 import { useAuth } from "@clerk/clerk-expo"
 import { useProfile } from "../../context/profile"
 import { Ionicons } from "@expo/vector-icons"
@@ -11,6 +12,7 @@ import { homeStyles } from "../../assets/styles/(tabs)/home.styles"
 import { Image } from "expo-image"
 import { COLORS } from "../../constants/colors"
 import CategoryFilter from "../../components/CategoryFilter"
+import { CATEGORIES as SHARED_CATEGORIES } from "../../constants/categories"
 import ProductCard from "../../components/ProductCard"
 import LoadingSpinner from "../../components/LoadingSpinner"
 
@@ -20,17 +22,13 @@ export default function MarketScreen() {
   const [products, setProducts] = useState([])
   const [filteredProducts, setFilteredProducts] = useState([])
   const [featuredProduct, setFeaturedProduct] = useState(null)
-  const [selectedCategory, setSelectedCategory] = useState("all")
+  const [selectedCategory, setSelectedCategory] = useState(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  // Resolve featured image URL (handles private S3)
+  const resolvedFeatured = useResolvedUrls(featuredProduct?.images || [])
 
-  const categories = [
-    { id: "all", name: "All", icon: "grid" },
-    { id: "vegetables", name: "Vegetables", icon: "leaf" },
-    { id: "fruits", name: "Fruits", icon: "nutrition" },
-    { id: "grains", name: "Grains", icon: "flower" },
-    { id: "dairy", name: "Dairy", icon: "water" },
-  ]
+  const categories = SHARED_CATEGORIES
 
   const fetchProducts = async () => {
     try {
@@ -75,7 +73,7 @@ export default function MarketScreen() {
   useEffect(() => {
     let filtered = products
 
-    if (selectedCategory !== "all") {
+    if (selectedCategory) {
       filtered = filtered.filter((product) => product.category?.toLowerCase() === selectedCategory.toLowerCase())
     }
 
@@ -146,7 +144,7 @@ export default function MarketScreen() {
             >
               <View style={homeStyles.featuredImageContainer}>
                 <BlurhashImage
-                  uri={featuredProduct.images?.[0] || "https://via.placeholder.com/400x240"}
+                  uri={resolvedFeatured?.[0] || featuredProduct.images?.[0] || "https://via.placeholder.com/400x240"}
                   blurhash={featuredProduct.imageBlurhashes?.[0]}
                   style={homeStyles.featuredImage}
                 />
@@ -198,7 +196,7 @@ export default function MarketScreen() {
         <View style={homeStyles.productsSection}>
           <View style={homeStyles.sectionHeader}>
             <Text style={homeStyles.sectionTitle}>
-              {selectedCategory === "all" ? "All Products" : selectedCategory}
+              {selectedCategory ? selectedCategory : "Products"}
             </Text>
           </View>
 
@@ -217,7 +215,7 @@ export default function MarketScreen() {
               <Ionicons name="storefront-outline" size={64} color={COLORS.textLight} />
               <Text style={homeStyles.emptyTitle}>No products found</Text>
               <Text style={homeStyles.emptyDescription}>
-                {selectedCategory !== "all"
+                {selectedCategory
                   ? "Try selecting a different category"
                   : "Check back later for fresh products"}
               </Text>

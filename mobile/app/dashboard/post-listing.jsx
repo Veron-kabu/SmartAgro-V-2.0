@@ -1,10 +1,15 @@
 import { useState, useCallback } from 'react'
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Image } from 'react-native'
+import { COLORS } from '../../constants/colors'
+import CategoryFilter from '../../components/CategoryFilter'
+import { CATEGORIES_FOR_FORM } from '../../constants/categories'
 import { useProfile } from '../../context/profile'
 import { postJSON } from '../../context/api'
 import * as ImagePicker from 'expo-image-picker'
 import { router } from 'expo-router'
 import { useToast } from '../../context/toast'
+import BlurhashImage from '../../components/BlurhashImage'
+import { useResolvedUrls } from '../../hooks/useResolvedUrls'
 import { postListingStyles as styles } from '../../assets/styles/listings.styles'
 
 export default function PostListing() {
@@ -22,6 +27,27 @@ export default function PostListing() {
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState({})
   const [posted, setPosted] = useState(null) // stores payload for success confirmation
+  const [category, setCategory] = useState(null)
+  // Optional: naive auto-suggest category from title when user hasn't chosen one yet
+  const suggestCategory = useCallback((t) => {
+    const s = String(t || '').toLowerCase()
+  if (!s || category) return
+    const pairs = [
+      [/tomato|tomatoes|kale|spinach|cabbage|onion|onions|carrot|carrots/, 'vegetables'],
+      [/mango|mangos|mangoes|banana|bananas|orange|oranges|pineapple|avocado/, 'fruits'],
+      [/maize|corn|wheat|barley|sorghum|rice/, 'grains'],
+      [/potato|potatoes|cassava|yam|yams|sweet\s*potato/, 'roots'],
+      [/groundnut|groundnuts|peanut|peanuts|sesame|sunflower|seed|seeds|almond|cashew|nut|nuts/, 'nuts'],
+      [/milk|dairy|cheese|yoghurt|yogurt|cream|butter|ghee/, 'dairy'],
+      [/egg|eggs/, 'eggs'],
+    ]
+    for (const [re, cat] of pairs) {
+      if (re.test(s)) { setCategory(cat); break }
+    }
+  }, [category])
+  // Resolve the posted image (if available) so private S3 URLs display on the success screen
+  const resolvedPostedArr = useResolvedUrls(posted?.image ? [posted.image] : [])
+  const resolvedPosted = resolvedPostedArr?.[0]
 
   const resetForm = useCallback(() => {
     setTitle('')
@@ -34,6 +60,7 @@ export default function PostListing() {
     setImageUri(null)
     setErrors({})
     setPosted(null)
+  setCategory(null)
   }, [profile?.location])
 
   const pickImage = useCallback(async () => {
@@ -86,6 +113,7 @@ export default function PostListing() {
   const validate = useCallback(() => {
     const next = {}
     if (!title.trim()) next.title = 'Title is required'
+  if (!category) next.category = 'Category is required'
     const p = numeric(price)
     if (p === null) next.price = 'Price is required'
     else if (isNaN(p)) next.price = 'Price must be a number'
@@ -101,7 +129,7 @@ export default function PostListing() {
       else if (d < 0 || d > 90) next.discountPercent = 'Discount 0-90%'
     }
     return next
-  }, [title, price, quantity, unit, discountPercent])
+  }, [title, category, price, quantity, unit, discountPercent])
 
   const validationErrors = validate()
   const canSubmit = Object.keys(validationErrors).length === 0 && !submitting && !imageUploading
@@ -119,7 +147,7 @@ export default function PostListing() {
       const payload = {
         title: title.trim(),
         description: description.trim() || null,
-        category: 'general',
+        category: category,
         price: Number(price),
         unit: unit || 'kg',
         quantity_available: Number(quantity),
@@ -137,7 +165,7 @@ export default function PostListing() {
     } finally {
       setSubmitting(false)
     }
-  }, [validate, profile?.role, title, description, price, unit, quantity, location, discountPercent, uploadImageIfNeeded, toast])
+  }, [validate, profile?.role, title, description, price, unit, quantity, location, discountPercent, category, uploadImageIfNeeded, toast])
 
   if (posted) {
     return (
@@ -149,7 +177,7 @@ export default function PostListing() {
         <View style={styles.successCard}>
           {/* Placeholder for image - in full app we could render <Image /> */}
           {posted.image ? (
-            <Image source={{ uri: posted.image }} style={styles.successImage} resizeMode="cover" />
+            <BlurhashImage uri={resolvedPosted || posted.image} style={styles.successImage} contentFit="cover" />
           ) : (
             <Text style={styles.noImage}>No Image</Text>
           )}
@@ -159,9 +187,6 @@ export default function PostListing() {
             <Text style={styles.successPrice}>Price: ${posted.price} per {posted.unit}</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.actionBtn} onPress={() => router.replace('/dashboard/farmer')}>
-          <Text style={styles.actionBtnText}>View My Listings</Text>
-        </TouchableOpacity>
         <TouchableOpacity style={styles.actionBtn} onPress={resetForm}>
           <Text style={styles.actionBtnText}>Add New Listing</Text>
         </TouchableOpacity>
@@ -182,7 +207,7 @@ export default function PostListing() {
       <Text style={styles.title}>Create a New Post</Text>
 
       <Text style={styles.label}>Product Name</Text>
-  <TextInput style={[styles.input, errors.title && styles.inputError]} value={title} onChangeText={(v)=>{ setTitle(v); if(errors.title) setErrors(e=>({...e, title: undefined})) }} placeholder="Enter product name" />
+  <TextInput style={[styles.input, errors.title && styles.inputError]} value={title} onChangeText={(v)=>{ setTitle(v); suggestCategory(v); if(errors.title) setErrors(e=>({...e, title: undefined})) }} placeholder="Enter product name" />
   {errors.title && <Text style={styles.errorText}>{errors.title}</Text>}
 
       <Text style={styles.label}>Description</Text>
@@ -207,6 +232,10 @@ export default function PostListing() {
       <Text style={styles.label}>Location</Text>
       <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="Location" />
 
+      <Text style={styles.label}>Category</Text>
+      <CategoryFilter categories={CATEGORIES_FOR_FORM} selectedCategory={category} onSelectCategory={setCategory} />
+      {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
+
       <Text style={styles.label}>Upload Image</Text>
       <TouchableOpacity style={styles.imagePicker} activeOpacity={0.85} onPress={pickImage}>
         {imageUri ? (
@@ -218,10 +247,10 @@ export default function PostListing() {
           </>
         )}
       </TouchableOpacity>
-      {(imageUploading) && <ActivityIndicator style={{ marginTop: 8 }} size="small" color="#16a34a" />}
+  {(imageUploading) && <ActivityIndicator style={{ marginTop: 8 }} size="small" color={COLORS.primary} />}
       
       <TouchableOpacity style={[styles.submitBtn, (!canSubmit) && { opacity: 0.6 }]} disabled={!canSubmit} onPress={onSubmit}>
-        {submitting ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.submitText}>Submit Post</Text>}
+  {submitting ? <ActivityIndicator size="small" color={COLORS.white} /> : <Text style={styles.submitText}>Submit Post</Text>}
       </TouchableOpacity>
       
       <View style={{ height: 48 }} />

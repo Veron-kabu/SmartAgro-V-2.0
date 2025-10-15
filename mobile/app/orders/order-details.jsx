@@ -1,4 +1,3 @@
-"use client";
 import { useLocalSearchParams } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { View, Text, ActivityIndicator, ScrollView } from 'react-native'
@@ -8,6 +7,7 @@ import { orderDetailStyles as styles } from '../../assets/styles/orders.styles'
 import { OrderTimeline } from '../../components/OrderTimeline'
 import { track } from '../../utils/analytics'
 import { ANALYTICS_EVENTS } from '../../constants/analyticsEvents'
+import { COLORS } from '../../constants/colors'
 
 export default function OrderDetails() {
   const { id } = useLocalSearchParams()
@@ -34,7 +34,7 @@ export default function OrderDetails() {
   }, [numericId])
 
   if (!numericId || Number.isNaN(numericId)) return <View style={styles.center}><Text style={styles.error}>Invalid order id</Text></View>
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color="#16a34a" /></View>
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>
   if (error) return <View style={styles.center}><Text style={styles.error}>{error}</Text></View>
   if (!order) return <View style={styles.center}><Text style={styles.error}>Order not found</Text></View>
 

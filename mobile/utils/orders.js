@@ -1,3 +1,4 @@
+import { COLORS } from '../constants/colors'
 // Shared business logic for Orders screens (kept outside app/ to avoid expo-router route warnings)
 
 export function formatCurrency(amount) {
@@ -16,10 +17,10 @@ export function formatDate(iso) {
 
 export function statusBadgeColor(status) {
   const s = (status || '').toLowerCase()
-  if (['pending', 'in_progress', 'accepted', 'processing', 'shipped'].includes(s)) return { bg: '#dbeafe', fg: '#1d4ed8' }
-  if (['completed', 'delivered'].includes(s)) return { bg: '#dcfce7', fg: '#16a34a' }
-  if (['cancelled', 'rejected', 'failed'].includes(s)) return { bg: '#fee2e2', fg: '#b91c1c' }
-  return { bg: '#e5e7eb', fg: '#374151' }
+  if (['pending', 'in_progress', 'accepted', 'processing', 'shipped'].includes(s)) return { bg: COLORS.inputBackground, fg: COLORS.primary }
+  if (['completed', 'delivered'].includes(s)) return { bg: COLORS.errorLight, fg: COLORS.online }
+  if (['cancelled', 'rejected', 'failed'].includes(s)) return { bg: COLORS.errorLight, fg: COLORS.error }
+  return { bg: COLORS.divider, fg: COLORS.text }
 }
 
 export function groupOrders(orders = []) {
