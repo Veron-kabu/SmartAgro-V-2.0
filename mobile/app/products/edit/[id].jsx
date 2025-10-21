@@ -2,6 +2,7 @@ import { useLocalSearchParams } from 'expo-router'
 import { useEffect, useState, useCallback } from 'react'
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Switch, Image } from 'react-native'
 import { getJSON, patchJSON, postJSON } from '../../../context/api'
+import { useProfile } from '../../../context/profile'
 import { useResolvedUrls } from '../../../hooks/useResolvedUrls'
 import * as ImagePicker from 'expo-image-picker'
 import { track } from '../../../utils/analytics'
@@ -10,6 +11,7 @@ import { productEditStyles as styles } from '../../../assets/styles/products.sty
 
 export default function EditProduct() {
   const { id } = useLocalSearchParams()
+  const { profile } = useProfile()
   const numericId = Number(Array.isArray(id) ? id[0] : id)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -143,6 +145,12 @@ export default function EditProduct() {
         <Text style={styles.title}>Edit Product</Text>
         <View style={{ width:60 }} />
       </View>
+      {String(profile?.status || '').toLowerCase() === 'suspended' && (
+        <View style={{ backgroundColor: '#FEE2E2', borderColor: '#FCA5A5', borderWidth: 1, padding: 12, borderRadius: 8, marginTop: 8, marginBottom: 8 }}>
+          <Text style={{ color: '#B91C1C', fontWeight: '700' }}>Account suspended</Text>
+          <Text style={{ color: '#7F1D1D', marginTop: 4, fontSize: 12 }}>Editing listings is disabled until reactivation.</Text>
+        </View>
+      )}
       {loading ? <ActivityIndicator style={{ marginTop: 40 }} /> : error ? (
         <View style={{ marginTop:40 }}><Text style={styles.error}>{error}</Text><TouchableOpacity onPress={load} style={styles.retry}><Text style={styles.retryText}>Retry</Text></TouchableOpacity></View>
       ) : !orig ? null : (
@@ -193,7 +201,7 @@ export default function EditProduct() {
                 </TouchableOpacity>
               </View>
             ) : (
-              <TouchableOpacity style={styles.addImage} onPress={pickAndUploadImage} activeOpacity={0.85}>
+              <TouchableOpacity style={styles.addImage} onPress={pickAndUploadImage} disabled={String(profile?.status||'').toLowerCase()==='suspended'} activeOpacity={0.85}>
                 {addingImage ? <ActivityIndicator size='small' color={styles?.saveBtn?.backgroundColor || '#111827'} /> : (
                   <Text style={styles.addImageText}>+</Text>
                 )}
@@ -207,7 +215,7 @@ export default function EditProduct() {
             <Switch value={active} onValueChange={(v)=>{ setActive(v); markDirty() }} />
           </View>
 
-          <TouchableOpacity disabled={!canSave} onPress={save} style={[styles.saveBtn, !canSave && { opacity:0.5 }]}>
+          <TouchableOpacity disabled={!canSave || String(profile?.status||'').toLowerCase()==='suspended'} onPress={save} style={[styles.saveBtn, (!canSave || String(profile?.status||'').toLowerCase()==='suspended') && { opacity:0.5 }]}>
             {saving ? <ActivityIndicator color={styles?.saveText?.color || '#fff'} /> : <Text style={styles.saveText}>Save Changes</Text>}
           </TouchableOpacity>
         </View>

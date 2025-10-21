@@ -106,6 +106,24 @@ export default function ChatConversation() {
         </View>
       ),
     });
+
+    // When opening this conversation, if the last message was from the other user, clear unread for this room
+    (async () => {
+      try {
+        const currentUserId = user?.id || user?.emailAddresses?.[0]?.emailAddress
+        const lastFromOther = currentChatRoom?.lastMessageUserId && String(currentChatRoom.lastMessageUserId) !== String(currentUserId)
+        if (lastFromOther) {
+          const { doc, updateDoc } = await import('firebase/firestore')
+          const chatRoomRef = doc(currentChatRoom?._db || undefined, 'chatRooms', currentChatRoom.id)
+          // If context doesn't hold db here, fallback no-op; ChatProvider listens and will update chatRooms
+          if (chatRoomRef) {
+            await updateDoc(chatRoomRef, { unreadCount: 0 })
+          }
+        }
+      } catch (_e) {
+        // best-effort; ignore
+      }
+    })()
   }, [navigation, router, currentChatRoom, setCurrentChatRoom, user]);
 
   const handleSendMessage = async () => {
@@ -150,7 +168,7 @@ export default function ChatConversation() {
 
   const renderMessage = ({ item }) => {
     // Match the same logic used in chat context sendMessage
-    const currentUserId = user?.emailAddresses?.[0]?.emailAddress || user?.id;
+  const currentUserId = user?.id || user?.emailAddresses?.[0]?.emailAddress;
     const isMyMessage = item.user?._id === currentUserId;
     
     console.log('Rendering message:', {

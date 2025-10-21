@@ -71,21 +71,37 @@ function resolveUrl(pathOrUrl) {
 
 export async function authFetch(pathOrUrl, options = {}) {
   // This should be called within a component that has access to Clerk context
-  const token = await getAuthToken()
-  const headers = {
-    ...(options.headers || {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    "Content-Type": "application/json",
+  const makeRequest = async () => {
+    const token = await getAuthToken()
+    const method = (options.method || 'GET').toUpperCase()
+    const baseHeaders = {
+      Accept: 'application/json',
+      ...(options.headers || {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    }
+    // Only set Content-Type for methods that send a body
+    const headers = (method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE')
+      ? { 'Content-Type': 'application/json', ...baseHeaders }
+      : baseHeaders
+
+    const url = resolveUrl(pathOrUrl)
+    const res = await fetch(url, { ...options, headers })
+    return { res, url }
   }
 
-  const url = resolveUrl(pathOrUrl)
   try {
-    const res = await fetch(url, { ...options, headers })
+    // First attempt
+    let { res } = await makeRequest()
+    if (res.status === 401) {
+      // Guarded retry: wait briefly and fetch a fresh token, then try again once
+      await new Promise(r => setTimeout(r, 200))
+      ;({ res } = await makeRequest())
+    }
     return res
   } catch (err) {
-    const e = new Error(`Network error fetching ${url}: ${err?.message || err}`)
+    const e = new Error(`Network error fetching ${resolveUrl(pathOrUrl)}: ${err?.message || err}`)
     e.cause = err
-    e.url = url
+    e.url = resolveUrl(pathOrUrl)
     throw e
   }
 }
@@ -109,7 +125,7 @@ function isJsonLike(contentType) {
 async function safeParseJson(res) {
   // Some endpoints may return 204 / empty body. Avoid throwing JSON parse errors.
   const text = await res.text()
-  if (!text) return null
+  if (!text || !String(text).trim()) return null
   try { return JSON.parse(text) } catch (e) {
     const err = new Error('Failed to parse JSON response')
     err.cause = e

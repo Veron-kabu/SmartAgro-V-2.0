@@ -29,7 +29,8 @@ export function useDashboardMedia(profile) {
       if (!active) return
       try {
         const q = encodeURIComponent(raw)
-        const resolved = await getJSON(`/api/uploads/resolve-avatar-url?url=${q}`)
+        // Always force signing to avoid intermittent 403s via CloudFront or bucket ACL races
+        const resolved = await getJSON(`/api/uploads/resolve-avatar-url?force=1&url=${q}`)
         if (active) setter(resolved?.url || raw)
         const ttlSec = Number(resolved?.ttlSeconds)
         const ms = Number.isFinite(ttlSec) ? Math.max(10_000, Math.floor(ttlSec * 1000 * 0.8)) : 4 * 60 * 1000
@@ -48,9 +49,9 @@ export function useDashboardMedia(profile) {
       try {
         const raw = profile?.profileImageUrl || profile?.profile_image_url || null
         if (!raw) { setAvatarUrl(null); return }
-        const q = encodeURIComponent(raw)
-        const forceParam = storageModeRef.current === 's3-private' ? '&force=1' : ''
-        let r = await getJSON(`/api/uploads/resolve-avatar-url?url=${q}${forceParam}`)
+  const q = encodeURIComponent(raw)
+  // Always force signing to avoid CloudFront/S3 ACL 403s
+  let r = await getJSON(`/api/uploads/resolve-avatar-url?force=1&url=${q}`)
         if (r && r.url === raw && !/X-Amz-Signature/i.test(raw)) {
           // Possibly private object but server assumed public-read; force a signed URL.
           try { r = await getJSON(`/api/uploads/resolve-avatar-url?force=1&url=${q}`) } catch {}
@@ -73,9 +74,9 @@ export function useDashboardMedia(profile) {
         const raw = profile?.bannerImageUrl || profile?.banner_image_url || null
         if (!raw) { setBannerUrl(null); return }
         setBannerResolving(true)
-        const q = encodeURIComponent(raw)
-        // Force sign on initial resolve to avoid race with storage-health fetch and prevent 403s
-        let r = await getJSON(`/api/uploads/resolve-avatar-url?force=1&url=${q}`)
+  const q = encodeURIComponent(raw)
+  // Always force sign on initial resolve to avoid 403s
+  let r = await getJSON(`/api/uploads/resolve-avatar-url?force=1&url=${q}`)
         if (r && r.url === raw && !/X-Amz-Signature/i.test(raw)) {
           try { r = await getJSON(`/api/uploads/resolve-avatar-url?force=1&url=${q}`) } catch {}
         }

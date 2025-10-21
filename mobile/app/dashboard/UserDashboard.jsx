@@ -10,8 +10,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useProfile } from '../../context/profile'
 import { getJSON, postJSON, patchJSON } from '../../context/api'
 import { useDashboardMedia } from '../../hooks/useDashboardMedia'
-import { useDashboardStats } from '../../hooks/useDashboardStats'
-import { router } from 'expo-router'
+// useDashboardStats removed
+import { router, useFocusEffect } from 'expo-router'
+import CountBadge from '../../components/CountBadge'
+import { useChat } from '../../context/chat'
+import VerificationBanner from '../../components/VerificationBanner'
 import { useResolvedUrls } from '../../hooks/useResolvedUrls'
 import { useToast } from '../../context/toast'
 import { profileStyles as styles } from '../../assets/styles/(tabs)/profile.styles'
@@ -37,7 +40,98 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
   const [pickingImage, setPickingImage] = useState(false)
   // media & stats hooks
   const { avatarUrl, bannerUrl, bannerResolving, setBannerUrl } = useDashboardMedia(profile)
-  const { stats } = useDashboardStats(!loading, 60000)
+  // const { stats } = useDashboardStats(!loading, 60000)
+  // Unread messages for notifications badge on profile
+  const { chatRooms } = useChat()
+  const unreadTotal = Array.isArray(chatRooms)
+    ? chatRooms.reduce((sum, r) => sum + (Number(r?.unreadCount) || 0), 0)
+    : 0
+  // Verification notifications count (rejected / flagged etc)
+  const [verifNotifCount, setVerifNotifCount] = useState(0)
+  // Notifications modal state
+  const [notifOpen, setNotifOpen] = useState(false)
+  const [notifItems, setNotifItems] = useState([])
+  const [notifLoading, setNotifLoading] = useState(false)
+  const refreshVerifCount = useCallback(async (mountedRef) => {
+    try {
+      const resp = await getJSON('/api/verification/my-notifications')
+      if (mountedRef.current === false) return
+      const cnt = Array.isArray(resp?.items) ? resp.items.length : 0
+      if (mountedRef.current !== false) setVerifNotifCount(cnt)
+    } catch {
+      if (mountedRef.current !== false) setVerifNotifCount(0)
+    }
+  }, [])
+
+
+  const loadNotifications = useCallback(async () => {
+    setNotifLoading(true)
+    try {
+      const resp = await getJSON('/api/verification/my-notifications')
+      const items = Array.isArray(resp?.items) ? resp.items : []
+      setNotifItems(items)
+    } catch {
+      setNotifItems([])
+    } finally {
+      setNotifLoading(false)
+    }
+  }, [])
+
+  // Persist read notifications in AsyncStorage
+  const markRead = useCallback(async (id) => {
+    try { await postJSON(`/api/verification/notifications/${id}/read`, {}) } catch {}
+    // Reduce badge count but keep item visible in modal
+    setNotifItems(prev => prev.map(i => i.id === id ? { ...i, readAt: i.readAt || new Date().toISOString() } : i))
+    setVerifNotifCount(c => Math.max(0, c - 1))
+  }, [])
+
+  // Open notification deep link
+  const openNotification = useCallback((item) => {
+    const type = item?.type
+    const data = item?.data || {}
+    if ((type === 'review_created' || type === 'review_commented') && data.reviewId) {
+      try { router.push({ pathname: '/reviews/[id]', params: { id: String(data.reviewId) } }) } catch {}
+      setNotifOpen(false)
+      return
+    }
+    if ((type === 'moderation' || type === 'account_suspended') && data?.route && String(data.route).includes('/appeals')) {
+      const params = data?.reportId ? { reportId: String(data.reportId) } : {}
+      try { router.push({ pathname: '/appeals', params }) } catch {}
+      setNotifOpen(false)
+      return
+    }
+    // Fallback: verification notifications keep current behavior
+    if (type === 'verification_status' && data?.submissionId) {
+      // Optionally navigate to verification screen if it exists
+      try { router.push('/verification') } catch {}
+      setNotifOpen(false)
+    }
+  }, [])
+
+  const deleteNotif = useCallback(async (id) => {
+    // If it was unread, also decrement count
+    setNotifItems(prev => {
+      const target = prev.find(i => i.id === id)
+      if (target && !target.readAt) setVerifNotifCount(c => Math.max(0, c - 1))
+      return prev.filter(i => i.id !== id)
+    })
+    try { await postJSON(`/api/verification/notifications/${id}/delete`, {}) } catch {}
+  }, [])
+
+  useEffect(() => {
+    const mountedRef = { current: true }
+    refreshVerifCount(mountedRef)
+    return () => { mountedRef.current = false }
+  }, [refreshVerifCount])
+
+  useFocusEffect(
+    useCallback(() => {
+      const mountedRef = { current: true }
+      refreshVerifCount(mountedRef)
+      return () => { mountedRef.current = false }
+    }, [refreshVerifCount])
+  )
+  const totalBadge = (unreadTotal || 0) + (verifNotifCount || 0)
   // Dashboard listing thumbnail (random from recent products)
   const [listingThumbRaw, setListingThumbRaw] = useState(null)
   const [listingThumb] = useResolvedUrls(listingThumbRaw ? [listingThumbRaw] : [])
@@ -405,7 +499,6 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
   // If you later implement impersonation logic, surface a small banner.
   const allowedRoles = new Set([expectedRole, 'admin'])
   const isAllowed = allowedRoles.has(role)
-  const isAdminViewingOther = role === 'admin' && role !== expectedRole
   if (!isAllowed) {
     return (
       <View style={styles.center}>
@@ -421,11 +514,6 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
     <>
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         {/* Hero Section */}
-        {isAdminViewingOther && (
-          <View style={styles.adminBanner}>
-            <Text style={styles.adminBannerText}>Admin view: displaying {expectedRole} layout</Text>
-          </View>
-        )}
         <View style={styles.heroWrapper}>
           <TouchableOpacity activeOpacity={0.85} onPress={onPickBanner} disabled={pickingImage}>
             {bannerUrl ? (
@@ -471,6 +559,22 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
               </LinearGradient>
             )}
             <View style={styles.bannerOverlay}>
+              {totalBadge > 0 && (
+                <TouchableOpacity
+                  accessibilityLabel="Open notifications"
+                  onPress={() => { setNotifOpen(true); loadNotifications() }}
+                  activeOpacity={0.8}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  style={{ position: 'absolute', right: 12, top: -12, zIndex: 5 }}
+                >
+                  <CountBadge
+                    count={totalBadge}
+                    max={99}
+                    size={20}
+                    minWidth={20}
+                  />
+                </TouchableOpacity>
+              )}
               <TouchableOpacity onPress={openBannerActions} activeOpacity={0.85} style={{ position: 'absolute', right: 12, bottom: 8, padding: 6 }} accessibilityLabel="Banner actions">
                 <Ionicons name="ellipsis-horizontal-circle" size={22} color={COLORS.primary} />
               </TouchableOpacity>
@@ -496,6 +600,22 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
           </TouchableOpacity>
         </View>
 
+        {/* Suspended account banner */}
+        {String(profile?.status || '').toLowerCase() === 'suspended' && (
+          <View style={{ marginHorizontal: 16, marginTop: 8, padding: 12, borderRadius: 8, backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' }}>
+            <Text style={{ color: '#B91C1C', fontWeight: '700' }}>Your account is suspended</Text>
+            <Text style={{ color: '#7F1D1D', marginTop: 4, fontSize: 12 }}>Ordering, posting listings, reviews and replies are disabled until your account is reactivated.</Text>
+            <TouchableOpacity onPress={() => router.push('/appeals')} activeOpacity={0.85} style={{ alignSelf: 'flex-start', marginTop: 10, backgroundColor: '#111827', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 }}>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>Appeal suspension</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Verification CTA (hidden for admin) */}
+        {role !== 'admin' && (
+          <VerificationBanner role={role} containerStyle={{ marginHorizontal: 16, borderRadius: 8, marginTop: 8 }} />
+        )}
+
   {/* My Listings Section (collapsible) - Farmers only */}
   {role === 'farmer' && (
   <View style={styles.sectionBlock}>
@@ -506,7 +626,7 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
             </TouchableOpacity>
             <View style={styles.headerActionsRow}>
               {role === 'farmer' && (
-                <TouchableOpacity style={styles.headingActionBtn} activeOpacity={0.85} onPress={() => router.push('/dashboard/post-listing')}>
+                <TouchableOpacity style={styles.headingActionBtn} activeOpacity={0.85} onPress={() => router.push('/products/post-listing')}>
                   <Text style={styles.headingActionText}>＋ Post</Text>
                 </TouchableOpacity>
               )}
@@ -514,7 +634,7 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
           </View>
           {openListings && (
             <View style={styles.rowCards}>
-              <TouchableOpacity style={styles.listingCard} activeOpacity={0.85} onPress={() => router.push('/dashboard/my-listings')}>
+              <TouchableOpacity style={styles.listingCard} activeOpacity={0.85} onPress={() => router.push('/products/my-listings')}>
                 <BlurhashImage
                   uri={listingThumb || listingThumbRaw || 'https://via.placeholder.com/300'}
                   style={styles.listingImage}
@@ -523,26 +643,28 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
                 />
                 <View style={styles.listingCardFooter}>
                   <Text style={styles.listingLabel}>Available </Text>
-                  <Text style={styles.listingMetric}>{(stats?.products?.total ?? dashboardData?.totalProducts) ?? 0}</Text>
+                  <Text style={styles.listingMetric}>{(dashboardData?.totalProducts) ?? 0}</Text>
                 </View>
               </TouchableOpacity>
             </View>
           )}
   </View>
   )}
-  {/* Orders: single action button */}
-        <View style={styles.sectionBlock}>
-          <TouchableOpacity
-            style={styles.ordersButton}
-            activeOpacity={0.9}
-            onPress={() => router.push('/orders')}
-            accessibilityLabel="Orders"
-          >
-            <Ionicons name={role === 'farmer' ? 'newspaper-outline' : 'paper-plane-outline'} size={18} color={COLORS.white} style={styles.ordersButtonIcon} />
-            <Text style={styles.ordersButtonText}>Orders</Text>
-          </TouchableOpacity>
-          <Text style={styles.ordersButtonHint}>Incoming • Sent • Current • Completed</Text>
-        </View>
+  {/* Orders: single action button (hidden for admin) */}
+        {role !== 'admin' && (
+          <View style={styles.sectionBlock}>
+            <TouchableOpacity
+              style={styles.ordersButton}
+              activeOpacity={0.9}
+              onPress={() => router.push('/orders')}
+              accessibilityLabel="Orders"
+            >
+              <Ionicons name={role === 'farmer' ? 'newspaper-outline' : 'paper-plane-outline'} size={18} color={COLORS.white} style={styles.ordersButtonIcon} />
+              <Text style={styles.ordersButtonText}>Orders</Text>
+            </TouchableOpacity>
+            <Text style={styles.ordersButtonHint}>Incoming • Sent • Current • Completed</Text>
+          </View>
+        )}
 
         {/* Funds: single action button like Orders (farmer only) */}
         {role === 'farmer' && (
@@ -563,24 +685,66 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
         {/* Collapsible Funds metrics section removed (replaced by Funds hub button) */}
 
         {/* Switch Role section removed */}
-        <View style={styles.logoutContainer}>
-          <TouchableOpacity
-            onPress={confirmLogout}
-            disabled={signingOut}
-            style={[styles.logoutButton, signingOut && styles.logoutButtonDisabled]}
-            activeOpacity={0.85}
-          >
-            {signingOut ? (
-              <View style={styles.logoutRow}>
-                <ActivityIndicator size="small" color={COLORS.white} />
-                <Text style={styles.logoutText}>Logging out…</Text>
-              </View>
-            ) : (
-              <Text style={styles.logoutText}>Log Out</Text>
-            )}
-          </TouchableOpacity>
-        </View>
+        {role !== 'admin' && (
+          <View style={styles.logoutContainer}>
+            <TouchableOpacity
+              onPress={confirmLogout}
+              disabled={signingOut}
+              style={[styles.logoutButton, signingOut && styles.logoutButtonDisabled]}
+              activeOpacity={0.85}
+            >
+              {signingOut ? (
+                <View style={styles.logoutRow}>
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                  <Text style={styles.logoutText}>Logging out…</Text>
+                </View>
+              ) : (
+                <Text style={styles.logoutText}>Log Out</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
+      {/* Notifications Modal */}
+      <Modal visible={notifOpen} transparent animationType="slide" onRequestClose={() => setNotifOpen(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#fff', maxHeight: '80%', borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }}>
+              <Text style={{ fontSize: 22, fontWeight: '800' }}>Notifications</Text>
+              <TouchableOpacity onPress={() => setNotifOpen(false)} accessibilityLabel="Close notifications">
+                <Ionicons name="close" size={24} color="#111827" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ paddingHorizontal: 16 }} contentContainerStyle={{ paddingBottom: 16 }}>
+              {notifLoading ? (
+                <View style={{ paddingVertical: 24, alignItems: 'center' }}>
+                  <ActivityIndicator />
+                </View>
+              ) : notifItems.length === 0 ? (
+                <Text style={{ paddingVertical: 16, color: '#6b7280' }}>No notifications</Text>
+              ) : (
+                notifItems.map(item => (
+                  <View key={item.id} style={{ marginBottom: 16, backgroundColor: '#fff', borderRadius: 12 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '800', marginBottom: 6 }}> {item.title || 'Notification'} </Text>
+                    {!!item.body && <Text style={{ color: '#374151', marginBottom: 8 }}>{item.body}</Text>}
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity onPress={() => openNotification(item)} activeOpacity={0.85} style={{ alignSelf: 'flex-start', backgroundColor: '#3b82f6', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 }}>
+                        <Text style={{ color: '#fff', fontWeight: '700' }}>Open</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => markRead(item.id)} disabled={!!item.readAt} activeOpacity={0.85} style={{ alignSelf: 'flex-start', backgroundColor: item.readAt ? '#9ca3af' : '#16a34a', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 }}>
+                        <Text style={{ color: '#fff', fontWeight: '700' }}>{item.readAt ? 'Read' : 'Mark read'}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => deleteNotif(item.id)} activeOpacity={0.85} style={{ alignSelf: 'flex-start', backgroundColor: '#ef4444', paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 }}>
+                        <Text style={{ color: '#fff', fontWeight: '700' }}>Delete</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
       {/* FabActions removed: actions now integrated into respective sections for farmer */}
 
       {/* Edit Profile Modal (full-screen, scrollable, keyboard-aware) */}

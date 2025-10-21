@@ -11,17 +11,27 @@ const router = Router()
 
 // Clerk event handlers (scoped here to keep server.js slim)
 export async function handleUserCreated(userData, opts = {}) {
-  const {
-    id,
-    email_addresses = [],
-    username,
-    first_name,
-    last_name,
-    image_url,
-    primary_email_address_id,
-    unsafe_metadata = {},
-  } = userData || {}
-  if (!id || email_addresses.length === 0) return
+  // Normalize both Clerk webhook (snake_case) and Clerk SDK (camelCase) shapes
+  const id = userData?.id
+  const username = userData?.username
+    ?? userData?.username // same key for both
+  const first_name = userData?.first_name ?? userData?.firstName
+  const last_name = userData?.last_name ?? userData?.lastName
+  const image_url = userData?.image_url ?? userData?.imageUrl
+  const unsafe_metadata = userData?.unsafe_metadata ?? userData?.unsafeMetadata ?? {}
+
+  // Email addresses
+  let email_addresses = userData?.email_addresses
+  if (!Array.isArray(email_addresses) && Array.isArray(userData?.emailAddresses)) {
+    email_addresses = userData.emailAddresses.map(e => ({
+      id: e.id,
+      email_address: e.emailAddress,
+      verification: e.verification || e.verificationStatus ? { status: e.verification?.status || e.verificationStatus } : undefined,
+    }))
+  }
+  const primary_email_address_id = userData?.primary_email_address_id ?? userData?.primaryEmailAddressId
+
+  if (!id || !Array.isArray(email_addresses) || email_addresses.length === 0) return
 
   const primaryEmailObj = email_addresses.find(e => e.id === primary_email_address_id) || email_addresses[0]
   const primaryEmail = primaryEmailObj?.email_address

@@ -1,0 +1,18 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "install-react-native-image-viewing",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"install",
+				"react-native-image-viewing@^0.2.2"
+			],
+			"problemMatcher": [
+				"$eslint - stylish"
+			],
+			"group": "build"
+		}
+	]
+}

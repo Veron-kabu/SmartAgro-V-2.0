@@ -64,47 +64,7 @@ router.get('/dashboard/farmer', ensureAuth(), requireRole(['farmer']), async (re
   } catch (e) { console.error('Error fetching farmer dashboard:', e); res.status(500).json({ error: 'Failed to fetch dashboard data' }) }
 })
 
-// Stats overview
-router.get('/stats/overview', ensureAuth(), async (req,res) => {
-  try {
-    const meArr = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
-    if (meArr.length === 0) return res.status(404).json({ error: 'User not found' })
-    const me = meArr[0]
-    const isFarmer = me.role === 'farmer'; const isBuyer = me.role === 'buyer'
-    const activeStatuses = ['pending','accepted','shipped']
-    const deliveredStatuses = ['delivered','completed']
-    let ordersPrimary = [] // farmer incoming OR buyer orders
-    let ordersSent = []    // only populated for farmers (orders placed as buyer)
-    if (isFarmer) {
-      // Incoming orders where this user is the farmer
-      ordersPrimary = await db.select().from(ordersTable).where(eq(ordersTable.farmerId, me.id))
-      // Sent orders (farmer acting as buyer) - reuse existing table; some farmers may not have any
-      ordersSent = await db.select().from(ordersTable).where(eq(ordersTable.buyerId, me.id))
-    } else if (isBuyer) {
-      ordersPrimary = await db.select().from(ordersTable).where(eq(ordersTable.buyerId, me.id))
-    }
-    // Compute stats helper
-    function summarize(list) {
-      if (!list || list.length === 0) return { total: 0, active: 0, delivered: 0 }
-      const active = list.filter(o => activeStatuses.includes((o.status || '').toLowerCase())).length
-      const delivered = list.filter(o => deliveredStatuses.includes((o.status || '').toLowerCase())).length
-      return { total: list.length, active, delivered }
-    }
-    const ordersSummary = summarize(ordersPrimary)
-    const ordersSentSummary = isFarmer ? summarize(ordersSent) : null
-    let totalProducts = null
-    if (isFarmer) {
-      const prods = await db.select().from(productsTable).where(eq(productsTable.farmerId, me.id))
-      totalProducts = prods.filter(p => p.status === 'active').length
-    }
-    res.json({
-      role: me.role,
-      orders: ordersSummary,
-      ordersSent: ordersSentSummary,
-      products: { total: totalProducts }
-    })
-  } catch (e) { console.error('stats overview error', e); res.status(500).json({ error: 'Failed to load stats' }) }
-})
+// Stats overview endpoint removed (Activity Snapshot retired)
 
 // Market data
 router.get('/market-data', async (req,res) => {
@@ -124,11 +84,23 @@ router.get('/market-data', async (req,res) => {
 // =============================
 router.get('/admin/clerk-sync-status', ensureAuth(), requireRole(['admin']), async (req,res) => {
   try {
-    const [latest] = await db.select().from(clerkSyncRunsTable).orderBy(desc(clerkSyncRunsTable.id)).limit(1)
-    const [{ count: dbUserCount }] = await db.execute(sql`SELECT COUNT(*)::int as count FROM users`)
-    res.json({ latestRun: latest || null, dbUserCount })
+    const latestArr = await db.select().from(clerkSyncRunsTable).orderBy(desc(clerkSyncRunsTable.id)).limit(1)
+    const latest = Array.isArray(latestArr) && latestArr.length > 0 ? latestArr[0] : null
+
+    const execRes = await db.execute(sql`SELECT COUNT(*)::int as count FROM users`)
+    let dbUserCount = 0
+    if (Array.isArray(execRes)) {
+      dbUserCount = Number(execRes[0]?.count ?? 0)
+    } else if (execRes && typeof execRes === 'object') {
+      // Some drivers return { rows: [...] }
+      const rows = Array.isArray(execRes.rows) ? execRes.rows : []
+      dbUserCount = Number(rows[0]?.count ?? 0)
+    }
+    res.json({ latestRun: latest, dbUserCount })
   } catch (e) {
-    console.error('clerk-sync-status error', e)
+    try {
+      console.error('clerk-sync-status error', e?.message || e, { type: typeof e, keys: e && typeof e === 'object' ? Object.keys(e) : null })
+    } catch { console.error('clerk-sync-status error (logging failed)') }
     res.status(500).json({ error: 'Failed to load sync status' })
   }
 })

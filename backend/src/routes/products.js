@@ -3,9 +3,11 @@ import { db } from '../config/db.js'
 import { productsTable, usersTable, ordersTable, favoritesTable } from '../db/schema.js'
 import { ensureAuth } from '../middleware/auth.js'
 import { requireRole } from '../middleware/role.js'
+import { requireNotSuspended } from '../middleware/status.js'
 import { and, eq, gt, gte, lte, lt, inArray } from 'drizzle-orm'
 import { computeBlurhashFromUrl } from '../utils/blurhash.js'
 import { takeToken } from '../utils/rateLimit.js'
+import { userVerificationTable } from '../db/schema.js'
 
 const router = Router()
 
@@ -34,7 +36,9 @@ router.get('/products', async (req,res) => {
       ...productsTable,
       farmerEmail: usersTable.email,
       farmerName: usersTable.fullName,
-      farmerUsername: usersTable.username
+      farmerUsername: usersTable.username,
+      farmerRatingAvg: usersTable.ratingAvg,
+      farmerRatingCount: usersTable.ratingCount,
     })
     .from(productsTable)
     .leftJoin(usersTable, eq(productsTable.farmerId, usersTable.id))
@@ -71,7 +75,9 @@ router.get('/products/:id', async (req,res) => {
       ...productsTable,
       farmerEmail: usersTable.email,
       farmerName: usersTable.fullName,
-      farmerUsername: usersTable.username
+      farmerUsername: usersTable.username,
+      farmerRatingAvg: usersTable.ratingAvg,
+      farmerRatingCount: usersTable.ratingCount,
     })
     .from(productsTable)
     .leftJoin(usersTable, eq(productsTable.farmerId, usersTable.id))
@@ -108,10 +114,17 @@ router.get('/products/bulk', async (req,res) => {
 })
 
 // NOTE: Price is stored in decimal in KES (Kenyan Shillings). Client must treat value as Ksh, not USD.
-router.post('/products', ensureAuth(), requireRole(['farmer']), async (req,res) => {
+router.post('/products', ensureAuth(), requireNotSuspended(), requireRole(['farmer']), async (req,res) => {
   try {
     const key = `product_create_${req.auth.userId}`
     if (!takeToken(key, { capacity: 10, refillRatePerSec: 0.25 })) return res.status(429).json({ error: 'Too many product creations, slow down' })
+    // Enforce verified-only product creation for farmers
+    // Enforce verified-only product creation for farmers based on DB status
+    const vrow = await db.select().from(userVerificationTable).where(eq(userVerificationTable.userId, db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))))
+    const vstatus = vrow?.[0]?.status || 'unverified'
+    if (vstatus !== 'verified') {
+      return res.status(403).json({ error: 'Verification required to post listings', status: vstatus })
+    }
     const user = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
   let { title, category, price, unit, quantity_available, location, discount_percent } = req.body
     if (!title || !category || !price || !unit || !quantity_available || !location) return res.status(400).json({ error: 'Missing required product fields' })
@@ -171,7 +184,7 @@ router.post('/products', ensureAuth(), requireRole(['farmer']), async (req,res) 
 // Update product (farmer-owned) – allow updating discount, price, quantity, status (limited)
 // Extend PATCH to optionally add/remove images (array). Pass either images_add (array of URLs) or
 // images_remove (array of exact URLs to remove). Both may be supplied. New images will trigger blurhash job later.
-router.patch('/products/:id', ensureAuth(), requireRole(['farmer','admin']), async (req,res) => {
+router.patch('/products/:id', ensureAuth(), requireNotSuspended({ allowAdminBypass: true }), requireRole(['farmer','admin']), async (req,res) => {
   try {
     const productId = Number(req.params.id)
     if (isNaN(productId)) return res.status(400).json({ error: 'Invalid product ID' })
@@ -264,7 +277,7 @@ router.patch('/products/:id', ensureAuth(), requireRole(['farmer','admin']), asy
 })
 
 // Hard delete: permanently remove product if no orders reference it. If orders exist, block deletion.
-router.delete('/products/:id', ensureAuth(), requireRole(['farmer','admin']), async (req,res) => {
+router.delete('/products/:id', ensureAuth(), requireNotSuspended({ allowAdminBypass: true }), requireRole(['farmer','admin']), async (req,res) => {
   try {
     const productId = Number(req.params.id)
     if (isNaN(productId)) return res.status(400).json({ error: 'Invalid product ID' })
@@ -294,7 +307,7 @@ router.delete('/products/:id', ensureAuth(), requireRole(['farmer','admin']), as
 })
 
 // Restore product (inactive -> active)
-router.post('/products/:id/restore', ensureAuth(), requireRole(['farmer','admin']), async (req,res) => {
+router.post('/products/:id/restore', ensureAuth(), requireNotSuspended({ allowAdminBypass: true }), requireRole(['farmer','admin']), async (req,res) => {
   try {
     const productId = Number(req.params.id)
     if (isNaN(productId)) return res.status(400).json({ error: 'Invalid product ID' })
@@ -318,3 +331,24 @@ router.post('/products/:id/restore', ensureAuth(), requireRole(['farmer','admin'
 })
 
 export default router
+
+// Public: list products by seller (farmer) id
+// Example: GET /api/users/:id/products?status=active
+router.get('/users/:id/products', async (req,res) => {
+  try {
+    const sellerId = Number(req.params.id)
+    const { status } = req.query || {}
+    if (!Number.isFinite(sellerId)) return res.status(400).json({ error: 'Invalid user id' })
+    let whereExpr = eq(productsTable.farmerId, sellerId)
+    if (typeof status === 'string') {
+      whereExpr = and(whereExpr, eq(productsTable.status, status))
+    }
+    const rows = await db.select().from(productsTable).where(whereExpr)
+    // Newest first
+    rows.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))
+    res.json({ items: rows, total: rows.length })
+  } catch (e) {
+    console.error('list seller products failed', e)
+    res.status(500).json({ error: 'Failed to fetch seller products' })
+  }
+})

@@ -91,6 +91,8 @@ export default function ProductCard({ product }) {
       router.push(`/products/${product.id}`);
     }
   };
+  const goToView = () => router.push(`/products/${product.id}`)
+  const goToEdit = () => router.push(`/products/edit/${product.id}`)
 
   const getStatusInfo = () => {
     const status = (product.status || '').toLowerCase();
@@ -125,7 +127,7 @@ export default function ProductCard({ product }) {
   return (
     <TouchableOpacity
       style={productCardStyles.container}
-      onPress={goToProduct}
+      onPress={isOwner ? goToView : goToProduct}
       activeOpacity={0.8}
     >
       <View style={productCardStyles.imageContainer}>
@@ -252,53 +254,95 @@ export default function ProductCard({ product }) {
         {/* Action Buttons */}
         <View style={{
           flexDirection: "row",
-          justifyContent: isOwner ? "flex-end" : "space-between",
+          justifyContent: "space-between",
           alignItems: "center",
           marginTop: 4,
         }}>
-          {!isOwner && (
-            <TouchableOpacity 
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                backgroundColor: COLORS.white,
-                borderWidth: 1,
-                borderColor: COLORS.primary,
-                paddingHorizontal: 8,
-                paddingVertical: 4,
-                borderRadius: 12,
-                marginRight: 8,
-              }}
-              onPress={handleStartChat}
-            >
-              <Ionicons name="chatbubble" size={12} color={COLORS.primary} />
-              <Text style={{
-                fontSize: 10,
-                color: COLORS.primary,
-                fontWeight: "600",
-                marginLeft: 4,
-              }}>
-                Chat
-              </Text>
-            </TouchableOpacity>
+          {!isOwner ? (
+            <>
+              <TouchableOpacity 
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  backgroundColor: COLORS.white,
+                  borderWidth: 1,
+                  borderColor: COLORS.primary,
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 12,
+                  marginRight: 8,
+                }}
+                onPress={handleStartChat}
+              >
+                <Ionicons name="chatbubble" size={12} color={COLORS.primary} />
+                <Text style={{
+                  fontSize: 10,
+                  color: COLORS.primary,
+                  fontWeight: "600",
+                  marginLeft: 4,
+                }}>
+                  Chat
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={{
+                  backgroundColor: COLORS.primary,
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 12,
+                }}
+                onPress={goToProduct}
+              >
+                <Text style={{
+                  fontSize: 10,
+                  color: COLORS.white,
+                  fontWeight: "600",
+                }}>
+                  View
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <View style={{ flexDirection: 'row', marginLeft: 'auto' }}>
+              <TouchableOpacity 
+                style={{
+                  backgroundColor: COLORS.white,
+                  borderWidth: 1,
+                  borderColor: COLORS.primary,
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 12,
+                  marginRight: 8,
+                }}
+                onPress={goToView}
+              >
+                <Text style={{
+                  fontSize: 10,
+                  color: COLORS.primary,
+                  fontWeight: "600",
+                }}>
+                  View
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={{
+                  backgroundColor: COLORS.primary,
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 12,
+                }}
+                onPress={goToEdit}
+              >
+                <Text style={{
+                  fontSize: 10,
+                  color: COLORS.white,
+                  fontWeight: "600",
+                }}>
+                  Edit
+                </Text>
+              </TouchableOpacity>
+            </View>
           )}
-          <TouchableOpacity 
-            style={{
-              backgroundColor: COLORS.primary,
-              paddingHorizontal: 8,
-              paddingVertical: 4,
-              borderRadius: 12,
-            }}
-            onPress={goToProduct}
-          >
-            <Text style={{
-              fontSize: 10,
-              color: COLORS.white,
-              fontWeight: "600",
-            }}>
-              {isOwner ? 'Edit' : 'View'}
-            </Text>
-          </TouchableOpacity>
         </View>
       </View>
     </TouchableOpacity>

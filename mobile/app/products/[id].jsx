@@ -1,8 +1,8 @@
 import { useLocalSearchParams, router } from 'expo-router'
 import { useEffect, useState, useCallback } from 'react'
-import { View, Text, TouchableOpacity, ScrollView, Alert, Share, Dimensions, Image, StyleSheet } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView, Alert, Share, Dimensions, Image, StyleSheet, TextInput, Keyboard } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
-import { getJSON } from '../../context/api'
+import { getJSON, postJSON, deleteJSON } from '../../context/api'
 import { useFavorites } from '../../context/favorites'
 import { useResolvedUrls } from '../../hooks/useResolvedUrls'
 import BlurhashImage from '../../components/BlurhashImage'
@@ -13,6 +13,9 @@ import { ANALYTICS_EVENTS } from '../../constants/analyticsEvents'
 import { BackButton } from '../../components/navigation'
 import { productDetailStyles as styles } from '../../assets/styles/products.styles'
 import { COLORS } from '../../constants/colors'
+import StarRating from '../../components/StarRating'
+import { REVIEW_CATEGORIES, ratingToCategory } from '../../utils/reviews'
+import { useProfile } from '../../context/profile'
 
 export default function ProductDetail() {
   const { id } = useLocalSearchParams()
@@ -28,6 +31,21 @@ export default function ProductDetail() {
   const { addItem } = useCart()
   const { toggleFavorite: toggleFavCtx, isFavorited } = useFavorites()
   const resolvedImages = useResolvedUrls(product?.images || [])
+  const [reviews, setReviews] = useState([])
+  const [loadingReviews, setLoadingReviews] = useState(false)
+  const [myRating, setMyRating] = useState(0)
+  const [myComment, setMyComment] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('All')
+  const [submittingReview, setSubmittingReview] = useState(false)
+  const { profile } = useProfile()
+  const isAdmin = String(profile?.role || '').toLowerCase() === 'admin'
+  const isSuspended = String(profile?.status || '').toLowerCase() === 'suspended'
+  // Inline reply state
+  const [openReply, setOpenReply] = useState(null) // reviewId that is open
+  const [replyTextById, setReplyTextById] = useState({})
+  const [commentsByReviewId, setCommentsByReviewId] = useState({}) // id -> array of comments (ascending)
+  const [sendingReplyId, setSendingReplyId] = useState(null)
+  const [loadingCommentsById, setLoadingCommentsById] = useState({})
 
   const load = useCallback(async () => {
     if (!numericId || isNaN(numericId)) {
@@ -39,6 +57,14 @@ export default function ProductDetail() {
     try {
       const data = await getJSON(`/api/products/${numericId}`)
       setProduct(data)
+      // Fetch seller reviews
+      try {
+        if (data?.farmerId) {
+          setLoadingReviews(true)
+          const r = await getJSON(`/api/users/${data.farmerId}/reviews`)
+          setReviews(Array.isArray(r?.items) ? r.items : [])
+        } else { setReviews([]) }
+      } catch { setReviews([]) } finally { setLoadingReviews(false) }
       // Check favorite status
       try {
         setCheckingFav(true)
@@ -99,6 +125,121 @@ export default function ProductDetail() {
     } catch { /* ignore */ }
   }
 
+  const submitReview = async () => {
+    Keyboard.dismiss()
+    if (!product) return
+    if (myRating < 1 || myRating > 5) return Alert.alert('Rating required', 'Please select 1-5 stars')
+    try {
+      setSubmittingReview(true)
+      await postJSON('/api/reviews', { product_id: product.id, rating: myRating, comment: myComment || null })
+      Alert.alert('Thanks!', 'Your review has been submitted')
+      setMyRating(0); setMyComment('')
+      // Reload reviews
+      try {
+        const r = await getJSON(`/api/users/${product.farmerId}/reviews`)
+        setReviews(Array.isArray(r?.items) ? r.items : [])
+      } catch {}
+    } catch (e) {
+      Alert.alert('Error', e?.message || 'Could not submit review')
+    } finally { setSubmittingReview(false) }
+  }
+
+  const loadComments = useCallback(async (reviewId) => {
+    if (!reviewId) return
+    setLoadingCommentsById(prev => ({ ...prev, [reviewId]: true }))
+    try {
+      const c = await getJSON(`/api/reviews/${reviewId}/comments`)
+      // Server returns newest-first; show oldest-first so new ones appear below prior comments
+      const list = Array.isArray(c?.items) ? [...c.items].reverse() : []
+      setCommentsByReviewId(prev => ({ ...prev, [reviewId]: list }))
+    } catch {
+      setCommentsByReviewId(prev => ({ ...prev, [reviewId]: [] }))
+    } finally {
+      setLoadingCommentsById(prev => ({ ...prev, [reviewId]: false }))
+    }
+  }, [])
+
+  const toggleReply = useCallback((reviewId) => {
+    setOpenReply(curr => {
+      const next = curr === reviewId ? null : reviewId
+      if (next && !Array.isArray(commentsByReviewId[reviewId])) {
+        // Lazy-load comments on first open
+        loadComments(reviewId)
+      }
+      return next
+    })
+  }, [commentsByReviewId, loadComments])
+
+  const sendReply = useCallback(async (reviewId) => {
+    const text = (replyTextById[reviewId] || '').trim()
+    if (!text) return
+    Keyboard.dismiss()
+    // Optimistic append
+    const optimistic = {
+      id: `temp_${Date.now()}`,
+      reviewId,
+      authorUserId: profile?.id,
+      authorName: null,
+      authorUsername: profile?.username || null,
+      comment: text,
+      createdAt: new Date().toISOString(),
+      optimistic: true,
+    }
+    setCommentsByReviewId(prev => {
+      const list = Array.isArray(prev[reviewId]) ? prev[reviewId] : []
+      return { ...prev, [reviewId]: [...list, optimistic] }
+    })
+    setReplyTextById(prev => ({ ...prev, [reviewId]: '' }))
+    setSendingReplyId(reviewId)
+    try {
+      await postJSON(`/api/reviews/${reviewId}/comments`, { comment: text })
+      // Re-fetch to replace optimistic with real identity/order
+      await loadComments(reviewId)
+    } catch (e) {
+      // Revert optimistic on failure
+      setCommentsByReviewId(prev => {
+        const list = Array.isArray(prev[reviewId]) ? prev[reviewId] : []
+        return { ...prev, [reviewId]: list.filter(c => c.id !== optimistic.id) }
+      })
+      Alert.alert('Error', e?.body || e?.message || 'Failed to send reply')
+    } finally {
+      setSendingReplyId(null)
+    }
+  }, [replyTextById, profile?.id, profile?.username, loadComments])
+
+  const deleteReply = useCallback(async (reviewId, commentId) => {
+    Alert.alert('Delete comment', 'Are you sure you want to delete this comment?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try {
+          await deleteJSON(`/api/admin/reviews/comments/${commentId}`)
+          setCommentsByReviewId(prev => {
+            const list = Array.isArray(prev[reviewId]) ? prev[reviewId] : []
+            return { ...prev, [reviewId]: list.filter(c => c.id !== commentId) }
+          })
+        } catch (e) {
+          Alert.alert('Error', e?.body || e?.message || 'Failed to delete comment')
+        }
+      } }
+    ])
+  }, [])
+
+  const deleteReview = useCallback(async (reviewId) => {
+    Alert.alert('Delete review', 'Are you sure you want to delete this review?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+        try {
+          await postJSON(`/api/admin/reviews/${reviewId}`, { _method: 'DELETE' })
+        } catch {
+          // If server expects DELETE, fall back to fetch
+          try { await fetch(`/api/admin/reviews/${reviewId}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } }) } catch {}
+        } finally {
+          setReviews(prev => prev.filter(r => r.id !== reviewId))
+        }
+      }}
+    ])
+  }, [])
+
   const headerCarousel = () => {
   const imgs = (resolvedImages && resolvedImages.length > 0) ? resolvedImages : (product?.images || [])
   if (!imgs.length) return <View style={[styles.heroImage, { backgroundColor: COLORS.divider }]} />
@@ -150,7 +291,7 @@ export default function ProductDetail() {
           <Shimmer style={{ flex:1 }} />
         </View>
       )}
-      <ScrollView contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+  <ScrollView contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <View style={styles.heroWrap}>
           {headerCarousel()}
           {Array.isArray(product?.images) && product.images.length > 1 && (
@@ -214,6 +355,13 @@ export default function ProductDetail() {
               )}
               <Text style={styles.price}>${product.discountPercent > 0 ? (Number(product.price) * (1 - product.discountPercent/100)).toFixed(2) : Number(product.price).toFixed(2)} <Text style={styles.unit}>/ {product.unit || 'unit'}</Text></Text>
             </View>
+            {/* Seller rating summary */}
+            <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <StarRating value={Number(product.farmerRatingAvg || 0)} max={5} size={16} />
+              <Text style={{ color: COLORS.text, fontSize: 12 }}>
+                {Number(product.farmerRatingAvg || 0).toFixed(1)} ({Number(product.farmerRatingCount || 0)} reviews)
+              </Text>
+            </View>
             {typeof product.description === 'string' && product.description.trim().length > 0 && (
               <Text style={styles.desc}>{product.description}</Text>
             )}
@@ -234,24 +382,161 @@ export default function ProductDetail() {
               </View>
             )}
 
-            <View style={styles.qtyRow}>
-              <Text style={styles.qtyLabel}>Qty</Text>
-              <View style={styles.qtyControls}>
-                <TouchableOpacity onPress={dec} style={styles.qtyBtn}><Text style={styles.qtyBtnText}>-</Text></TouchableOpacity>
-                <Text style={styles.qtyValue}>{qty}</Text>
-                <TouchableOpacity onPress={inc} style={styles.qtyBtn}><Text style={styles.qtyBtnText}>+</Text></TouchableOpacity>
+            {(!profile?.id || profile.id !== product.farmerId) && (
+              <View style={styles.qtyRow}>
+                <Text style={styles.qtyLabel}>Qty</Text>
+                <View style={styles.qtyControls}>
+                  <TouchableOpacity onPress={dec} style={styles.qtyBtn}><Text style={styles.qtyBtnText}>-</Text></TouchableOpacity>
+                  <Text style={styles.qtyValue}>{qty}</Text>
+                  <TouchableOpacity onPress={inc} style={styles.qtyBtn}><Text style={styles.qtyBtnText}>+</Text></TouchableOpacity>
+                </View>
+                <Text style={styles.extPrice}>${(Number(product.price) * qty).toFixed(2)}</Text>
               </View>
-              <Text style={styles.extPrice}>${(Number(product.price) * qty).toFixed(2)}</Text>
-            </View>
+            )}
 
-            <View style={{ flexDirection:'row', gap:12, marginTop:28 }}>
-              <TouchableOpacity style={[styles.secondaryActionBtn]} onPress={() => router.push(`/orders/new?product=${product.id}`)} activeOpacity={0.85}>
-                <Text style={styles.secondaryActionBtnText}>Order Now</Text>
-              </TouchableOpacity>
+            {(!profile?.id || profile.id !== product.farmerId) && (
+              <>
+                <View style={{ flexDirection:'row', gap:12, marginTop:28 }}>
+                  <TouchableOpacity style={[styles.secondaryActionBtn, isSuspended && { opacity: 0.5 }]} onPress={() => router.push(`/orders/new?product=${product.id}`)} disabled={isSuspended} activeOpacity={0.85}>
+                    <Text style={styles.secondaryActionBtnText}>Order Now</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity style={[styles.addBtn, product.quantityAvailable <= 0 && styles.addBtnDisabled]} onPress={addToCart} activeOpacity={0.85} disabled={product.quantityAvailable <= 0}>
+                  <Text style={styles.addBtnText}>{product.quantityAvailable <= 0 ? 'Out of stock' : 'Add to cart'}</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {/* Reviews Section */}
+            <View style={{ marginTop: 28 }}>
+              <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>Reviews</Text>
+              {/* Category filter */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
+                {REVIEW_CATEGORIES.map((c) => {
+                  const active = selectedCategory === c.key
+                  return (
+                    <TouchableOpacity key={c.key} onPress={() => setSelectedCategory(c.key)} style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 16, marginRight: 8, marginBottom: 8, backgroundColor: active ? '#eef2ff' : '#f3f4f6', borderWidth: active ? 1 : 0, borderColor: active ? '#6366f1' : 'transparent' }}>
+                      <Text style={{ color: active ? '#3730a3' : '#374151', fontWeight: active ? '700' : '500' }}>{c.label}</Text>
+                    </TouchableOpacity>
+                  )
+                })}
+              </View>
+              {loadingReviews ? (
+                <Text style={{ color: COLORS.muted }}>Loading reviews…</Text>
+              ) : (Array.isArray(reviews) && reviews.length > 0) ? (
+                <View style={{ gap: 12 }}>
+                  {reviews
+                    .filter((rv) => {
+                      if (selectedCategory === 'All') return true
+                      const cat = ratingToCategory(rv.rating)
+                      return cat.key === selectedCategory
+                    })
+                    .slice(0, 6)
+                    .map((rv) => (
+                      <View key={rv.id} style={{ paddingVertical: 8, borderBottomColor: COLORS.divider, borderBottomWidth: StyleSheet.hairlineWidth }}>
+                        <Text style={{ color: COLORS.muted, fontSize: 12, marginBottom: 4 }}>
+                          by {profile?.id && rv.reviewerId === profile.id ? 'me' : (rv.reviewerName || rv.reviewerUsername || 'user')}
+                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <StarRating value={rv.rating} size={14} />
+                          <Text style={{ marginLeft: 4, fontSize: 12, color: '#6b7280' }}>{ratingToCategory(rv.rating).label}</Text>
+                          <Text style={{ color: COLORS.text, fontSize: 12, marginLeft: 'auto' }}>{new Date(rv.createdAt).toLocaleDateString()}</Text>
+                        </View>
+                        {rv.comment && <Text style={{ color: COLORS.text, marginTop: 4 }}>{rv.comment}</Text>}
+                        <View style={{ marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                          <TouchableOpacity onPress={() => toggleReply(rv.id)}>
+                            <Text style={{ color: COLORS.primary, fontWeight: '600' }}>{openReply === rv.id ? 'Hide replies' : `Reply${(commentsByReviewId[rv.id]?.length ?? rv.commentsCount) > 0 ? ` · ${commentsByReviewId[rv.id]?.length ?? rv.commentsCount}` : ''}`}</Text>
+                          </TouchableOpacity>
+                          {profile?.role === 'admin' && (
+                            <TouchableOpacity onPress={() => deleteReview(rv.id)}>
+                              <Text style={{ color: COLORS.error, fontWeight: '600' }}>Delete</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                        {openReply === rv.id && (
+                          <View style={{ marginTop: 8 }}>
+                            {/* Existing comments (oldest first) */}
+                            {loadingCommentsById[rv.id] ? (
+                              <Text style={{ color: COLORS.muted }}>Loading replies…</Text>
+                            ) : (
+                              Array.isArray(commentsByReviewId[rv.id]) && commentsByReviewId[rv.id].length > 0 ? (
+                                <View style={{ gap: 8 }}>
+                                  {commentsByReviewId[rv.id].map(c => {
+                                    const isMe = !!profile?.id && c.authorUserId === profile.id
+                                    const isOwner = !!product?.farmerId && c.authorUserId === product.farmerId
+                                    const bg = isMe ? '#e6f9f2' : isOwner ? '#eef2ff' : '#fff'
+                                    const bd = isMe ? '#34d399' : isOwner ? '#93c5fd' : COLORS.divider
+                                    const name = isMe ? 'me' : (isOwner ? 'owner' : (c.authorName || c.authorUsername || `#${c.authorUserId}`))
+                                    return (
+                                      <View key={c.id} style={{ backgroundColor: bg, borderWidth: 1, borderColor: bd, borderRadius: 8, padding: 8 }}>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                          <Text style={{ color: COLORS.muted, fontSize: 11, marginBottom: 2, flex: 1 }}>by {name}</Text>
+                                          {isAdmin && (
+                                            <TouchableOpacity onPress={() => deleteReply(rv.id, c.id)}>
+                                              <Text style={{ color: COLORS.error, fontWeight: '700' }}>Delete</Text>
+                                            </TouchableOpacity>
+                                          )}
+                                        </View>
+                                        <Text style={{ color: COLORS.text }}>{c.comment}</Text>
+                                        <Text style={{ color: COLORS.muted, fontSize: 10, marginTop: 4 }}>{new Date(c.createdAt).toLocaleString()}</Text>
+                                      </View>
+                                    )
+                                  })}
+                                </View>
+                              ) : (
+                                <Text style={{ color: COLORS.muted }}>No replies yet.</Text>
+                              )
+                            )}
+                            {/* Reply input */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
+                              <TextInput
+                                placeholder="Write a reply"
+                                value={replyTextById[rv.id] || ''}
+                                onChangeText={(t) => setReplyTextById(prev => ({ ...prev, [rv.id]: t }))}
+                                editable={!isSuspended}
+                                style={{ flex: 1, backgroundColor: COLORS.inputBackground, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 6, opacity: isSuspended ? 0.6 : 1 }}
+                                multiline
+                              />
+                              <TouchableOpacity
+                                onPress={() => sendReply(rv.id)}
+                                disabled={sendingReplyId === rv.id || !String(replyTextById[rv.id] || '').trim() || isSuspended}
+                                style={{ backgroundColor: (!String(replyTextById[rv.id] || '').trim() || isSuspended) ? COLORS.divider : COLORS.primary, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 6 }}
+                              >
+                                <Text style={{ color: '#fff', fontWeight: '700' }}>{sendingReplyId === rv.id ? 'Sending…' : 'Send'}</Text>
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                  {reviews.length > 6 && (
+                    <Text style={{ color: COLORS.muted, fontSize: 12 }}>And {reviews.length - 6} more…</Text>
+                  )}
+                </View>
+              ) : (
+                <Text style={{ color: COLORS.muted }}>No reviews yet</Text>
+              )}
+
+              {/* Write a review */}
+              <View style={{ marginTop: 16, padding: 12, borderWidth: 1, borderColor: COLORS.divider, borderRadius: 8 }}>
+                <Text style={{ color: COLORS.text, marginBottom: 8, fontWeight: '600' }}>Rate this seller</Text>
+                <StarRating value={myRating} editable={!isSuspended} onChange={setMyRating} />
+                <TextInput
+                  placeholder="Optional comment"
+                  value={myComment}
+                  onChangeText={setMyComment}
+                  editable={!isSuspended}
+                  style={{ marginTop: 8, backgroundColor: COLORS.inputBackground, padding: 10, borderRadius: 6, color: COLORS.text, opacity: isSuspended ? 0.6 : 1 }}
+                />
+                <TouchableOpacity
+                  onPress={submitReview}
+                  disabled={submittingReview || myRating < 1 || isSuspended}
+                  style={{ marginTop: 10, backgroundColor: (myRating < 1 || isSuspended) ? COLORS.divider : COLORS.primary, paddingVertical: 10, borderRadius: 6, alignItems: 'center' }}
+                >
+                  <Text style={{ color: 'white', fontWeight: '700' }}>{submittingReview ? 'Submitting…' : 'Submit review'}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <TouchableOpacity style={[styles.addBtn, product.quantityAvailable <= 0 && styles.addBtnDisabled]} onPress={addToCart} activeOpacity={0.85} disabled={product.quantityAvailable <= 0}>
-              <Text style={styles.addBtnText}>{product.quantityAvailable <= 0 ? 'Out of stock' : 'Add to cart'}</Text>
-            </TouchableOpacity>
           </View>
         )}
       </ScrollView>

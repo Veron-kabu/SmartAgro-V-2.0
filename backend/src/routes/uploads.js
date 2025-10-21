@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { ensureAuth } from '../middleware/auth.js'
 import { ENV } from '../config/env.js'
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { takeToken } from '../utils/rateLimit.js'
 
@@ -83,6 +83,35 @@ router.get('/uploads/debug-head', ensureAuth(), async (req,res) => {
   } catch (e) {
     console.error('debug-head error:', e)
     res.status(500).json({ error: 'debug-head failed' })
+  }
+})
+
+// Reliable existence check via S3 HeadObject (no body fetch)
+router.get('/uploads/exists', ensureAuth(), async (req,res) => {
+  try {
+    const { key } = req.query || {}
+    if (!key) return res.status(400).json({ ok: false, error: 'key required' })
+    const { AWS_S3_BUCKET, AWS_S3_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY } = ENV
+    if (!AWS_S3_BUCKET || !AWS_S3_REGION) return res.status(501).json({ ok: false, error: 'S3 not configured' })
+    const s3 = new S3Client({ region: AWS_S3_REGION, credentials: { accessKeyId: AWS_ACCESS_KEY_ID, secretAccessKey: AWS_SECRET_ACCESS_KEY } })
+    await s3.send(new HeadObjectCommand({ Bucket: AWS_S3_BUCKET, Key: String(key) }))
+    return res.json({ ok: true })
+  } catch (e) {
+    if (e?.$metadata?.httpStatusCode === 404) return res.json({ ok: false, error: 'not found' })
+    return res.status(500).json({ ok: false, error: 'head failed' })
+  }
+})
+
+// Client-reported incident logger for auditing upload anomalies (e.g., 400 with stored object)
+router.post('/uploads/log-incident', ensureAuth(), async (req, res) => {
+  try {
+    const { key, status, message, originUrl, extra } = req.body || {}
+    const userId = req.auth?.userId || 'unknown'
+    console.warn('[upload:incident]', { userId, key, status, message, originUrl, extra })
+    return res.json({ ok: true })
+  } catch (e) {
+    console.error('log-incident error:', e)
+    return res.status(500).json({ ok: false })
   }
 })
 

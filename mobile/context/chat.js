@@ -167,14 +167,16 @@ export const ChatProvider = ({ children }) => {
     
     try {
       console.log('Sending message:', text);
-      const { collection, addDoc, doc, updateDoc } = await import('firebase/firestore');
+  const { collection, addDoc, doc, updateDoc } = await import('firebase/firestore');
       
       const messagesRef = collection(firebaseDatabase, 'chatRooms', currentChatRoom.id, 'messages');
       await addDoc(messagesRef, {
         text,
         createdAt: new Date(),
         user: {
-          _id: clerkUser.emailAddresses[0]?.emailAddress || clerkUser.id,
+          // Use Clerk user id as stable identifier; include email for display
+          _id: clerkUser.id,
+          email: clerkUser.emailAddresses[0]?.emailAddress || '',
           name: clerkUser.fullName || clerkUser.firstName || 'User',
           avatar: clerkUser.imageUrl || 'https://i.pravatar.cc/300'
         }
@@ -184,7 +186,8 @@ export const ChatProvider = ({ children }) => {
       const chatRoomRef = doc(firebaseDatabase, 'chatRooms', currentChatRoom.id);
       await updateDoc(chatRoomRef, {
         lastMessage: text,
-        lastMessageTime: new Date()
+        lastMessageTime: new Date(),
+        lastMessageUserId: clerkUser.id
       });
 
       console.log('Message sent successfully');

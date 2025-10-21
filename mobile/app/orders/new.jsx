@@ -89,6 +89,12 @@ export default function NewOrderScreen() {
 
   return (
     <ScrollView contentContainerStyle={{ padding: 20 }} style={{ flex:1, backgroundColor: '#f9fafb' }} keyboardShouldPersistTaps="handled">
+      {String(profile?.status || '').toLowerCase() === 'suspended' && (
+        <View style={{ backgroundColor: '#FEE2E2', borderColor: '#FCA5A5', borderWidth: 1, padding: 12, borderRadius: 8, marginBottom: 12 }}>
+          <Text style={{ color: '#B91C1C', fontWeight: '700' }}>Account suspended</Text>
+          <Text style={{ color: '#7F1D1D', marginTop: 4, fontSize: 12 }}>You cannot place orders until your account is reactivated.</Text>
+        </View>
+      )}
       <View style={styles.card}>
         <Text style={styles.title}>New Order</Text>
         <Text style={styles.label}>Product</Text>
@@ -128,7 +134,7 @@ export default function NewOrderScreen() {
         <View style={{ height: 20 }} />
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={styles.total}>Total: {formatCurrency(total)}</Text>
-          <TouchableOpacity disabled={submitting} onPress={submit} style={[styles.button, submitting && { opacity: 0.6 }]}>
+          <TouchableOpacity disabled={submitting || String(profile?.status||'').toLowerCase()==='suspended'} onPress={submit} style={[styles.button, (submitting || String(profile?.status||'').toLowerCase()==='suspended') && { opacity: 0.6 }]}>
             <Text style={styles.buttonText}>{submitting ? 'Placing...' : 'Place Order'}</Text>
           </TouchableOpacity>
         </View>

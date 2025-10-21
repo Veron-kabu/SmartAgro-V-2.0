@@ -19,6 +19,7 @@ export default function ProfileTab() {
     }
   }, [loading, isAdmin])
 
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -41,5 +42,9 @@ export default function ProfileTab() {
   const title = role === 'farmer' ? 'Farmer Profile' : 'Buyer Profile'
   const fallbackName = role === 'farmer' ? 'Farmer' : 'Buyer'
 
-  return <UserDashboard expectedRole={role} title={title} fallbackName={fallbackName} />
+  return (
+    <>
+      <UserDashboard expectedRole={role} title={title} fallbackName={fallbackName} />
+    </>
+  )
 }

@@ -15,6 +15,7 @@ import ProductCard from "../../components/ProductCard";
 import EmptyState from "../../components/EmptyState";
 import LoadingSpinner from "../../components/LoadingSpinner";
 import { router } from 'expo-router'
+import CountBadge from '../../components/CountBadge'
 
 const FavoritesScreen = () => {
   const { signOut } = useClerk();
@@ -191,9 +192,11 @@ const FavoritesScreen = () => {
                 <Ionicons name="cart" size={20} color={COLORS.primary} style={favoritesStyles.cartIcon} />
                 <Text style={favoritesStyles.cartTitle}>Cart</Text>
                 {!showCart && (
-                  <View style={favoritesStyles.countBadge}>
-                    <Text style={favoritesStyles.countBadgeText}>{cartItems.length}</Text>
-                  </View>
+                  <CountBadge
+                    count={cartItems.length}
+                    max={99}
+                    style={{ marginLeft: 8 }}
+                  />
                 )}
               </View>
               <View style={favoritesStyles.cartActions}>

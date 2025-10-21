@@ -3,6 +3,7 @@ import { db } from '../config/db.js'
 import { ordersTable, usersTable, productsTable, reviewsTable, orderStatusHistoryTable } from '../db/schema.js'
 import { ensureAuth } from '../middleware/auth.js'
 import { requireRole } from '../middleware/role.js'
+import { requireNotSuspended } from '../middleware/status.js'
 import { and, eq, inArray } from 'drizzle-orm'
 
 const router = Router()
@@ -50,7 +51,16 @@ router.get('/orders', ensureAuth(), async (req,res) => {
       createdAt: o.createdAt,
       hasReview: isBuyerQuery ? reviewMap.has(o.id) : undefined,
       reviewRating: isBuyerQuery ? (reviewMap.get(o.id)?.rating ?? null) : undefined,
-      product: (() => { const p = productMap.get(o.productId); return p ? { id: p.id, title: p.title, price: p.price, unit: p.unit } : { id: o.productId, title: null, price: null, unit: null } })(),
+      product: (() => {
+        const p = productMap.get(o.productId)
+        if (!p) return { id: o.productId, title: null, price: null, unit: null, imageUrl: null, imageBlurhash: null }
+        const thumbs = Array.isArray(p.thumbnails) ? p.thumbnails : []
+        const imgs = Array.isArray(p.images) ? p.images : []
+        const hashes = Array.isArray(p.imageBlurhashes) ? p.imageBlurhashes : []
+        const firstUrl = (thumbs[0] || imgs[0]) || null
+        const firstHash = (hashes[0]) || null
+        return { id: p.id, title: p.title, price: p.price, unit: p.unit, imageUrl: firstUrl, imageBlurhash: firstHash }
+      })(),
       // Provide consistent counterpart object key: farmer / buyer
       ...(isBuyerQuery ? { farmer: (() => { const f = counterpartMap.get(o.farmerId); return f ? { id: f.id, fullName: f.fullName || f.username } : { id: o.farmerId, fullName: null } })() }
         : { buyer: (() => { const b = counterpartMap.get(o.buyerId); return b ? { id: b.id, fullName: b.fullName || b.username } : { id: o.buyerId, fullName: null } })() })
@@ -60,7 +70,7 @@ router.get('/orders', ensureAuth(), async (req,res) => {
 })
 
 // Allow farmers to also act as buyers when purchasing products from other farmers
-router.post('/orders', ensureAuth(), requireRole(['buyer','farmer']), async (req,res) => {
+router.post('/orders', ensureAuth(), requireNotSuspended(), requireRole(['buyer','farmer']), async (req,res) => {
   try {
     const buyer = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
     const { product_id, quantity, delivery_address, notes } = req.body
@@ -110,11 +120,11 @@ router.post('/orders', ensureAuth(), requireRole(['buyer','farmer']), async (req
 })
 
 // Patch order status (farmer/admin). Accept both /:id/status and plain /:id for flexibility.
-router.patch('/orders/:id/status', ensureAuth(), requireRole(['farmer','admin']), async (req,res) => {
+router.patch('/orders/:id/status', ensureAuth(), requireNotSuspended({ allowAdminBypass: true }), requireRole(['farmer','admin']), async (req,res) => {
   try {
     const orderId = Number(req.params.id)
     const { status } = req.body
-    const validStatuses = ['pending','accepted','rejected','shipped','delivered','cancelled']
+  const validStatuses = ['pending','accepted','rejected','shipped','delivered','cancelled','paused']
     if (isNaN(orderId)) return res.status(400).json({ error: 'Invalid order ID' })
     if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Invalid status value' })
     const existing = await db.select().from(ordersTable).where(eq(ordersTable.id, orderId))
@@ -136,41 +146,43 @@ router.patch('/orders/:id/status', ensureAuth(), requireRole(['farmer','admin'])
       })
     }
     res.json(updated[0])
-      router.post('/orders/:id/mark-delivered', ensureAuth(), async (req,res) => {
-        try {
-          const orderId = Number(req.params.id)
-          if (isNaN(orderId)) return res.status(400).json({ error: 'Invalid order ID' })
-          // Resolve db user id
-          let dbUserId = req.auth?.dbUserId
-          if (!dbUserId) {
-            const rows = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
-            dbUserId = rows[0]?.id
-            if (dbUserId) req.auth.dbUserId = dbUserId
-          }
-          if (!dbUserId) return res.status(401).json({ error: 'Unauthorized' })
-          const existing = await db.select().from(ordersTable).where(eq(ordersTable.id, orderId))
-          if (existing.length === 0) return res.status(404).json({ error: 'Order not found' })
-          const ord = existing[0]
-          if (ord.buyerId !== dbUserId) return res.status(403).json({ error: 'Only the buyer can mark this order as delivered' })
-          const current = String(ord.status || '').toLowerCase()
-          if (current !== 'shipped') return res.status(400).json({ error: 'Order must be shipped before it can be marked delivered' })
-          const updatedArr = await db.update(ordersTable).set({ status: 'delivered', updatedAt: new Date() }).where(eq(ordersTable.id, orderId)).returning()
-          // Record history
-          await db.insert(orderStatusHistoryTable).values({ orderId, fromStatus: ord.status, toStatus: 'delivered', changedByUserId: dbUserId })
-          return res.json({ ok: true, order: updatedArr[0] })
-        } catch (e) {
-          console.error('mark-delivered error', e)
-          return res.status(500).json({ error: 'Failed to mark delivered' })
-        }
-      })
   } catch (e) { console.error('Error updating order status:', e); res.status(500).json({ error: 'Failed to update order status' }) }
 })
 
-router.patch('/orders/:id', ensureAuth(), requireRole(['farmer','admin']), async (req,res) => {
+// Buyer marks an order as delivered (single-purpose endpoint)
+router.post('/orders/:id/mark-delivered', ensureAuth(), requireNotSuspended(), async (req,res) => {
+  try {
+    const orderId = Number(req.params.id)
+    if (isNaN(orderId)) return res.status(400).json({ error: 'Invalid order ID' })
+    // Resolve db user id
+    let dbUserId = req.auth?.dbUserId
+    if (!dbUserId) {
+      const rows = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
+      dbUserId = rows[0]?.id
+      if (dbUserId) req.auth.dbUserId = dbUserId
+    }
+    if (!dbUserId) return res.status(401).json({ error: 'Unauthorized' })
+    const existing = await db.select().from(ordersTable).where(eq(ordersTable.id, orderId))
+    if (existing.length === 0) return res.status(404).json({ error: 'Order not found' })
+    const ord = existing[0]
+    if (ord.buyerId !== dbUserId) return res.status(403).json({ error: 'Only the buyer can mark this order as delivered' })
+    const current = String(ord.status || '').toLowerCase()
+    if (current !== 'shipped') return res.status(400).json({ error: 'Order must be shipped before it can be marked delivered' })
+    const updatedArr = await db.update(ordersTable).set({ status: 'delivered', updatedAt: new Date() }).where(eq(ordersTable.id, orderId)).returning()
+    // Record history
+    await db.insert(orderStatusHistoryTable).values({ orderId, fromStatus: ord.status, toStatus: 'delivered', changedByUserId: dbUserId })
+    return res.json({ ok: true, order: updatedArr[0] })
+  } catch (e) {
+    console.error('mark-delivered error', e)
+    return res.status(500).json({ error: 'Failed to mark delivered' })
+  }
+})
+
+router.patch('/orders/:id', ensureAuth(), requireNotSuspended({ allowAdminBypass: true }), requireRole(['farmer','admin']), async (req,res) => {
   try {
     const orderId = Number(req.params.id)
     const { status } = req.body || {}
-    const validStatuses = ['pending','accepted','rejected','shipped','delivered','cancelled']
+  const validStatuses = ['pending','accepted','rejected','shipped','delivered','cancelled','paused']
     if (isNaN(orderId)) return res.status(400).json({ error: 'Invalid order ID' })
     if (typeof status === 'undefined') return res.status(400).json({ error: 'No updatable fields supplied' })
     if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Invalid status value' })
@@ -192,7 +204,7 @@ router.patch('/orders/:id', ensureAuth(), requireRole(['farmer','admin']), async
 })
 
 // Buyer-initiated cancellation: allowed only when order is still pending and the requester is the buyer
-router.post('/orders/:id/cancel', ensureAuth(), requireRole(['buyer','farmer']), async (req, res) => {
+router.post('/orders/:id/cancel', ensureAuth(), requireNotSuspended(), requireRole(['buyer','farmer']), async (req, res) => {
   try {
     const orderId = Number(req.params.id)
     if (isNaN(orderId)) return res.status(400).json({ error: 'Invalid order ID' })
@@ -257,7 +269,14 @@ router.get('/orders/:id', ensureAuth(), async (req,res) => {
       notes: order.notes,
       createdAt: order.createdAt,
       updatedAt: order.updatedAt,
-      product: product ? { id: product.id, title: product.title, unit: product.unit, price: product.price } : null,
+      product: product ? (() => {
+        const thumbs = Array.isArray(product.thumbnails) ? product.thumbnails : []
+        const imgs = Array.isArray(product.images) ? product.images : []
+        const hashes = Array.isArray(product.imageBlurhashes) ? product.imageBlurhashes : []
+        const firstUrl = (thumbs[0] || imgs[0]) || null
+        const firstHash = (hashes[0]) || null
+        return { id: product.id, title: product.title, unit: product.unit, price: product.price, imageUrl: firstUrl, imageBlurhash: firstHash }
+      })() : null,
       buyer: buyer ? { id: buyer.id, fullName: buyer.fullName || buyer.username } : null,
       farmer: farmer ? { id: farmer.id, fullName: farmer.fullName || farmer.username } : null,
       history: history.map(h => ({ id: h.id, fromStatus: h.fromStatus, toStatus: h.toStatus, changedByUserId: h.changedByUserId, createdAt: h.createdAt }))

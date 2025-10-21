@@ -30,6 +30,11 @@ export const usersTable = pgTable("users", {
   profileImageBlurhash: text("profile_image_blurhash"),
   bannerImageBlurhash: text("banner_image_blurhash"),
   emailVerified: boolean("email_verified").default(false),
+  farmVerified: boolean("farm_verified").default(false),
+  isTrusted: boolean("is_trusted").default(false),
+  strikesCount: integer("strikes_count").default(0),
+  ratingAvg: decimal("rating_avg", { precision: 3, scale: 2 }).default('0'),
+  ratingCount: integer("rating_count").default(0),
   status: varchar("status", { length: 20 }).default("active"), // active, inactive, suspended
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -107,7 +112,8 @@ export const favoritesTable = pgTable("favorites", {
 // =======================
 export const reviewsTable = pgTable("reviews", {
   id: serial("id").primaryKey(),
-  orderId: integer("order_id").references(() => ordersTable.id, { onDelete: 'cascade' }).notNull(),
+  orderId: integer("order_id").references(() => ordersTable.id, { onDelete: 'cascade' }),
+  productId: integer("product_id").references(() => productsTable.id),
   reviewerId: integer("reviewer_id").references(() => usersTable.id).notNull(),
   reviewedId: integer("reviewed_id").references(() => usersTable.id).notNull(),
   rating: integer("rating"), // 1 to 5
@@ -208,6 +214,10 @@ export const reviewsRelations = relations(reviewsTable, ({ one }) => ({
     fields: [reviewsTable.orderId],
     references: [ordersTable.id],
   }),
+  product: one(productsTable, {
+    fields: [reviewsTable.productId],
+    references: [productsTable.id],
+  }),
   reviewer: one(usersTable, {
     fields: [reviewsTable.reviewerId],
     references: [usersTable.id],
@@ -217,3 +227,151 @@ export const reviewsRelations = relations(reviewsTable, ({ one }) => ({
     references: [usersTable.id],
   }),
 }));
+
+// =======================
+// REVIEW COMMENTS (Replies)
+// =======================
+export const reviewCommentsTable = pgTable("review_comments", {
+  id: serial("id").primaryKey(),
+  reviewId: integer("review_id").references(() => reviewsTable.id, { onDelete: 'cascade' }).notNull(),
+  authorUserId: integer("author_user_id").references(() => usersTable.id, { onDelete: 'cascade' }).notNull(),
+  comment: text("comment").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// =======================
+// MODERATION: REPORTS & APPEALS
+// =======================
+export const userReportsTable = pgTable("user_reports", {
+  id: serial("id").primaryKey(),
+  reportedUserId: integer("reported_user_id").references(() => usersTable.id, { onDelete: 'cascade' }).notNull(),
+  reporterId: integer("reporter_id").references(() => usersTable.id, { onDelete: 'cascade' }).notNull(),
+  reasonCode: varchar("reason_code", { length: 32 }).notNull(),
+  description: text("description"),
+  evidenceMediaLinks: jsonb("evidence_media_links").default([]),
+  status: varchar("status", { length: 20 }).default('pending'), // pending | validated | rejected
+  createdAt: timestamp("created_at").defaultNow(),
+  validatedByUserId: integer("validated_by_user_id").references(() => usersTable.id),
+  validatedAt: timestamp("validated_at"),
+  resolutionNote: text("resolution_note"),
+});
+
+export const reportAppealsTable = pgTable("report_appeals", {
+  id: serial("id").primaryKey(),
+  reportId: integer("report_id").references(() => userReportsTable.id, { onDelete: 'cascade' }).notNull(),
+  userId: integer("user_id").references(() => usersTable.id, { onDelete: 'cascade' }).notNull(),
+  reason: text("reason"),
+  status: varchar("status", { length: 20 }).default('open'), // open | resolved
+  createdAt: timestamp("created_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+  resolverUserId: integer("resolver_user_id").references(() => usersTable.id),
+  resolutionNote: text("resolution_note"),
+});
+
+// =======================
+// VERIFICATION
+// =======================
+export const userVerificationTable = pgTable("user_verification", {
+  userId: integer("user_id").references(() => usersTable.id, { onDelete: 'cascade' }).notNull().unique(),
+  status: varchar("status", { length: 20 }).notNull().default('unverified'), // unverified | pending | verified | rejected
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const verificationSubmissionsTable = pgTable("verification_submissions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id, { onDelete: 'cascade' }).notNull(),
+  images: jsonb("images").default([]),
+  deviceInfo: jsonb("device_info"),
+  status: varchar("status", { length: 20 }).default('pending'), // pending | approved | rejected
+  reviewerId: integer("reviewer_id").references(() => usersTable.id),
+  reviewerId2: integer("reviewer_id2").references(() => usersTable.id),
+  reviewComment: text("review_comment"),
+  // autoChecks, twoAdminRequired removed — no automated analysis or 2-admin flow
+  retentionExtendedUntil: timestamp("retention_extended_until"),
+  adminComments: jsonb("admin_comments").default([]), // [{ text, visibleToUser, reviewerUserId, createdAt }]
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// =======================
+// AUDIT LOGS
+// =======================
+export const auditLogsTable = pgTable("audit_logs", {
+  id: serial("id").primaryKey(),
+  actorUserId: integer("actor_user_id").references(() => usersTable.id),
+  action: varchar("action", { length: 64 }).notNull(),
+  subjectType: varchar("subject_type", { length: 64 }).notNull(),
+  subjectId: varchar("subject_id", { length: 64 }),
+  details: jsonb("details"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// image_hashes table removed
+
+// =======================
+// APP SETTINGS (key-value)
+// =======================
+export const appSettingsTable = pgTable("app_settings", {
+  id: serial("id").primaryKey(),
+  key: varchar("key", { length: 128 }).notNull().unique(),
+  value: jsonb("value").notNull(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// verification_codes table removed
+
+// =======================
+// UPLOAD TOKENS (Expected upload keys)
+// =======================
+export const uploadTokensTable = pgTable("upload_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id, { onDelete: 'cascade' }).notNull(),
+  uploadKey: text("upload_key").notNull(),
+  contentType: varchar("content_type", { length: 128 }),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+})
+
+// =======================
+// USER NOTIFICATIONS
+// =======================
+export const userNotificationsTable = pgTable("user_notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id, { onDelete: 'cascade' }).notNull(),
+  type: varchar("type", { length: 64 }).notNull(), // e.g., verification_status
+  title: varchar("title", { length: 255 }).notNull(),
+  body: text("body"),
+  data: jsonb("data").default({}),
+  readAt: timestamp("read_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+})
+
+// =======================
+// VERIFICATION STATUS HISTORY
+// =======================
+export const verificationStatusHistoryTable = pgTable("verification_status_history", {
+  id: serial("id").primaryKey(),
+  submissionId: integer("submission_id").references(() => verificationSubmissionsTable.id, { onDelete: 'cascade' }).notNull(),
+  fromStatus: varchar("from_status", { length: 32 }),
+  toStatus: varchar("to_status", { length: 32 }).notNull(),
+  actorUserId: integer("actor_user_id").references(() => usersTable.id),
+  note: text("note"),
+  createdAt: timestamp("created_at").defaultNow(),
+})
+
+// =======================
+// VERIFICATION APPEALS
+// =======================
+export const verificationAppealsTable = pgTable("verification_appeals", {
+  id: serial("id").primaryKey(),
+  submissionId: integer("submission_id").references(() => verificationSubmissionsTable.id, { onDelete: 'cascade' }).notNull(),
+  userId: integer("user_id").references(() => usersTable.id, { onDelete: 'cascade' }).notNull(),
+  reason: text("reason"),
+  status: varchar("status", { length: 20 }).default('open'), // open | resolved
+  priority: integer("priority").default(1),
+  createdAt: timestamp("created_at").defaultNow(),
+  resolvedAt: timestamp("resolved_at"),
+  resolverUserId: integer("resolver_user_id").references(() => usersTable.id),
+  resolutionNote: text("resolution_note"),
+  retentionExtendedUntil: timestamp("retention_extended_until"),
+})

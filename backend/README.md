@@ -30,6 +30,9 @@ Uploads / Media (optional; enable S3 pipeline):
 - AWS_CLOUDFRONT_DOMAIN (optional CDN domain)
 - UPLOAD_MAX_MB (numeric, default fallback in code if missing)
 
+Automated Verification:
+- Removed. OCR/EXIF/classification/scoring pipelines and related environment variables are no longer used.
+
 Blurhash / Media Optimization:
 - DISABLE_AUTO_BACKFILL=true|false (default: false). When true, disables the hourly automatic blurhash backfill cron.
 
@@ -86,6 +89,43 @@ Future Improvements (Suggestions)
 - Add precomputed downscaled thumbnails to reduce bandwidth.
 - Add metrics/log aggregation around hash generation time and failure rate.
  - Add alerting when webhook deliveries fail repeatedly.
+
+Verification Endpoints (cURL Examples)
+--------------------------------------
+All endpoints require Clerk auth. Replace $TOKEN with a valid bearer token and $BASE with your backend URL.
+
+- Get upload token
+	```pwsh
+	curl -X POST -H "Authorization: Bearer $env:TOKEN" -H "Content-Type: application/json" \
+		-d '{"filename":"capture.jpg","contentType":"image/jpeg"}' \
+		"$env:BASE/api/verification/upload-token"
+	```
+	Response: `{ uploadUrl, uploadKey, originUrl, contentType }`
+
+- Upload file (example using Invoke-WebRequest)
+	```pwsh
+	Invoke-WebRequest -Method Put -InFile .\capture.jpg -ContentType 'image/jpeg' -Uri $uploadUrl
+	```
+
+- Submit verification
+	```pwsh
+	$body = @{
+		images = @(
+			@{ uploadKey = "verification/<clerkId>/..._capture_1.jpg"; lat = 0.35; lng = 32.58; accuracy = 15; altitude = 120; altitude_accuracy = 5; timestamp = (Get-Date).ToUniversalTime().ToString("o"); photo_index = 1 }
+			@{ uploadKey = "verification/<clerkId>/..._capture_2.jpg"; lat = 0.35; lng = 32.58; accuracy = 15; altitude = 122; altitude_accuracy = 5; timestamp = (Get-Date).ToUniversalTime().ToString("o"); photo_index = 2 }
+			@{ uploadKey = "verification/<clerkId>/..._capture_3.jpg"; lat = 0.35; lng = 32.58; accuracy = 14; altitude = 121; altitude_accuracy = 5; timestamp = (Get-Date).ToUniversalTime().ToString("o"); photo_index = 3 }
+		)
+		device_info = @{ platform = "iOS"; os_version = "17"; device_model = "iPhone" }
+	} | ConvertTo-Json -Depth 6
+
+	curl -X POST -H "Authorization: Bearer $env:TOKEN" -H "Content-Type: application/json" \
+		-d $body "$env:BASE/api/verification/submission"
+	```
+
+Notes
+-----
+- The verification engine has been simplified. Automated OCR/EXIF/classification/duplicate/score checks are removed. Admins review submitted photos manually.
+
 
 Clerk User Provisioning & Sync
 ------------------------------
@@ -154,3 +194,16 @@ A: user.deleted webhook sets status=inactive; periodic/one-off sync will re-acti
 
 Q: Does ensureDbUser run on every request?  
 A: It runs after auth; if the user already exists, it returns fast with a single select query.
+
+Additional Verification Workflows (Manual Review & Notifications)
+----------------------------------------------------------------
+New endpoints:
+- User notifications: GET /api/verification/my-notifications, POST /api/verification/notifications/:id/read
+- Admin comments: POST /api/admin/verifications/:id/comment
+- Appeals: POST /api/verification/:id/appeal, GET /api/admin/verification-appeals, POST /api/admin/verification-appeals/:id/resolve
+- Two-admin config is removed. Approval is single-admin.
+
+Behavior:
+- In-app notifications are created on approve, reject, and request-more-info.
+- Two-admin rule (when enabled) sets status to awaiting_second_approval on first approval; a second Approve finalizes.
+- Appeals extend media retention and create an admin task (listable under admin appeals endpoints).

@@ -1,16 +1,19 @@
 import { Router } from 'express'
 import express from 'express'
 import { db } from '../config/db.js'
-import { usersTable } from '../db/schema.js'
+import { usersTable, ordersTable, orderStatusHistoryTable } from '../db/schema.js'
 import { ensureAuth, clerkClient } from '../middleware/auth.js'
+import { handleUserCreated } from './webhooks.js'
 import { requireRole } from '../middleware/role.js'
 import { ENV } from '../config/env.js'
-import { eq } from 'drizzle-orm'
+import { eq, and, or, inArray, desc } from 'drizzle-orm'
+import { createNotification } from '../utils/notifications.js'
+import { requireNotSuspended } from '../middleware/status.js'
 
 const router = Router()
 
-// Ensure JSON parsing (larger limit) for profile routes since server.js skips global parser for this path
-router.use('/users/profile', express.json({ limit: '25mb', type: 'application/json' }))
+// Note: server.js skips global JSON parser for /api/users/profile to allow larger bodies.
+// Apply JSON parsing only to routes that actually need it (e.g., PATCH), not for GET.
 
 // Create user
 router.post('/users', ensureAuth(), async (req, res) => {
@@ -53,20 +56,35 @@ router.post('/users', ensureAuth(), async (req, res) => {
 
 // Get profile
 router.get('/users/profile', ensureAuth(), async (req, res) => {
+  const DEBUG = process.env.PROFILE_DEBUG === 'true'
   try {
-    const user = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
-    if (user.length === 0) return res.status(404).json({ error: 'User not found' })
-    res.json(user[0])
+    const clerkId = req.auth.userId
+    if (DEBUG) console.log(`[profile] GET /api/users/profile for ${clerkId}`)
+    let rows = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, clerkId))
+    if (rows.length === 0) {
+      // Auto-provision from Clerk if missing (fallback if webhook missed)
+      try {
+        const clerkUser = await clerkClient.users.getUser(clerkId)
+        if (clerkUser) {
+          await handleUserCreated(clerkUser)
+          rows = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, clerkId))
+        }
+      } catch (provisionErr) {
+        console.warn('[profile] auto-provision failed:', provisionErr?.message || provisionErr)
+      }
+    }
+    if (rows.length === 0) return res.status(404).json({ error: 'User not found' })
+    return res.json(rows[0])
   } catch (e) {
     console.error('Error fetching user profile:', e)
-    res.status(500).json({ error: 'Failed to fetch user' })
+    return res.status(500).json({ error: 'Failed to fetch user' })
   }
 })
 
 
 
 // Update profile (large body)
-router.patch('/users/profile', ensureAuth(), async (req,res) => {
+router.patch('/users/profile', ensureAuth(), requireNotSuspended(), express.json({ limit: '25mb', type: 'application/json' }), async (req,res) => {
   try {
     const me = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
     if (me.length === 0) return res.status(404).json({ error: 'User not found' })
@@ -146,6 +164,9 @@ router.get('/users/:id', async (req, res) => {
       username: u.username,
       full_name: u.fullName,
       role: u.role,
+      is_trusted: !!u.isTrusted,
+      rating_avg: Number(u.ratingAvg || 0),
+      rating_count: u.ratingCount || 0,
       profile_image_url: u.profileImageUrl,
       profile_image_blurhash: u.profileImageBlurhash,
       banner_image_url: u.bannerImageUrl,
@@ -159,3 +180,143 @@ router.get('/users/:id', async (req, res) => {
 })
 
 export default router
+
+// Admin-only user status endpoints
+router.post('/admin/users/:id/suspend', ensureAuth(), requireRole(['admin']), async (req, res) => {
+  try {
+    const idNum = Number(req.params.id)
+    if (isNaN(idNum)) return res.status(400).json({ error: 'invalid id' })
+    const rows = await db.select().from(usersTable).where(eq(usersTable.id, idNum))
+    if (rows.length === 0) return res.status(404).json({ error: 'not found' })
+    // Determine acting admin db id for history entries
+    let adminId = null
+    try {
+      const meArr = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
+      adminId = meArr?.[0]?.id || null
+    } catch {}
+    const updated = await db.update(usersTable).set({ status: 'suspended', updatedAt: new Date() }).where(eq(usersTable.id, idNum)).returning()
+
+    // Pause ongoing orders for this user (as buyer or farmer)
+    try {
+      const activeStatuses = ['pending','accepted','shipped']
+      const affected = await db.update(ordersTable)
+        .set({ status: 'paused', updatedAt: new Date() })
+        .where(and(inArray(ordersTable.status, activeStatuses), or(eq(ordersTable.buyerId, idNum), eq(ordersTable.farmerId, idNum))))
+        .returning()
+      if (affected?.length && adminId) {
+        for (const ord of affected) {
+          await db.insert(orderStatusHistoryTable).values({
+            orderId: ord.id,
+            fromStatus: null, // unknown previous here; full history still tracks earlier state
+            toStatus: 'paused',
+            changedByUserId: adminId,
+          })
+        }
+      }
+    } catch (e) { console.warn('pause orders on suspend failed', e?.message || e) }
+
+    // Notify user about suspension
+    try {
+      await createNotification(db, {
+        userId: idNum,
+        type: 'account_suspended',
+        title: 'Account suspended',
+        body: 'Your account has been suspended. You cannot place orders, mark deliveries, post reviews or comments, or create/edit listings until reactivated.',
+        data: { route: '/appeals' }
+      })
+    } catch {}
+
+    return res.json({ ok: true, user: updated[0] })
+  } catch (e) {
+    console.error('suspend error', e)
+    return res.status(500).json({ error: 'failed' })
+  }
+})
+
+router.post('/admin/users/:id/unsuspend', ensureAuth(), requireRole(['admin']), async (req, res) => {
+  try {
+    const idNum = Number(req.params.id)
+    if (isNaN(idNum)) return res.status(400).json({ error: 'invalid id' })
+    const rows = await db.select().from(usersTable).where(eq(usersTable.id, idNum))
+    if (rows.length === 0) return res.status(404).json({ error: 'not found' })
+    // Determine acting admin db id for history entries
+    let adminId = null
+    try {
+      const meArr = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
+      adminId = meArr?.[0]?.id || null
+    } catch {}
+    const updated = await db.update(usersTable).set({ status: 'active', updatedAt: new Date() }).where(eq(usersTable.id, idNum)).returning()
+
+    // Resume paused orders for this user by restoring last non-paused status
+    try {
+      // Fetch all paused orders
+      const pausedOrders = await db.select().from(ordersTable).where(and(eq(ordersTable.status, 'paused'), or(eq(ordersTable.buyerId, idNum), eq(ordersTable.farmerId, idNum))))
+      for (const ord of pausedOrders) {
+        // Find the last history entry whose toStatus != 'paused'
+        let prevStatus = 'pending'
+        try {
+          const allHist = await db.select().from(orderStatusHistoryTable).where(eq(orderStatusHistoryTable.orderId, ord.id))
+          // order newest first and find first non-paused
+          allHist.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))
+          const prior = allHist.find(h => String(h.toStatus).toLowerCase() !== 'paused')
+          if (prior && prior.toStatus) prevStatus = prior.toStatus
+        } catch {}
+        const updatedOrder = await db.update(ordersTable).set({ status: prevStatus, updatedAt: new Date() }).where(eq(ordersTable.id, ord.id)).returning()
+        if (adminId && updatedOrder?.[0]) {
+          await db.insert(orderStatusHistoryTable).values({
+            orderId: ord.id,
+            fromStatus: 'paused',
+            toStatus: prevStatus,
+            changedByUserId: adminId,
+          })
+        }
+      }
+    } catch (e) { console.warn('resume orders on unsuspend failed', e?.message || e) }
+
+    // Notify about reactivation
+    try {
+      await createNotification(db, {
+        userId: idNum,
+        type: 'account_reactivated',
+        title: 'Account reactivated',
+        body: 'Your account has been reactivated. You can now resume normal activity.'
+      })
+    } catch {}
+
+    return res.json({ ok: true, user: updated[0] })
+  } catch (e) {
+    console.error('unsuspend error', e)
+    return res.status(500).json({ error: 'failed' })
+  }
+})
+
+router.post('/admin/users/:id/ban', ensureAuth(), requireRole(['admin']), async (req, res) => {
+  try {
+    const idNum = Number(req.params.id)
+    if (isNaN(idNum)) return res.status(400).json({ error: 'invalid id' })
+    const rows = await db.select().from(usersTable).where(eq(usersTable.id, idNum))
+    if (rows.length === 0) return res.status(404).json({ error: 'not found' })
+    const updated = await db.update(usersTable).set({ status: 'inactive', updatedAt: new Date() }).where(eq(usersTable.id, idNum)).returning()
+    return res.json({ ok: true, user: updated[0] })
+  } catch (e) {
+    console.error('ban error', e)
+    return res.status(500).json({ error: 'failed' })
+  }
+})
+
+// Admin: toggle trusted badge (manual only)
+router.post('/admin/users/:id/trust', ensureAuth(), requireRole(['admin']), async (req, res) => {
+  try {
+    const idNum = Number(req.params.id)
+    const { trusted } = req.body || {}
+    if (isNaN(idNum)) return res.status(400).json({ error: 'invalid id' })
+    if (typeof trusted !== 'boolean') return res.status(400).json({ error: 'trusted must be boolean' })
+    const exists = await db.select().from(usersTable).where(eq(usersTable.id, idNum))
+    if (!exists.length) return res.status(404).json({ error: 'not found' })
+    const updated = await db.update(usersTable).set({ isTrusted: trusted, updatedAt: new Date() }).where(eq(usersTable.id, idNum)).returning()
+    return res.json({ ok: true, user: updated[0] })
+  } catch (e) {
+    console.error('trust toggle error', e)
+    return res.status(500).json({ error: 'failed' })
+  }
+})

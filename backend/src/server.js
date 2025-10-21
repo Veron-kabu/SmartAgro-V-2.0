@@ -5,7 +5,7 @@ import { db } from "./config/db.js"
 import withClerk, { requireUser, getAuth, clerkClient, ensureDbUser } from "./middleware/auth.js"
 import protectRoutes from "./middleware/protect.js"
 import { ENV, validateEnv } from "./config/env.js"
-import cronJob, { blurhashBackfillJob, orphanProductImageCleanupJob } from "./config/cron.js"
+import cronJob, { blurhashBackfillJob, orphanProductImageCleanupJob, cleanupExpiredCodesTokensJob, dailyDigestJob } from "./config/cron.js"
 import { usersTable } from "./db/schema.js"
 import { eq, like } from "drizzle-orm"
 import locationRouter from "./models/location.js"
@@ -19,6 +19,9 @@ import webhookRoutes from './routes/webhooks.js'
 import favoritesRoutes from './routes/favorites.js'
 import analyticsRoutes from './routes/analytics.js'
 import earningsRoutes from './routes/earnings.js'
+import verificationRoutes from './routes/verification.js'
+import reviewRoutes from './routes/reviews.js'
+import reportRoutes from './routes/reports.js'
 import { syncClerkUsers } from './utils/clerkSync.js'
 import cron from 'cron'
 
@@ -46,6 +49,7 @@ app.use(
 // 2) Global JSON body parsing (10 MB)
 //    Skip: (a) Clerk webhook (needs raw body for signature) (b) profile update (uses larger limit inside its router)
 app.use((req, res, next) => {
+  // Skip raw body for Clerk webhook, and skip forcing JSON parser for profile so the router can choose per method.
   if (req.path === "/api/webhooks/clerk" || req.path === "/api/users/profile") return next()
   return express.json({ limit: "10mb", type: "application/json" })(req, res, next)
 })
@@ -64,6 +68,9 @@ app.use('/api', blurhashRoutes)
 app.use('/api', favoritesRoutes)
 app.use('/api', analyticsRoutes)
 app.use('/api', earningsRoutes)
+app.use('/api', verificationRoutes)
+app.use('/api', reviewRoutes)
+app.use('/api', reportRoutes)
 app.use('/api', miscRoutes)
 app.use('/api', webhookRoutes)
 //    Location router not namespaced (legacy path design) — can be migrated later if desired.
@@ -73,7 +80,9 @@ if (ENV.NODE_ENV === "production") {
   cronJob.start()
   blurhashBackfillJob.start()
   orphanProductImageCleanupJob.start()
-  console.log("🕐 Cron jobs started: keep-alive, blurhash backfill, orphan image cleanup")
+  cleanupExpiredCodesTokensJob.start()
+  dailyDigestJob.start()
+  console.log("🕐 Cron jobs started: keep-alive, blurhash backfill, orphan image cleanup, expired code/token cleanup, daily digest")
 }
 
 // 5a) Optional one-time Clerk user sync on server start (any environment)

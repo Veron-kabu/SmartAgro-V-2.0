@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
 import { View, Text, SectionList, ActivityIndicator, TouchableOpacity } from 'react-native'
+import BlurhashImage from '../../components/BlurhashImage'
+import { useResolvedUrls } from '../../hooks/useResolvedUrls'
 import EmptyState from '../../components/EmptyState'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { getJSON, postJSON } from '../../context/api'
@@ -20,6 +22,22 @@ export default function BuyerOrders() {
   const limit = 25
   const listRef = useRef(null)
   const [focusedKey, setFocusedKey] = useState(null)
+  // Resolve product image URLs for current items to ensure thumbnails display even for private buckets
+  const productImageUrls = useMemo(() => (orders || []).map(o => o?.product?.imageUrl || null).filter(Boolean), [orders])
+  const resolvedOrderImages = useResolvedUrls(productImageUrls)
+  const resolvedImageMap = useMemo(() => {
+    const map = new Map()
+    let idx = 0
+    for (const o of (orders || [])) {
+      const raw = o?.product?.imageUrl || null
+      if (raw) {
+        const r = resolvedOrderImages[idx]
+        map.set(raw, r || raw)
+        idx++
+      }
+    }
+    return map
+  }, [orders, resolvedOrderImages])
 
   const load = useCallback(async (nextOffset = 0) => {
     if (nextOffset === 0) setLoading(true)
@@ -62,6 +80,8 @@ export default function BuyerOrders() {
     if (view === 'sent') {
       // Sent orders are equivalent to buyer orders overall; show all current+fulfilled together under a single heading
       const all = [...current, ...completed]
+      // Sort newest first by createdAt
+      all.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))
       return [{ key: 'sent', title: 'Sent Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (all.length ? all : [{ __empty: true }]) }]
     }
     // Default: show both as before
@@ -117,18 +137,34 @@ export default function BuyerOrders() {
         const badge = statusBadgeColor(item.status)
         return (
           <TouchableOpacity style={styles.card} activeOpacity={0.75} onPress={() => router.push(`/orders/order-details?id=${item.id}`)}>
-            <View style={styles.rowBetween}>
-              <Text style={styles.bold}>{item.product?.title || 'Product'}</Text>
-              <View style={[styles.badge, { backgroundColor: badge.bg }]}><Text style={[styles.badgeText, { color: badge.fg }]}>{String(item.status || '').toUpperCase()}</Text></View>
-            </View>
-            <Text style={styles.muted}>Farmer: {item.farmer?.fullName || 'Unknown'}</Text>
-            <View style={[styles.rowBetween, { marginTop: 6 }]}>
-              <Text style={styles.muted}>{formatDate(item.createdAt)}</Text>
-              <Text style={styles.bold}>{formatCurrency(item.totalAmount)}</Text>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <BlurhashImage
+                uri={(item?.product?.imageUrl && resolvedImageMap.get(item.product.imageUrl)) || item?.product?.imageUrl || undefined}
+                blurhash={item?.product?.imageBlurhash || undefined}
+                style={{ width: 64, height: 64, borderRadius: 8, backgroundColor: '#e5e7eb' }}
+                contentFit="cover"
+              />
+              <View style={{ flex: 1 }}>
+                <View style={styles.rowBetween}>
+                  <Text style={styles.bold} numberOfLines={1}>{item.product?.title || 'Product'}</Text>
+                  <View style={[styles.badge, { backgroundColor: badge.bg }]}><Text style={[styles.badgeText, { color: badge.fg }]}>{String(item.status || '').toUpperCase()}</Text></View>
+                </View>
+                <Text style={[styles.muted, { marginTop: 2 }]} numberOfLines={1}>Farmer: {item.farmer?.fullName || 'Unknown'}</Text>
+                <View style={[styles.rowBetween, { marginTop: 6 }]}>
+                  <Text style={styles.muted}>{formatDate(item.createdAt)}</Text>
+                  <Text style={styles.bold}>{formatCurrency(item.totalAmount)}</Text>
+                </View>
+              </View>
             </View>
             <View style={{ marginTop: 10 }}>
               <OrderTimeline status={item.status} compact />
             </View>
+            {String(item.status).toLowerCase() === 'paused' && (
+              <View style={{ marginTop: 10, backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#F59E0B', borderRadius: 8, padding: 10 }}>
+                <Text style={{ color: '#92400E', fontWeight: '600' }}>Order paused</Text>
+                <Text style={{ color: '#92400E', marginTop: 4 }}>This order is paused due to account suspension. Progress will resume after reactivation.</Text>
+              </View>
+            )}
             {String(item.status).toLowerCase() === 'pending' && (
               <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 }}>
                 <TouchableOpacity
@@ -151,18 +187,24 @@ export default function BuyerOrders() {
             {String(item.status).toLowerCase() === 'shipped' && (
               <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 }}>
                 <TouchableOpacity
-                  onPress={async () => {
+                  onPress={async (e) => {
+                    // Prevent parent card onPress from firing first tap
+                    e?.stopPropagation?.()
+                    if (item.__marking) return
                     try {
+                      // Disable button immediately (single-tap behavior)
+                      setOrders(prev => prev.map(o => o.id === item.id ? { ...o, __marking: true } : o))
                       await postJSON(`/api/orders/${item.id}/mark-delivered`, {})
-                      setOrders(prev => prev.map(o => o.id === item.id ? { ...o, status: 'delivered' } : o))
+                      setOrders(prev => prev.map(o => o.id === item.id ? { ...o, status: 'delivered', __marking: false } : o))
                     } catch (_e) {
-                      // If fails, we can alert or ignore silently
+                      setOrders(prev => prev.map(o => o.id === item.id ? { ...o, __marking: false } : o))
                     }
                   }}
+                  disabled={!!item.__marking}
                   activeOpacity={0.85}
-                  style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#16a34a' }}
+                  style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: item.__marking ? '#9ca3af' : '#16a34a', opacity: item.__marking ? 0.7 : 1 }}
                 >
-                  <Text style={{ color: '#16a34a', fontWeight: '700' }}>Mark Delivered</Text>
+                  <Text style={{ color: item.__marking ? '#9ca3af' : '#16a34a', fontWeight: '700' }}>{item.__marking ? 'Marking…' : 'Mark Delivered'}</Text>
                 </TouchableOpacity>
               </View>
             )}

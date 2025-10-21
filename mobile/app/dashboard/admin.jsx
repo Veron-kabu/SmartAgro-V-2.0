@@ -1,26 +1,27 @@
 import { COLORS } from '../../constants/colors'
 import { View, Text, ActivityIndicator, ScrollView, TouchableOpacity, RefreshControl, Switch } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { useProfile } from '../../context/profile'
-import { useCallback, useEffect, useState } from 'react'
 import { useLogout } from '../../hooks/useLogout'
+import { useCallback, useEffect, useState } from 'react'
 import { getJSON, postJSON } from '../../context/api'
 import { useToast } from '../../context/toast'
 import { router } from 'expo-router'
+import UserDashboard from './UserDashboard'
+import { profileStyles as styles } from '../../assets/styles/(tabs)/profile.styles'
 
 export default function AdminDashboard() {
   const { profile, loading: profileLoading, refresh: refreshProfile } = useProfile()
   const toast = useToast()
+  const { signingOut, logout: confirmLogout } = useLogout()
   const [syncStatus, setSyncStatus] = useState(null)
   const [loadingSyncStatus, setLoadingSyncStatus] = useState(false)
   const [runningSync, setRunningSync] = useState(false)
   const [dryRun, setDryRun] = useState(false)
-  const [overview, setOverview] = useState(null)
-  const [overviewLoading, setOverviewLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  const { signingOut, logout: confirmLogout } = useLogout()
+  const [openSync, setOpenSync] = useState(false)
 
   const name = profile?.fullName || profile?.username || 'User'
-  const role = profile?.role || 'admin'
 
   const fetchSyncStatus = useCallback(async () => {
     try {
@@ -31,18 +32,6 @@ export default function AdminDashboard() {
       console.log('sync status failed', e?.message)
     } finally {
       setLoadingSyncStatus(false)
-    }
-  }, [])
-
-  const fetchOverview = useCallback(async () => {
-    try {
-      setOverviewLoading(true)
-      const data = await getJSON('/api/stats/overview')
-      setOverview(data)
-    } catch (e) {
-      console.log('overview fetch failed', e?.message)
-    } finally {
-      setOverviewLoading(false)
     }
   }, [])
 
@@ -68,18 +57,17 @@ export default function AdminDashboard() {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
-    await Promise.all([fetchSyncStatus(), fetchOverview(), refreshProfile()])
+    await Promise.all([fetchSyncStatus(), refreshProfile()])
     setRefreshing(false)
-  }, [fetchSyncStatus, fetchOverview, refreshProfile])
+  }, [fetchSyncStatus, refreshProfile])
 
   // Logout now handled by shared useLogout hook
 
   useEffect(() => {
     if (!profileLoading) {
       fetchSyncStatus()
-      fetchOverview()
     }
-  }, [profileLoading, fetchSyncStatus, fetchOverview])
+  }, [profileLoading, fetchSyncStatus])
 
   if (profileLoading) {
     return (
@@ -107,95 +95,102 @@ export default function AdminDashboard() {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: '#f3f4f6' }}
-      contentContainerStyle={{ padding: 16, paddingBottom: 48 }}
+      contentContainerStyle={{ paddingBottom: 48 }}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      <Text style={{ fontSize: 22, fontWeight: '700', color: '#111827' }}>Admin Console</Text>
-      <Text style={{ marginTop: 4, color: '#374151' }}>Welcome back, {name}</Text>
+      {/* Mirror the user dashboard UI */}
+      <UserDashboard expectedRole={profile?.role === 'farmer' ? 'farmer' : 'buyer'} fallbackName={name} />
 
-      {/* Profile Summary */}
-      <View style={{ marginTop: 20, backgroundColor: '#fff', borderRadius: 16, padding: 16, elevation: 2 }}>
-        <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151' }}>Profile</Text>
-        <View style={{ marginTop: 12, gap: 6 }}>
-          <Row label="Role" value={role} />
-          <Row label="Email" value={profile?.email || '—'} />
-          <Row label="Username" value={profile?.username || '—'} />
-        </View>
-      </View>
-
-      {/* Overview Stats (from stats/overview) */}
-      <View style={{ marginTop: 16, backgroundColor: '#fff', borderRadius: 16, padding: 16, elevation: 2 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151' }}>Your Activity Snapshot</Text>
-          {overviewLoading && <ActivityIndicator size="small" />}
-        </View>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 12 }}>
-          <Stat label="Orders Active" value={overview?.orders?.active ?? 0} />
-          <Stat label="Orders Delivered" value={overview?.orders?.delivered ?? 0} />
-        </View>
-      </View>
-
-      {/* Clerk Sync Status */}
-      <View style={{ marginTop: 16, backgroundColor: '#fff', borderRadius: 16, padding: 16, elevation: 2 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151' }}>Clerk User Sync</Text>
-          {loadingSyncStatus && <ActivityIndicator size="small" />}
-        </View>
-        <View style={{ marginTop: 12, gap: 6 }}>
-          <Row label="DB Users" value={String(syncStatus?.dbUserCount ?? '—')} />
-          <Row label="Last Run" value={latest ? relTime(latest.finishedAt || latest.startedAt) : '—'} />
-          <Row label="Processed" value={latest?.processed != null ? String(latest.processed) : '—'} />
-          <Row label="Inserted" value={latest?.inserted != null ? String(latest.inserted) : '—'} />
-          <Row label="Updated" value={latest?.updated != null ? String(latest.updated) : '—'} />
-          <Row label="Status" value={latest?.status || (loadingSyncStatus ? 'loading' : '—')} />
-        </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 14, justifyContent: 'space-between' }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Switch value={dryRun} onValueChange={setDryRun} />
-            <Text style={{ fontSize: 12, color: '#374151' }}>Dry Run</Text>
-          </View>
-          <TouchableOpacity
-            onPress={onRunSync}
-            disabled={runningSync}
-            style={{ backgroundColor: '#111827', paddingVertical: 10, paddingHorizontal: 18, borderRadius: 10, opacity: runningSync ? 0.7 : 1 }}
-            activeOpacity={0.85}
-          >
-            {runningSync ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <ActivityIndicator size="small" color={COLORS.white} />
-                <Text style={{ color: '#fff', fontWeight: '600', fontSize: 12 }}>Syncing…</Text>
-              </View>
-            ) : (
-              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 12 }}>Run {dryRun ? 'Dry' : 'Full'} Sync</Text>
-            )}
+      {/* Admin-only tools */}
+      <View style={[styles.sectionBlock, { marginTop: 0, paddingHorizontal: 16 }]}>
+        {/* Collapsible Clerk Sync */}
+        <View style={styles.sectionHeaderRow}>
+          <TouchableOpacity style={styles.sectionTitleBtn} onPress={() => setOpenSync(v=>!v)} activeOpacity={0.7}>
+            <Text style={styles.chevron}>{openSync ? '▾' : '▸'}</Text>
+            <Text style={styles.sectionHeading}>Clerk User Sync</Text>
           </TouchableOpacity>
         </View>
+        {openSync && (
+          <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 12, marginTop: 8 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151' }}>Status</Text>
+              {loadingSyncStatus && <ActivityIndicator size="small" />}
+            </View>
+            <View style={{ marginTop: 12, gap: 6 }}>
+              <Row label="DB Users" value={String(syncStatus?.dbUserCount ?? '—')} />
+              <Row label="Last Run" value={latest ? relTime(latest.finishedAt || latest.startedAt) : '—'} />
+              <Row label="Processed" value={latest?.processed != null ? String(latest.processed) : '—'} />
+              <Row label="Inserted" value={latest?.inserted != null ? String(latest.inserted) : '—'} />
+              <Row label="Updated" value={latest?.updated != null ? String(latest.updated) : '—'} />
+              <Row label="Status" value={latest?.status || (loadingSyncStatus ? 'loading' : '—')} />
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 14, justifyContent: 'space-between' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Switch value={dryRun} onValueChange={setDryRun} />
+                <Text style={{ fontSize: 12, color: '#374151' }}>Dry Run</Text>
+              </View>
+              <TouchableOpacity
+                onPress={onRunSync}
+                disabled={runningSync}
+                style={{ backgroundColor: '#111827', paddingVertical: 10, paddingHorizontal: 18, borderRadius: 10, opacity: runningSync ? 0.7 : 1 }}
+                activeOpacity={0.85}
+              >
+                {runningSync ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <ActivityIndicator size="small" color={COLORS.white} />
+                    <Text style={{ color: '#fff', fontWeight: '600', fontSize: 12 }}>Syncing…</Text>
+                  </View>
+                ) : (
+                  <Text style={{ color: '#fff', fontWeight: '600', fontSize: 12 }}>Run {dryRun ? 'Dry' : 'Full'} Sync</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
 
-      {/* Quick Links */}
-      <View style={{ marginTop: 16, backgroundColor: '#fff', borderRadius: 16, padding: 16, elevation: 2 }}>
-        <Text style={{ fontSize: 14, fontWeight: '600', color: '#374151' }}>Quick Actions</Text>
-        <View style={{ marginTop: 12, gap: 10 }}>
-          <QuickLink label="My Listings" onPress={() => router.push('/dashboard/my-listings')} />
-          <QuickLink label="Earnings (Farmer)" disabled onPress={() => {}} note="Farmer only" />
-        </View>
+      {/* Admin navigation with same UI as Orders button */}
+      <View style={[styles.sectionBlock, { paddingHorizontal: 16 }]}>
+        <TouchableOpacity
+          style={styles.ordersButton}
+          activeOpacity={0.9}
+          onPress={() => router.push('/verification/verification-reviews')}
+          accessibilityLabel="Verification Reviews"
+        >
+          <Ionicons name={'shield-checkmark-outline'} size={18} color={COLORS.white} style={styles.ordersButtonIcon} />
+          <Text style={styles.ordersButtonText}>Verification Reviews</Text>
+        </TouchableOpacity>
+        <Text style={styles.ordersButtonHint}>Review and validate submissions</Text>
       </View>
 
-      {/* Logout */}
-      <View style={{ marginTop: 20 }}>
+      <View style={[styles.sectionBlock, { paddingHorizontal: 16 }]}>        
+        <TouchableOpacity
+          style={styles.ordersButton}
+          activeOpacity={0.9}
+          onPress={() => router.push('/dashboard/reports')}
+          accessibilityLabel="Reports Queue"
+        >
+          <Ionicons name={'flag-outline'} size={18} color={COLORS.white} style={styles.ordersButtonIcon} />
+          <Text style={styles.ordersButtonText}>Reports Queue</Text>
+        </TouchableOpacity>
+        <Text style={styles.ordersButtonHint}>User reports awaiting moderation</Text>
+      </View>
+
+      {/* Logout at bottom */}
+      <View style={styles.logoutContainer}>
         <TouchableOpacity
           onPress={confirmLogout}
           disabled={signingOut}
-          style={{ backgroundColor: '#dc2626', paddingVertical: 12, borderRadius: 12, alignItems: 'center', opacity: signingOut ? 0.75 : 1 }}
+          style={[styles.logoutButton, signingOut && styles.logoutButtonDisabled]}
           activeOpacity={0.85}
         >
           {signingOut ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={styles.logoutRow}>
               <ActivityIndicator size="small" color={COLORS.white} />
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Logging out…</Text>
+              <Text style={styles.logoutText}>Logging out…</Text>
             </View>
           ) : (
-            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>Log Out</Text>
+            <Text style={styles.logoutText}>Log Out</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -212,25 +207,4 @@ function Row({ label, value }) {
   )
 }
 
-function Stat({ label, value }) {
-  return (
-    <View style={{ width: '33%', paddingVertical: 12, alignItems: 'center' }}>
-      <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827' }}>{value}</Text>
-      <Text style={{ fontSize: 10, color: '#6b7280', marginTop: 4 }}>{label}</Text>
-    </View>
-  )
-}
-
-function QuickLink({ label, onPress, disabled = false, note }) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      disabled={disabled}
-      style={{ backgroundColor: disabled ? '#e5e7eb' : '#16a34a', paddingVertical: 12, paddingHorizontal: 14, borderRadius: 10, opacity: disabled ? 0.6 : 1 }}
-      activeOpacity={0.85}
-    >
-      <Text style={{ color: disabled ? '#6b7280' : '#fff', fontWeight: '600', fontSize: 13 }}>{label}</Text>
-      {note && <Text style={{ fontSize: 10, color: '#6b7280', marginTop: 4 }}>{note}</Text>}
-    </TouchableOpacity>
-  )
-}
+// QuickLink removed: buttons now mirror Orders button UI

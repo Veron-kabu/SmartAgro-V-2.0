@@ -340,7 +340,7 @@ export default function MyListings() {
 				onEndReached={() => loadMore()}
 				ListFooterComponent={loadingMore ? <View style={{ paddingVertical: 24 }}><ActivityIndicator /></View> : null}
 			/>
-			<TouchableOpacity style={styles.fab} onPress={() => router.push('/dashboard/post-listing')} activeOpacity={0.85}>
+			<TouchableOpacity style={styles.fab} onPress={() => router.push('/products/post-listing')} activeOpacity={0.85}>
 				<Text style={styles.fabText}>＋</Text>
 			</TouchableOpacity>
 			{selectionMode && (

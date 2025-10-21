@@ -13,6 +13,7 @@ import { useAuth, useUser } from '@clerk/clerk-expo';
 import { useChat } from '../../context/chat';
 import { messagesTabStyles as styles, COLORS } from '../../assets/styles/chats/messages.tab.styles';
 import EmptyState from '../../components/EmptyState';
+import CountBadge from '../../components/CountBadge';
 
 export default function ChatIndex() {
   const { chatRooms, setCurrentChatRoom, isFirebaseReady } = useChat();
@@ -105,6 +106,9 @@ export default function ChatIndex() {
             <Text style={styles.timestamp}>
               {formatTime(item.lastMessageTime)}
             </Text>
+          )}
+          {Number(item?.unreadCount) > 0 && (
+            <CountBadge count={Number(item.unreadCount)} max={99} style={{ marginTop: 6 }} />
           )}
         </View>
       </TouchableOpacity>

@@ -44,7 +44,7 @@ export default function EmptyState({
       title: 'No incoming orders',
       icon: 'mail-open-outline',
       actionLabel: 'View Listings',
-      navigateTo: '/dashboard/my-listings',
+      navigateTo: '/products/my-listings',
     },
     cart: {
       title: 'Your cart is empty',
@@ -62,7 +62,7 @@ export default function EmptyState({
       title: 'No listings yet',
       icon: 'pricetag-outline',
       actionLabel: 'Post a Listing',
-      navigateTo: '/dashboard/post-listing',
+      navigateTo: '/products/post-listing',
     },
     products: {
       title: 'No products available',

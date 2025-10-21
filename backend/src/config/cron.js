@@ -3,9 +3,10 @@ import https from "https"
 import http from "http"
 import { ENV } from "./env.js"
 import { db } from "../config/db.js"
-import { usersTable, productsTable } from "../db/schema.js"
+import { usersTable, productsTable, uploadTokensTable, verificationSubmissionsTable } from "../db/schema.js"
 import { S3Client, ListObjectsV2Command, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { computeBlurhashFromUrl } from "../utils/blurhash.js"
+import { sendEmail, renderDigestEmail } from "../utils/email.js"
 
 // Keep-alive ping (every 14 minutes)
 const job = new cron.CronJob("*/14 * * * *", () => {
@@ -111,6 +112,43 @@ const orphanProductImageCleanupJob = new cron.CronJob('30 2 * * *', async () => 
 })
 
 export { job as default, blurhashBackfillJob, orphanProductImageCleanupJob }
+
+// Nightly cleanup of expired upload tokens at 03:00
+const cleanupExpiredCodesTokensJob = new cron.CronJob('0 3 * * *', async () => {
+  try {
+    const now = new Date()
+    // Delete expired upload tokens
+    try {
+      const rows = await db.select().from(uploadTokensTable)
+      const expiredIds = rows.filter(r => r.expiresAt && new Date(r.expiresAt) < now).map(r => r.id)
+      for (const id of expiredIds) { try { await db.delete(uploadTokensTable).where(uploadTokensTable.id.eq(id)) } catch {} }
+    } catch {}
+    console.log('🧹 Nightly cleanup completed for upload tokens')
+  } catch (e) {
+    console.warn('nightly cleanup failed', e.message)
+  }
+})
+
+export { cleanupExpiredCodesTokensJob }
+
+// Daily flagged digest email to admins (if SMTP configured)
+const dailyDigestJob = new cron.CronJob(ENV.DIGEST_CRON || '0 8 * * *', async () => {
+  try {
+    if (!ENV.ADMIN_EMAILS || ENV.ADMIN_EMAILS.length === 0) return
+    const all = await db.select().from(verificationSubmissionsTable)
+    const flagged = all.filter(r => r.status === 'flagged')
+    if (flagged.length === 0) return
+    const { subject, text, html } = renderDigestEmail({ items: flagged.slice(0, 200) })
+    for (const email of ENV.ADMIN_EMAILS) {
+      await sendEmail({ to: email, subject, text, html })
+    }
+    console.log(`📧 Sent daily digest to ${ENV.ADMIN_EMAILS.length} admin(s) — ${flagged.length} flagged items`)
+  } catch (e) {
+    console.warn('daily digest failed', e.message)
+  }
+})
+
+export { dailyDigestJob }
 
 // CRON JOB EXPLANATION:
 // Cron jobs are scheduled tasks that run periodically at fixed intervals

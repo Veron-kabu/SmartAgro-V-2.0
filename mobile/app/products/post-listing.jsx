@@ -1,10 +1,10 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Image } from 'react-native'
 import { COLORS } from '../../constants/colors'
 import CategoryFilter from '../../components/CategoryFilter'
 import { CATEGORIES_FOR_FORM } from '../../constants/categories'
 import { useProfile } from '../../context/profile'
-import { postJSON } from '../../context/api'
+import { getJSON, postJSON } from '../../context/api'
 import * as ImagePicker from 'expo-image-picker'
 import { router } from 'expo-router'
 import { useToast } from '../../context/toast'
@@ -48,6 +48,20 @@ export default function PostListing() {
   // Resolve the posted image (if available) so private S3 URLs display on the success screen
   const resolvedPostedArr = useResolvedUrls(posted?.image ? [posted.image] : [])
   const resolvedPosted = resolvedPostedArr?.[0]
+  const [verifyStatus, setVerifyStatus] = useState(null)
+  // Keep verifyStatus for gating the submit button; banner itself is reusable
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const j = await getJSON('/api/verification/my-status')
+        if (mounted) setVerifyStatus(j?.status || 'unverified')
+      } catch {
+        if (mounted) setVerifyStatus(null)
+      }
+    })()
+    return () => { mounted = false }
+  }, [])
 
   const resetForm = useCallback(() => {
     setTitle('')
@@ -204,6 +218,25 @@ export default function PostListing() {
       <View style={styles.headerRow}>
         <Text style={styles.brand}>SmartAgro</Text>
       </View>
+      {String(profile?.status || '').toLowerCase() === 'suspended' && (
+        <View style={{ backgroundColor: '#FEE2E2', borderColor: '#FCA5A5', borderWidth: 1, padding: 12, borderRadius: 8, marginBottom: 12 }}>
+          <Text style={{ color: '#B91C1C', fontWeight: '700' }}>Account suspended</Text>
+          <Text style={{ color: '#7F1D1D', marginTop: 4, fontSize: 12 }}>You cannot post or edit listings until your account is reactivated.</Text>
+        </View>
+      )}
+      {/* Simple verification callout */}
+      {verifyStatus && verifyStatus !== 'verified' && (
+        <View style={{ backgroundColor: '#fff7ed', borderColor: '#fdba74', borderWidth: 1, padding: 12, borderRadius: 8, marginBottom: 12 }}>
+          <Text style={{ color: '#9a3412', marginBottom: 8 }}>You need to verify your account to post listings.</Text>
+          <TouchableOpacity
+            onPress={() => router.push('/verification')}
+            style={{ backgroundColor: '#f97316', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 6, alignSelf: 'flex-start' }}
+            activeOpacity={0.85}
+          >
+            <Text style={{ color: 'white', fontWeight: '700' }}>Verify account</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <Text style={styles.title}>Create a New Post</Text>
 
       <Text style={styles.label}>Product Name</Text>
@@ -249,7 +282,7 @@ export default function PostListing() {
       </TouchableOpacity>
   {(imageUploading) && <ActivityIndicator style={{ marginTop: 8 }} size="small" color={COLORS.primary} />}
       
-      <TouchableOpacity style={[styles.submitBtn, (!canSubmit) && { opacity: 0.6 }]} disabled={!canSubmit} onPress={onSubmit}>
+    <TouchableOpacity style={[styles.submitBtn, ((!canSubmit) || verifyStatus !== 'verified' || String(profile?.status||'').toLowerCase()==='suspended') && { opacity: 0.6 }]} disabled={!canSubmit || verifyStatus !== 'verified' || String(profile?.status||'').toLowerCase()==='suspended'} onPress={onSubmit}>
   {submitting ? <ActivityIndicator size="small" color={COLORS.white} /> : <Text style={styles.submitText}>Submit Post</Text>}
       </TouchableOpacity>
       

@@ -26,10 +26,31 @@ export const ENV = {
   AWS_S3_PUBLIC_READ: /^true$/i.test(process.env.AWS_S3_PUBLIC_READ || "true"),
   UPLOAD_MAX_MB: Number(process.env.UPLOAD_MAX_MB || 10),
   AWS_CLOUDFRONT_DOMAIN: process.env.AWS_CLOUDFRONT_DOMAIN,
+  // S3 prefixes
+  AWS_S3_VERIFICATION_PREFIX: process.env.AWS_S3_VERIFICATION_PREFIX || 'verification/',
+
+  // Optional: Google Vision API (fallback for OCR/classification)
+  // Removed: GOOGLE_VISION_API_KEY (ocr/classification no longer used)
 
   // Geospatial tuning
   // Resolution used by application-side geo cell calculations (must match DB trigger default unless you update triggers)
   GEO_CELL_RES: Math.max(1, Math.min(100, Number(process.env.GEO_CELL_RES || 10))),
+
+  // Removed: verification scoring/duplicate detection envs
+
+  // Email / SMTP (optional)
+  SMTP_HOST: process.env.SMTP_HOST,
+  SMTP_PORT: Number(process.env.SMTP_PORT || 587),
+  SMTP_SECURE: /^true$/i.test(process.env.SMTP_SECURE || 'false'),
+  SMTP_USER: process.env.SMTP_USER,
+  SMTP_PASS: process.env.SMTP_PASS,
+  EMAIL_FROM: process.env.EMAIL_FROM || 'no-reply@smartagro.local',
+  ADMIN_EMAILS: (process.env.ADMIN_EMAILS || '').split(',').map(s=>s.trim()).filter(Boolean),
+  DIGEST_CRON: process.env.DIGEST_CRON || '0 8 * * *', // 8am daily
+  // Removed: VERIF_HIGH_RISK_SCORE
+
+  // Moderation
+  STRIKES_SUSPEND_THRESHOLD: Number(process.env.STRIKES_SUSPEND_THRESHOLD || 3),
 }
 
 // Validation function to check required environment variables

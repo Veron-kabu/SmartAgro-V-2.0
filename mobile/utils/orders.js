@@ -17,6 +17,7 @@ export function formatDate(iso) {
 
 export function statusBadgeColor(status) {
   const s = (status || '').toLowerCase()
+  if (s === 'paused') return { bg: COLORS.inputBackground, fg: COLORS.warning }
   if (['pending', 'in_progress', 'accepted', 'processing', 'shipped'].includes(s)) return { bg: COLORS.inputBackground, fg: COLORS.primary }
   if (['completed', 'delivered'].includes(s)) return { bg: COLORS.errorLight, fg: COLORS.online }
   if (['cancelled', 'rejected', 'failed'].includes(s)) return { bg: COLORS.errorLight, fg: COLORS.error }

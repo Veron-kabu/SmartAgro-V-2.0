@@ -18,17 +18,25 @@ export function ProfileProvider({ children }) {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const { getToken, isSignedIn } = useAuth()
+  const { getToken, isSignedIn, isLoaded } = useAuth()
   const { user } = useUser()
   const jwtTemplate = process.env.EXPO_PUBLIC_CLERK_JWT_TEMPLATE
 
   useEffect(() => {
     setAuthTokenGetter(async () => {
+      // Avoid issuing backend calls until Clerk auth has finished loading
+      if (!isLoaded) return null
       if (isSignedIn) {
         // Use a Clerk JWT template if provided (recommended for backend auth);
         // falls back to default token if not set.
         try {
-          const token = await getToken(jwtTemplate ? { template: jwtTemplate } : undefined)
+          let token = null
+          if (jwtTemplate) {
+            try { token = await getToken({ template: jwtTemplate }) } catch {}
+          }
+          if (!token) {
+            try { token = await getToken() } catch {}
+          }
           return token ?? null
         } catch (e) {
           console.warn("Failed to get Clerk token", e)
@@ -37,10 +45,11 @@ export function ProfileProvider({ children }) {
       }
       return null
     })
-  }, [getToken, isSignedIn, jwtTemplate])
+  }, [getToken, isSignedIn, isLoaded, jwtTemplate])
 
   const refresh = useCallback(async () => {
-    if (!isSignedIn) {
+    // Wait until Clerk is fully initialized to avoid 401s on first paint
+    if (!isLoaded || !isSignedIn) {
       setProfile(null)
       setLoading(false)
       return
@@ -87,11 +96,11 @@ export function ProfileProvider({ children }) {
     } finally {
       setLoading(false)
     }
-  }, [isSignedIn, user])
+  }, [isLoaded, isSignedIn, user])
 
   useEffect(() => {
-    refresh()
-  }, [isSignedIn, refresh])
+    if (isLoaded) refresh()
+  }, [isLoaded, isSignedIn, refresh])
 
   const applyLocalUpdate = useCallback((updated) => {
     if (!updated) return
