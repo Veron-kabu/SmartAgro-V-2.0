@@ -186,6 +186,27 @@ export default function MarketScreen() {
           </View>
         )}
 
+        {/* Market Prices CTA */}
+        <TouchableOpacity
+          onPress={() => router.push('/market-prices')}
+          style={{
+            marginHorizontal: 16,
+            marginBottom: 12,
+            backgroundColor: '#fff7ed',
+            borderRadius: 12,
+            padding: 12,
+            borderWidth: 1,
+            borderColor: '#fed7aa',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="pricetag" size={18} color="#ea580c" />
+          <Text style={{ fontWeight: '800', color: '#9a3412' }}>View today’s market prices</Text>
+        </TouchableOpacity>
+
         {/* Categories */}
         <CategoryFilter
           categories={categories}

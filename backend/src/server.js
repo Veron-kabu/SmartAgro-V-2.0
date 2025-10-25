@@ -22,6 +22,7 @@ import earningsRoutes from './routes/earnings.js'
 import verificationRoutes from './routes/verification.js'
 import reviewRoutes from './routes/reviews.js'
 import reportRoutes from './routes/reports.js'
+import marketPricesRoutes from './routes/marketPrices.js'
 import { syncClerkUsers } from './utils/clerkSync.js'
 import cron from 'cron'
 
@@ -73,6 +74,7 @@ app.use('/api', reviewRoutes)
 app.use('/api', reportRoutes)
 app.use('/api', miscRoutes)
 app.use('/api', webhookRoutes)
+app.use('/api', marketPricesRoutes)
 //    Location router not namespaced (legacy path design) — can be migrated later if desired.
 
 // 5) Background jobs (production only) + optional Clerk automation (any env)
