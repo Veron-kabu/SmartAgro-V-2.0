@@ -1,5 +1,5 @@
 import { Stack, usePathname, useRouter } from "expo-router"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { AppState } from "react-native"
 import { ClerkProvider, useAuth } from "@clerk/clerk-expo"
 import { ProfileProvider } from "../context/profile"
@@ -15,6 +15,9 @@ import { track, flush } from "../utils/analytics"
 import { ANALYTICS_EVENTS } from "../constants/analyticsEvents"
 import SafeScreen from "../components/SafeScreen"
 import { SwipeBackGesture } from "../components/navigation"
+import SplashScreen from "../components/splash/SplashScreen"
+import { StatusBar } from 'expo-status-bar'
+
 
 const tokenCache = {
   async getToken(key) {
@@ -63,22 +66,22 @@ export default function RootLayout() {
 
   // App lifecycle analytics + background flush
   useEffect(() => {
-  track(ANALYTICS_EVENTS.APP_OPEN)
+    track(ANALYTICS_EVENTS.APP_OPEN)
     const appState = AppState.currentState
     const prevState = { value: appState }
     const sub = AppState.addEventListener('change', (nextState) => {
       // foreground -> background/inactive
       if ((prevState.value === 'active') && (nextState === 'background' || nextState === 'inactive')) {
-  track(ANALYTICS_EVENTS.APP_BACKGROUND)
+        track(ANALYTICS_EVENTS.APP_BACKGROUND)
         // Fire-and-forget flush so queued events attempt to persist server-side
         flush()
       } else if ((prevState.value === 'background' || prevState.value === 'inactive') && nextState === 'active') {
-  track(ANALYTICS_EVENTS.APP_FOREGROUND)
+        track(ANALYTICS_EVENTS.APP_FOREGROUND)
       }
       prevState.value = nextState
     })
     return () => {
-  track(ANALYTICS_EVENTS.APP_CLOSE)
+      track(ANALYTICS_EVENTS.APP_CLOSE)
       flush()
       sub.remove()
     }
@@ -88,34 +91,60 @@ export default function RootLayout() {
     <ClerkProvider
       publishableKey={publishableKey}
       tokenCache={tokenCache}
-      telemetry={{ disabled: telemetryDisabled }} // Set EXPO_PUBLIC_CLERK_TELEMETRY_DISABLED=true (or 1) to silence telemetry if needed
+      telemetry={{ disabled: telemetryDisabled }}
     >
       <SafeScreen>
-        {/* Redirect from '/' based on auth state so we don't need a dedicated index route */}
-        <ToastProvider>
-          <InitialRedirect />
-          <LocationHeartbeat />
-          <ProfileProvider>
-            <FavoritesProvider>
-              <CartProvider>
-                <ChatProvider>
-                  <ForegroundCartValidator />
-                  <SwipeBackGesture 
-                    edgeWidth={60}
-                    threshold={100}
-                    velocityThreshold={0.4}
-                    hapticFeedback={true}
-                    fallbackRoute="/home"
-                  >
-                    <Stack screenOptions={{ headerShown: false }} />
-                  </SwipeBackGesture>
-                </ChatProvider>
-              </CartProvider>
-            </FavoritesProvider>
-          </ProfileProvider>
-        </ToastProvider>
+        {/* Hide the native status/notification bar while the app is open */}
+        <StatusBar hidden={true} animated={true} />
+        {/* Keep splash visible until animation finished AND auth is loaded */}
+        <SplashGate />
       </SafeScreen>
     </ClerkProvider>
+  )
+}
+
+function SplashGate() {
+  const { isLoaded } = useAuth()
+  const [animDone, setAnimDone] = useState(false)
+  const showSplash = !(animDone && isLoaded)
+
+  if (showSplash) {
+    return <SplashScreen onFinish={() => setAnimDone(true)} />
+  }
+
+  // Redirect from '/' based on auth state so we don't need a dedicated index route
+  return (
+    <ToastProvider>
+      <InitialRedirect />
+      <LocationHeartbeat />
+      <ProfileProvider>
+        <FavoritesProvider>
+          <CartProvider>
+            <ChatProvider>
+              <ForegroundCartValidator />
+              <SwipeBackGesture 
+                edgeWidth={60}
+                threshold={100}
+                velocityThreshold={0.4}
+                edges="both"
+                hapticFeedback={true}
+                fallbackRoute="/home"
+              >
+                {/**
+                 * Always mount the root Stack so Router can resolve any route immediately
+                 * (including redirects from '/' or '/page'). Explicitly register route groups
+                 * to avoid any transient "Unmatched Route" states on slow devices.
+                 */}
+                <Stack screenOptions={{ headerShown: false }}>
+                  <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                  <Stack.Screen name="(auth)" options={{ headerShown: false, presentation: 'modal' }} />
+                </Stack>
+              </SwipeBackGesture>
+            </ChatProvider>
+          </CartProvider>
+        </FavoritesProvider>
+      </ProfileProvider>
+    </ToastProvider>
   )
 }
 
@@ -143,7 +172,7 @@ function InitialRedirect() {
 
   useEffect(() => {
     if (!isLoaded) return
-    
+
     // Handle app root and legacy '/page' redirect centrally
     if (!pathname || pathname === "/" || pathname === "/page") {
       // Use requestAnimationFrame to ensure we're after the layout phase
@@ -181,21 +210,21 @@ function ForegroundCartValidator() {
         lastCheckRef.current = now
         try {
           // Cart revalidation
-            if (items.length) {
-              const { validated } = await validateCartItems(items, { updatePrices: false })
-              const removedIds = validated.filter(v => v.removed).map(v => v.id)
-              // Apply qty clamps
-              validated.forEach(v => {
-                if (!v.removed) {
-                  const original = items.find(i => i.id === v.id)
-                  if (original && original.quantity !== v.quantity) updateQuantity(v.id, v.quantity)
-                }
-              })
-              removedIds.forEach(id => removeItem(id))
-              if (removedIds.length) {
-                toast.show(`${removedIds.length} cart item(s) removed (no longer available)`, { type: 'info' })
+          if (items.length) {
+            const { validated } = await validateCartItems(items, { updatePrices: false })
+            const removedIds = validated.filter(v => v.removed).map(v => v.id)
+            // Apply qty clamps
+            validated.forEach(v => {
+              if (!v.removed) {
+                const original = items.find(i => i.id === v.id)
+                if (original && original.quantity !== v.quantity) updateQuantity(v.id, v.quantity)
               }
+            })
+            removedIds.forEach(id => removeItem(id))
+            if (removedIds.length) {
+              toast.show(`${removedIds.length} cart item(s) removed (no longer available)`, { type: 'info' })
             }
+          }
           // Favorites re-fetch to detect deletions (lightweight)
           try {
             const favs = await getJSON('/api/favorites')

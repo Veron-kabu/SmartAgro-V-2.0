@@ -559,6 +559,24 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
               </LinearGradient>
             )}
             <View style={styles.bannerOverlay}>
+              {/* Messages quick access button */}
+              <TouchableOpacity
+                accessibilityLabel="Open messages"
+                onPress={() => router.push('/chat')}
+                activeOpacity={0.85}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                style={{ position: 'absolute', right: 48, top: -12, zIndex: 5, backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 16, padding: 6 }}
+              >
+                <Ionicons name="chatbubbles" size={20} color={COLORS.primary} />
+                {unreadTotal > 0 && (
+                  <CountBadge
+                    count={unreadTotal}
+                    max={99}
+                    size={18}
+                    style={{ position: 'absolute', top: -6, right: -8 }}
+                  />
+                )}
+              </TouchableOpacity>
               {totalBadge > 0 && (
                 <TouchableOpacity
                   accessibilityLabel="Open notifications"

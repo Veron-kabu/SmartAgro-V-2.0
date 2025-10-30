@@ -26,6 +26,7 @@ export default function SwipeBackGesture({
   edgeWidth = 50,           // Width of edge area that triggers swipe (pixels)
   threshold = 80,           // Minimum swipe distance to trigger navigation (pixels)
   velocityThreshold = 0.3,  // Minimum swipe velocity to trigger navigation
+  edges = 'left',           // 'left' | 'right' | 'both' — which screen edges activate the gesture
   enabled = true,           // Enable/disable gesture
   hapticFeedback = true,    // Enable haptic feedback
   fallbackRoute = null,     // Fallback route if can't go back
@@ -36,32 +37,51 @@ export default function SwipeBackGesture({
   const router = useRouter();
   const swipeStartRef = useRef(null);
   const isSwipingRef = useRef(false);
+  const startEdgeRef = useRef(null); // 'left' | 'right' | null
+
+  const allowLeft = edges === 'left' || edges === 'both';
+  const allowRight = edges === 'right' || edges === 'both';
 
   const panResponder = PanResponder.create({
     onStartShouldSetPanResponder: (evt) => {
       if (!enabled) return false;
       
-      // Only respond to touches near the left edge
+      // Respond to touches near configured edges
       const touchX = evt.nativeEvent.pageX;
-      return touchX <= edgeWidth;
+      const fromLeft = allowLeft && touchX <= edgeWidth;
+      // We don't have screenWidth in event; use Dimensions
+      const { width } = require('react-native').Dimensions.get('window');
+      const fromRight = allowRight && touchX >= (width - edgeWidth);
+      return fromLeft || fromRight;
     },
 
     onMoveShouldSetPanResponder: (evt, gestureState) => {
       if (!enabled) return false;
       
-      // Only respond if starting from left edge and moving right
+      // Respond if starting from configured edges and moving inward
       const touchX = evt.nativeEvent.pageX;
-      const isFromEdge = touchX <= edgeWidth || (swipeStartRef.current && swipeStartRef.current <= edgeWidth);
+      const { width } = require('react-native').Dimensions.get('window');
+      const startedLeft = allowLeft && (touchX <= edgeWidth || (swipeStartRef.current != null && swipeStartRef.current <= edgeWidth));
+      const startedRight = allowRight && (touchX >= (width - edgeWidth) || (swipeStartRef.current != null && swipeStartRef.current >= (width - edgeWidth)));
       const isMovingRight = gestureState.dx > 10;
+      const isMovingLeft = gestureState.dx < -10;
       const isNotVertical = Math.abs(gestureState.dy) < Math.abs(gestureState.dx);
       
-      return isFromEdge && isMovingRight && isNotVertical;
+      const leftOk = startedLeft && isMovingRight;
+      const rightOk = startedRight && isMovingLeft;
+      return (leftOk || rightOk) && isNotVertical;
     },
 
     onPanResponderGrant: (evt) => {
       // Store the starting position
       swipeStartRef.current = evt.nativeEvent.pageX;
       isSwipingRef.current = true;
+      const { width } = require('react-native').Dimensions.get('window');
+      startEdgeRef.current = (allowLeft && swipeStartRef.current <= edgeWidth)
+        ? 'left'
+        : (allowRight && swipeStartRef.current >= (width - edgeWidth))
+          ? 'right'
+          : null;
       
       // Trigger haptic feedback on gesture start
       if (hapticFeedback) {
@@ -83,9 +103,14 @@ export default function SwipeBackGesture({
       isSwipingRef.current = false;
       
       // Check if swipe meets criteria for navigation
-      const swipeDistance = gestureState.dx;
-      const swipeVelocity = gestureState.vx;
-      const shouldNavigate = swipeDistance >= threshold || swipeVelocity >= velocityThreshold;
+      const swipeDistance = gestureState.dx; // positive = right, negative = left
+      const swipeVelocity = gestureState.vx; // positive = right, negative = left
+      const distanceOk = Math.abs(swipeDistance) >= threshold;
+      const velocityOk = Math.abs(swipeVelocity) >= velocityThreshold;
+      // Direction must be inward relative to the edge we started from
+      const fromLeftOK = startEdgeRef.current === 'left' && swipeDistance > 0;
+      const fromRightOK = startEdgeRef.current === 'right' && swipeDistance < 0;
+      const shouldNavigate = (distanceOk || velocityOk) && (fromLeftOK || fromRightOK);
       
       if (shouldNavigate) {
         // Trigger success haptic feedback
@@ -98,7 +123,7 @@ export default function SwipeBackGesture({
         
         // Call custom callback
         if (onNavigate) {
-          onNavigate({ distance: swipeDistance, velocity: swipeVelocity });
+          onNavigate({ distance: swipeDistance, velocity: swipeVelocity, edge: startEdgeRef.current });
         }
       }
       
@@ -107,21 +132,24 @@ export default function SwipeBackGesture({
         onSwipeEnd({ 
           distance: swipeDistance, 
           velocity: swipeVelocity, 
-          navigated: shouldNavigate 
+          navigated: shouldNavigate,
+          edge: startEdgeRef.current,
         });
       }
       
       // Reset refs
       swipeStartRef.current = null;
+      startEdgeRef.current = null;
     },
 
     onPanResponderTerminate: () => {
       // Reset state if gesture is terminated
       isSwipingRef.current = false;
       swipeStartRef.current = null;
+      startEdgeRef.current = null;
       
       if (onSwipeEnd) {
-        onSwipeEnd({ distance: 0, velocity: 0, navigated: false, terminated: true });
+        onSwipeEnd({ distance: 0, velocity: 0, navigated: false, terminated: true, edge: null });
       }
     },
   });

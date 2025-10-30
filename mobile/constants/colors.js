@@ -370,7 +370,7 @@ export const THEMES = {
 };
 
 // 👇 change this to switch theme
-export const COLORS = THEMES.forest;
+export const COLORS = THEMES.purple;
 
 // Common semi-transparent overlays used across components (kept separate from theme hues)
 export const OVERLAY = {

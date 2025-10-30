@@ -134,8 +134,8 @@ export default function VerificationRespond() {
         }
       }))
   await postJSON(`/api/verification/${submissionId}/respond-more`, { images: uploaded, note: userNote?.trim() || undefined })
-      toast.show('Submitted. We\'ll review shortly.', { type: 'success' })
-      router.replace('/(tabs)/profile')
+  toast.show('Submitted. We\'ll review shortly.', { type: 'success' })
+  router.replace('/profile')
     } catch (e) {
       toast.show(e?.message || 'Failed to submit', { type: 'error' })
     } finally {

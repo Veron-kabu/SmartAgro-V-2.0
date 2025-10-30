@@ -65,7 +65,8 @@ export default function VerificationSubmit() {
     // Optional attestation token could be included if available in future
     const resp = await submitVerification({ images: uploaded, device_info })
   toast.show(`Submitted — status: ${resp?.status || 'pending'}`, { type: 'success', duration: 1500 })
-      router.replace('/(tabs)/profile')
+  // Route groups are omitted from URLs; use '/profile' instead of '/(tabs)/profile'
+  router.replace('/profile')
     } catch (e) {
       // Graceful fallback: queue for retry and notify softly
       try {
@@ -73,7 +74,7 @@ export default function VerificationSubmit() {
         const uploaded = captures.map((c, idx) => ({ uri: c.uri, meta: c.meta, photo_index: idx + 1 }))
   await enqueueVerification({ images: uploaded, device_info, reason: e?.message || 'unknown' })
         toast.show('Saved offline. We’ll retry shortly.', { type: 'info', duration: 1800 })
-        router.replace('/(tabs)/profile')
+  router.replace('/profile')
       } catch {
         toast.show(e?.message || 'Submission failed', { type: 'error', duration: 2000 })
       }

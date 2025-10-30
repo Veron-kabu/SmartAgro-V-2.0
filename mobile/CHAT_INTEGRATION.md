@@ -77,7 +77,7 @@ service cloud.firestore {
 ```
 
 ## Navigation Structure
-- `(tabs)/messages.jsx` - Messages tab that redirects to chat index
+- Profile screen Messages button → `chat/index.jsx` (Chat rooms list)
 - `chat/index.jsx` - Chat rooms list
 - `chat/messages.jsx` - Individual chat conversation
 - `chat/new-chat.jsx` - Create new chat screen
@@ -136,7 +136,7 @@ mobile/
 │   │   ├── messages.jsx (Chat interface)
 │   │   └── new-chat.jsx (Create chat)
 │   └── (tabs)/
-│       └── messages.jsx (Tab redirect)
+│       └── _layout.jsx (Bottom tabs without a Messages tab)
 ├── config/
 │   └── firebase.js (Firebase configuration)
 ├── context/

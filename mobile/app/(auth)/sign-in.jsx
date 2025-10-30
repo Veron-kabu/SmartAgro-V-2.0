@@ -36,7 +36,8 @@ export default function SignInScreen() {
 
       if (result.status === 'complete') {
         await setActive({ session: result.createdSessionId });
-        router.replace('/');
+        // Navigate explicitly to a valid route to avoid transient NotFound on some devices
+        router.replace('/home');
       } else if (result.status === 'needs_first_factor') {
         // Prepare email code factor and navigate to verify with email in params
         try {

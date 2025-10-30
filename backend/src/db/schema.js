@@ -375,3 +375,15 @@ export const verificationAppealsTable = pgTable("verification_appeals", {
   resolutionNote: text("resolution_note"),
   retentionExtendedUntil: timestamp("retention_extended_until"),
 })
+
+// =======================
+// REQUEST METRICS (Telemetry)
+// =======================
+export const requestMetricsTable = pgTable("request_metrics", {
+  id: serial("id").primaryKey(),
+  route: text("route").notNull(),
+  method: varchar("method", { length: 8 }).notNull(),
+  status: integer("status").notNull(),
+  durationMs: integer("duration_ms").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+})

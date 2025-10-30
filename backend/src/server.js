@@ -25,6 +25,7 @@ import reportRoutes from './routes/reports.js'
 import marketPricesRoutes from './routes/marketPrices.js'
 import { syncClerkUsers } from './utils/clerkSync.js'
 import cron from 'cron'
+import { requestMetrics } from './middleware/metrics.js'
 
 // 1) Validate environment up‑front so we fail fast on misconfiguration
 try {
@@ -58,6 +59,9 @@ app.use((req, res, next) => {
 // 3) Auth context (must precede any router using ensureAuth / getAuth) + ensure DB user fallback
 app.use(withClerk)
 app.use(ensureDbUser)
+
+// 3a) Request telemetry (must come before routers to capture all routes)
+app.use(requestMetrics())
 
 // 4) Feature routers (all mounted under /api). Each router owns its own concern.
 //    Add new domain routers here to keep this file small.
