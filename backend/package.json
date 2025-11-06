@@ -11,7 +11,9 @@
     "blurhash:backfill": "node ./scripts/backfill-blurhashes.mjs",
     "fix:users:columns": "node ./scripts/apply-fix-users-columns.mjs",
     "migrate:verification:cleanup": "node ./scripts/apply-verification-cleanup.mjs",
-    "migrate:verification:drop-image-reviews": "node ./scripts/apply-image-reviews-drop.mjs"
+    "migrate:verification:drop-image-reviews": "node ./scripts/apply-image-reviews-drop.mjs",
+    "migrate:mpesa": "node ./scripts/apply-mpesa-migrations.mjs",
+    "migrate:orders:payment": "node ./scripts/apply-orders-payment-migration.mjs"
   },
   "keywords": [],
   "author": "",

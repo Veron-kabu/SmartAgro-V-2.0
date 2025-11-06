@@ -1,5 +1,5 @@
 import { useLocalSearchParams, router } from 'expo-router'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, Alert, Share, Dimensions, Image, StyleSheet, TextInput, Keyboard } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { getJSON, postJSON, deleteJSON } from '../../context/api'
@@ -28,7 +28,7 @@ export default function ProductDetail() {
   const [checkingFav, setCheckingFav] = useState(false)
   const [carouselIndex, setCarouselIndex] = useState(0)
   const screenWidth = Dimensions.get('window').width
-  const { addItem } = useCart()
+  const { addItem, removeItem, items } = useCart()
   const { toggleFavorite: toggleFavCtx, isFavorited } = useFavorites()
   const resolvedImages = useResolvedUrls(product?.images || [])
   const [reviews, setReviews] = useState([])
@@ -57,13 +57,11 @@ export default function ProductDetail() {
     try {
       const data = await getJSON(`/api/products/${numericId}`)
       setProduct(data)
-      // Fetch seller reviews
+      // Fetch product-specific reviews (strictly for this product)
       try {
-        if (data?.farmerId) {
-          setLoadingReviews(true)
-          const r = await getJSON(`/api/users/${data.farmerId}/reviews`)
-          setReviews(Array.isArray(r?.items) ? r.items : [])
-        } else { setReviews([]) }
+        setLoadingReviews(true)
+        const r = await getJSON(`/api/products/${numericId}/reviews`)
+        setReviews(Array.isArray(r?.items) ? r.items : [])
       } catch { setReviews([]) } finally { setLoadingReviews(false) }
       // Check favorite status
       try {
@@ -80,13 +78,21 @@ export default function ProductDetail() {
 
   const inc = () => setQty(q => Math.min(q + 1, Number(product?.quantityAvailable) || 999))
   const dec = () => setQty(q => Math.max(1, q - 1))
+  const inCart = useMemo(() => !!(product && Array.isArray(items) && items.some(i => i.id === product.id)), [items, product])
+
   const addToCart = () => {
     if (!product) return
     if (product.quantityAvailable <= 0) return
     // Include primary image so it renders in cart list
     const primaryImage = Array.isArray(product.images) && product.images.length ? product.images[0] : undefined
-    addItem({ id: product.id, title: product.title, price: Number(product.price)||0, unit: product.unit, farmerId: product.farmerId, images: product.images || (primaryImage ? [primaryImage] : []), imageUrl: primaryImage }, qty)
+    addItem({ id: product.id, title: product.title, price: Number(product.price)||0, unit: product.unit, farmerId: product.farmerId, images: product.images || (primaryImage ? [primaryImage] : []), imageUrl: primaryImage, discountPercent: Number(product.discountPercent||0) }, qty)
     Alert.alert('Added', 'Product added to cart')
+  }
+
+  const removeFromCart = () => {
+    if (!product) return
+    removeItem(product.id)
+    Alert.alert('Removed', 'Product removed from cart')
   }
 
   const toggleFavorite = async () => {
@@ -117,9 +123,13 @@ export default function ProductDetail() {
   const shareProduct = async () => {
     if (!product) return
     try {
+      const unit = product.unit || 'unit'
+      const discounted = (Number(product?.discountPercent) > 0)
+        ? (Number(product.price) * (1 - Number(product.discountPercent)/100))
+        : Number(product.price)
       await Share.share({
         title: product.title,
-        message: `${product.title} - ${product.description || ''}\nPrice: $${Number(product.price).toFixed(2)}\n`,
+        message: `${product.title} - ${product.description || ''}\nPrice: Ksh ${discounted.toFixed(2)} / ${unit}\n`,
       })
   track(ANALYTICS_EVENTS.PRODUCT_SHARED, { productId: product.id })
     } catch { /* ignore */ }
@@ -136,7 +146,7 @@ export default function ProductDetail() {
       setMyRating(0); setMyComment('')
       // Reload reviews
       try {
-        const r = await getJSON(`/api/users/${product.farmerId}/reviews`)
+        const r = await getJSON(`/api/products/${product.id}/reviews`)
         setReviews(Array.isArray(r?.items) ? r.items : [])
       } catch {}
     } catch (e) {
@@ -351,16 +361,24 @@ export default function ProductDetail() {
             </View>
             <View style={{ flexDirection:'row', alignItems:'flex-end', gap:8 }}>
               {product.discountPercent > 0 && (
-                <Text style={styles.origPrice}>${Number(product.price).toFixed(2)}</Text>
+                <Text style={styles.origPrice}>Ksh{Number(product.price).toFixed(2)}</Text>
               )}
-              <Text style={styles.price}>${product.discountPercent > 0 ? (Number(product.price) * (1 - product.discountPercent/100)).toFixed(2) : Number(product.price).toFixed(2)} <Text style={styles.unit}>/ {product.unit || 'unit'}</Text></Text>
+              <Text style={styles.price}>Ksh{product.discountPercent > 0 ? (Number(product.price) * (1 - product.discountPercent/100)).toFixed(2) : Number(product.price).toFixed(2)} <Text style={styles.unit}>/ {product.unit || 'unit'}</Text></Text>
             </View>
-            {/* Seller rating summary */}
+            {/* Product rating summary (strictly this product) */}
             <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <StarRating value={Number(product.farmerRatingAvg || 0)} max={5} size={16} />
-              <Text style={{ color: COLORS.text, fontSize: 12 }}>
-                {Number(product.farmerRatingAvg || 0).toFixed(1)} ({Number(product.farmerRatingCount || 0)} reviews)
-              </Text>
+              {(() => {
+                const count = Array.isArray(reviews) ? reviews.length : 0
+                const avg = count ? (reviews.reduce((s, r) => s + Number(r.rating || 0), 0) / count) : 0
+                return (
+                  <>
+                    <StarRating value={avg} max={5} size={16} />
+                    <Text style={{ color: COLORS.text, fontSize: 12 }}>
+                      {avg.toFixed(1)} ({count} review{count===1?'':'s'})
+                    </Text>
+                  </>
+                )
+              })()}
             </View>
             {typeof product.description === 'string' && product.description.trim().length > 0 && (
               <Text style={styles.desc}>{product.description}</Text>
@@ -390,7 +408,7 @@ export default function ProductDetail() {
                   <Text style={styles.qtyValue}>{qty}</Text>
                   <TouchableOpacity onPress={inc} style={styles.qtyBtn}><Text style={styles.qtyBtnText}>+</Text></TouchableOpacity>
                 </View>
-                <Text style={styles.extPrice}>${(Number(product.price) * qty).toFixed(2)}</Text>
+                <Text style={styles.extPrice}>Ksh{((product?.discountPercent>0 ? (Number(product.price)*(1-Number(product.discountPercent)/100)) : Number(product.price)) * qty).toFixed(2)}</Text>
               </View>
             )}
 
@@ -401,8 +419,15 @@ export default function ProductDetail() {
                     <Text style={styles.secondaryActionBtnText}>Order Now</Text>
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={[styles.addBtn, product.quantityAvailable <= 0 && styles.addBtnDisabled]} onPress={addToCart} activeOpacity={0.85} disabled={product.quantityAvailable <= 0}>
-                  <Text style={styles.addBtnText}>{product.quantityAvailable <= 0 ? 'Out of stock' : 'Add to cart'}</Text>
+                <TouchableOpacity
+                  style={[styles.addBtn, product.quantityAvailable <= 0 && styles.addBtnDisabled]}
+                  onPress={inCart ? removeFromCart : addToCart}
+                  activeOpacity={0.85}
+                  disabled={product.quantityAvailable <= 0}
+                >
+                  <Text style={styles.addBtnText}>
+                    {product.quantityAvailable <= 0 ? 'Out of stock' : (inCart ? 'Remove from cart' : 'Add to cart')}
+                  </Text>
                 </TouchableOpacity>
               </>
             )}

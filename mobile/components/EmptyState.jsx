@@ -76,11 +76,11 @@ export default function EmptyState({
       actionLabel: 'Adjust Filters',
       navigateTo: '/(tabs)/search',
     },
-    funds: {
+    earnings: {
       title: 'No transactions yet',
       icon: 'wallet-outline',
       actionLabel: 'Explore Earnings',
-      navigateTo: '/funds',
+      navigateTo: '/dashboard/earnings',
     },
     generic: {
       title: 'Nothing here yet',

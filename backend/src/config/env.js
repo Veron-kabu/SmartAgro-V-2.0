@@ -51,6 +51,19 @@ export const ENV = {
 
   // Moderation
   STRIKES_SUSPEND_THRESHOLD: Number(process.env.STRIKES_SUSPEND_THRESHOLD || 3),
+
+  // M-Pesa / Daraja configuration (optional per deployment)
+  MPESA_ENV: process.env.MPESA_ENV || 'sandbox',
+  MPESA_CONSUMER_KEY: process.env.MPESA_CONSUMER_KEY,
+  MPESA_CONSUMER_SECRET: process.env.MPESA_CONSUMER_SECRET,
+  MPESA_SHORTCODE: process.env.MPESA_SHORTCODE,
+  MPESA_B2C_SHORTCODE: process.env.MPESA_B2C_SHORTCODE || process.env.MPESA_SHORTCODE,
+  MPESA_PASSKEY: process.env.MPESA_PASSKEY,
+  MPESA_INITIATOR_NAME: process.env.MPESA_INITIATOR_NAME,
+  MPESA_INITIATOR_PASSWORD: process.env.MPESA_INITIATOR_PASSWORD,
+  MPESA_CERT_PATH: process.env.MPESA_CERT_PATH || 'MPESAEXAMPLE/SandboxCertificate.cer',
+  MPESA_CALLBACK_BASE_URL: process.env.MPESA_CALLBACK_BASE_URL,
+  MPESA_DEBUG: /^true$/i.test(process.env.MPESA_DEBUG || 'false'),
 }
 
 // Validation function to check required environment variables

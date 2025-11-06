@@ -222,9 +222,18 @@ export default function ProductCard({ product }) {
         <View style={productCardStyles.footer}>
           <View style={productCardStyles.timeContainer}>
             <Ionicons name="cash-outline" size={14} color={COLORS.textLight} />
-            <Text style={productCardStyles.timeText}>
-              Ksh {product.price}/{product.unit}
-            </Text>
+            {Number(product?.discountPercent) > 0 ? (
+              <Text style={productCardStyles.timeText}>
+                <Text style={{ textDecorationLine: 'line-through', color: COLORS.textLight }}>Ksh {Number(product.price).toFixed(2)}</Text>
+                {`  `}
+                <Text style={{ color: COLORS.text, fontWeight: '700' }}>Ksh {(Number(product.price) * (1 - Number(product.discountPercent)/100)).toFixed(2)}</Text>
+                {` / ${product.unit}`}
+              </Text>
+            ) : (
+              <Text style={productCardStyles.timeText}>
+                Ksh {Number(product.price).toFixed(2)}/{product.unit}
+              </Text>
+            )}
           </View>
           <View style={productCardStyles.servingsContainer}>
             <Ionicons name="cube-outline" size={14} color={COLORS.textLight} />

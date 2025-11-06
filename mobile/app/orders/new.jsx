@@ -9,6 +9,7 @@ import { emitAppEvent } from '../../context/favorites'
 import { useToast } from '../../context/toast'
 import { newOrderStyles as styles } from '../../assets/styles/orders.styles'
 import { useProfile } from '../../context/profile'
+import { initiateStkPush, getStkStatus } from '../../utils/mpesa'
 import { COLORS } from '../../constants/colors'
 
 export default function NewOrderScreen() {
@@ -46,16 +47,51 @@ export default function NewOrderScreen() {
     if (!deliveryAddress.trim()) return Alert.alert('Missing address', 'Delivery address is required')
     setSubmitting(true)
     try {
-  const created = await postJSON('/api/orders', { product_id: productId, quantity: qty, delivery_address: deliveryAddress.trim(), notes: notes.trim() || undefined })
-  track(ANALYTICS_EVENTS.ORDER_CREATED, { orderId: created.id, productId, quantity: qty })
-      // Update local product snapshot & emit global event for UI refresh elsewhere
+      // Do NOT create the order yet. First take payment, then create.
+      const buyerPhone = profile?.phone || null
+      if (!buyerPhone) {
+        show('Add your phone number in Profile to pay via M-Pesa.', { type: 'warning' })
+        return
+      }
+      const amount = Number(total)
+      if (!Number.isFinite(amount) || amount <= 0) {
+        Alert.alert('Invalid total', 'Could not compute total amount')
+        return
+      }
+      show('Sending payment request…', { type: 'info' })
+      const resp = await initiateStkPush({ phone: buyerPhone, amount, accountReference: 'SmartAgro Order', transactionDesc: `Product #${productId}` })
+      const checkoutRequestID = resp?.checkoutRequestID || resp?.CheckoutRequestID
+      if (!checkoutRequestID) throw new Error('Failed to start payment')
+      show('Prompt sent. Enter M-Pesa PIN to continue…', { type: 'info' })
+      // Poll for payment success
+      let attempts = 0
+      let paid = false
+      while (attempts < 30) {
+        attempts += 1
+        try {
+          const q = await getStkStatus(checkoutRequestID)
+          const code = String(q?.ResultCode ?? q?.resultCode ?? '')
+          if (code === '0') { paid = true; break }
+          if (['1032','1037','1','2001','2002'].includes(code)) break
+        } catch {}
+        await new Promise(r => setTimeout(r, 2500))
+      }
+      if (!paid) { show('Payment not completed. Order was not created.', { type: 'warning' }); return }
+      // Create the order as paid using the confirmed payment session
+      const created = await postJSON('/api/orders/after-payment', {
+        product_id: productId,
+        quantity: qty,
+        delivery_address: deliveryAddress.trim(),
+        notes: notes.trim() || undefined,
+        checkoutRequestID,
+      })
+      track(ANALYTICS_EVENTS.ORDER_CREATED, { orderId: created.id, productId, quantity: qty })
       if (typeof created.remainingQuantity === 'number') {
         setProduct(prev => prev ? { ...prev, quantityAvailable: created.remainingQuantity, status: created.productStatus || prev.status } : prev)
         emitAppEvent('product:stockChanged', { productId, remaining: created.remainingQuantity, status: created.productStatus })
       }
-      show('Order placed!', { type: 'success' })
-  // After placing an order, go to the same screen as Profile > Orders > Sent Orders
-  router.replace('/orders/buyerorders?view=sent')
+      show('Payment received. Order created!', { type: 'success' })
+      router.replace('/orders/buyerorders?view=sent')
     } catch (e) {
       Alert.alert('Order Failed', e?.body || e?.message || 'Could not create order')
     } finally { setSubmitting(false) }

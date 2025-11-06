@@ -3,6 +3,7 @@ import CombinedBarLineChart from '../../../components/charts/CombinedBarLineChar
 import DualAreaLineChart from '../../../components/charts/DualAreaLineChart'
 import { getJSON } from '../../../context/api'
 import { useEffect, useState } from 'react'
+import ChartTooltip from '../../../components/charts/ChartTooltip'
 
 export default function Overview() {
   const [range, setRange] = useState('today')
@@ -50,6 +51,9 @@ export default function Overview() {
   const labels2 = (engData?.perDay || []).map(r => { try { const d = new Date(r.d); return d.toLocaleString('en', { month: 'short' }) } catch { return '' } })
   const chartWidth = Math.max(320, Dimensions.get('window').width - 32)
 
+  const [tooltip, setTooltip] = useState({ visible: false, left: 0, top: 0, label: '', value: 0, format: v => String(v) })
+  const clamp = (val, min, max) => Math.max(min, Math.min(max, val))
+
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#f3f4f6' }} contentContainerStyle={{ padding: 16, gap: 12 }}>
       <Text style={{ fontSize: 20, fontWeight: '800', color: '#111827', marginBottom: 4 }}>Overview</Text>
@@ -77,16 +81,34 @@ export default function Overview() {
         </View>
       </View>
 
-      {/* Combined bar + line chart matching the example spacing and style */}
+      {/* Combined bar + line chart with shared axes and tooltip */}
       <View style={{ alignItems:'center', marginTop:8 }}>
-        <CombinedBarLineChart
-          width={chartWidth}
-          height={260}
-          barData={txPerDay}
-          lineData={revTrend}
-          xLabels={labels1.length ? labels1 : months.map(m=>`${m} 01`)}
-          legend={["Orders","Revenue"]}
-        />
+        <View style={{ width: chartWidth, position: 'relative' }}>
+          <CombinedBarLineChart
+            width={chartWidth}
+            height={260}
+            barData={txPerDay}
+            lineData={revTrend}
+            xLabels={labels1.length ? labels1 : months.map(m=>`${m} 01`)}
+            legend={["Orders","Revenue"]}
+            axis={{}}
+            onBarPress={({ index, value, x, y }) => {
+              const label = (labels1.length ? labels1 : months.map(m=>`${m} 01`))[index] || ''
+              const tooltipWidth = 140
+              const left = clamp(x - tooltipWidth/2, 8, chartWidth - tooltipWidth - 8)
+              const top = clamp(y - 48, 8, 260 - 56)
+              setTooltip({ visible: true, left, top, label, value, format: v => String(v) })
+            }}
+            onPointPress={({ index, value, x, y }) => {
+              const label = (labels1.length ? labels1 : months.map(m=>`${m} 01`))[index] || ''
+              const tooltipWidth = 140
+              const left = clamp(x - tooltipWidth/2, 8, chartWidth - tooltipWidth - 8)
+              const top = clamp(y - 48, 8, 260 - 56)
+              setTooltip({ visible: true, left, top, label, value, format: v => `KSh ${Number(v||0).toLocaleString()}` })
+            }}
+          />
+          <ChartTooltip visible={tooltip.visible} left={tooltip.left} top={tooltip.top} label={tooltip.label} value={tooltip.value} formatValue={tooltip.format} />
+        </View>
       </View>
 
       {/* Dual area line chart with legend */}

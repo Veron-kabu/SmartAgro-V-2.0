@@ -4,7 +4,7 @@ import { productsTable, usersTable, ordersTable, favoritesTable } from '../db/sc
 import { ensureAuth } from '../middleware/auth.js'
 import { requireRole } from '../middleware/role.js'
 import { requireNotSuspended } from '../middleware/status.js'
-import { and, eq, gt, gte, lte, lt, inArray } from 'drizzle-orm'
+import { and, or, eq, gt, gte, lte, lt, inArray, ilike } from 'drizzle-orm'
 import { computeBlurhashFromUrl } from '../utils/blurhash.js'
 import { takeToken } from '../utils/rateLimit.js'
 import { userVerificationTable } from '../db/schema.js'
@@ -18,13 +18,24 @@ const ALLOWED_CATEGORIES = new Set([
 
 router.get('/products', async (req,res) => {
   try {
-    const { category, min_price, max_price, is_organic, limit, cursor } = req.query
+    const { category, min_price, max_price, is_organic, limit, cursor, search } = req.query
     const pageSize = Math.min(Number(limit) || 0, 100) || null
     let whereExpr = and(eq(productsTable.status, 'active'), gt(productsTable.quantityAvailable, 0))
     if (category) whereExpr = and(whereExpr, eq(productsTable.category, category))
     if (min_price) whereExpr = and(whereExpr, gte(productsTable.price, min_price))
     if (max_price) whereExpr = and(whereExpr, lte(productsTable.price, max_price))
     if (is_organic === 'true') whereExpr = and(whereExpr, eq(productsTable.isOrganic, true))
+    // Prefix search: title or category starts-with (case-insensitive)
+    if (typeof search === 'string' && search.trim().length > 0) {
+      const q = `${search.trim()}%`
+      whereExpr = and(
+        whereExpr,
+        or(
+          ilike(productsTable.title, q),
+          ilike(productsTable.category, q)
+        )
+      )
+    }
     if (cursor) {
       // cursor is ISO date string of createdAt
       const d = new Date(cursor)
@@ -113,7 +124,7 @@ router.get('/products/bulk', async (req,res) => {
   }
 })
 
-// NOTE: Price is stored in decimal in KES (Kenyan Shillings). Client must treat value as Ksh, not USD.
+// NOTE: Price is stored in decimal in Ksh (Kenyan Shillings). Client must treat value as Ksh, not USD.
 router.post('/products', ensureAuth(), requireNotSuspended(), requireRole(['farmer']), async (req,res) => {
   try {
     const key = `product_create_${req.auth.userId}`

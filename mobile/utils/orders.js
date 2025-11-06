@@ -18,7 +18,7 @@ export function formatDate(iso) {
 export function statusBadgeColor(status) {
   const s = (status || '').toLowerCase()
   if (s === 'paused') return { bg: COLORS.inputBackground, fg: COLORS.warning }
-  if (['pending', 'in_progress', 'accepted', 'processing', 'shipped'].includes(s)) return { bg: COLORS.inputBackground, fg: COLORS.primary }
+  if (['pending', 'in_progress', 'accepted', 'processing', 'paid', 'shipped'].includes(s)) return { bg: COLORS.inputBackground, fg: COLORS.primary }
   if (['completed', 'delivered'].includes(s)) return { bg: COLORS.errorLight, fg: COLORS.online }
   if (['cancelled', 'rejected', 'failed'].includes(s)) return { bg: COLORS.errorLight, fg: COLORS.error }
   return { bg: COLORS.divider, fg: COLORS.text }
@@ -38,14 +38,14 @@ export function groupOrders(orders = []) {
 // Canonical status pipeline (farmer side)
 // pending -> accepted -> shipped -> delivered
 // Rejected / cancelled are terminal off-ramps
-export const ORDER_STATUS_FLOW = ['pending','accepted','shipped','delivered']
+export const ORDER_STATUS_FLOW = ['pending','paid','shipped','delivered']
 
-export function nextStatusesFor(status) {
+export function nextStatusesFor(status, paymentStatus) {
   const s = (status || '').toLowerCase()
-  switch (s) {
-    case 'pending': return ['accepted','rejected']
-    case 'accepted': return ['shipped','cancelled']
-    case 'shipped': return ['delivered']
-    default: return []
-  }
+  const p = (paymentStatus || '').toLowerCase()
+  // No accept/reject; ship only after paid
+  if (s === 'pending') return p === 'paid' ? ['shipped'] : []
+  if (s === 'paid') return ['shipped']
+  if (s === 'shipped') return ['delivered']
+  return []
 }

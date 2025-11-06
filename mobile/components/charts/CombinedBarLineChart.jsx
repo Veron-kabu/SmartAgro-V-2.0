@@ -1,4 +1,4 @@
-import { Svg, Rect, Path, Defs, LinearGradient, Stop, G, Text as SvgText } from 'react-native-svg'
+import { Svg, Rect, Path, Defs, LinearGradient, Stop, G, Text as SvgText, Line } from 'react-native-svg'
 import { View } from 'react-native'
 
 // A combined bar + smoothed line chart with optional area fill and axes/grid
@@ -13,6 +13,9 @@ export default function CombinedBarLineChart({
   area = true,
   padding = { top: 20, right: 16, bottom: 44, left: 36 },
   yTicks = 5,
+  axis = {}, // { yFormatter, xFormatter, yColor, xColor }
+  onBarPress = null,
+  onPointPress = null,
   legend,
 }) {
   const n = Math.max(barData.length, lineData.length)
@@ -74,22 +77,42 @@ export default function CombinedBarLineChart({
       <G>
         {ticks.map((t, i) => {
           const y = scaleY(t)
+          const yy = Math.round(y) + 0.5
+          const yFormatter = axis.yFormatter || ((v) => String(Math.round(v)))
           return (
             <G key={`gt-${i}`}>
-              <Rect x={padding.left} y={y} width={innerW} height={1} fill="#e5e7eb" />
-              <SvgText x={padding.left - 6} y={y + 4} fontSize={10} fill="#6b7280" textAnchor="end">{Math.round(t)}</SvgText>
+              <Line x1={padding.left} y1={yy} x2={padding.left + innerW} y2={yy} stroke="#e5e7eb" strokeWidth={1} />
+              <SvgText x={padding.left - 8} y={yy} fontSize={12} fill={axis.yColor || '#111827'} textAnchor="end" alignmentBaseline="middle">
+                {yFormatter(t)}
+              </SvgText>
             </G>
           )
         })}
+        {/* Baseline */}
+        <Line x1={padding.left} y1={padding.top + innerH + 0.5} x2={padding.left + innerW} y2={padding.top + innerH + 0.5} stroke="#e5e7eb" strokeWidth={1} />
       </G>
 
       {/* Bars */}
       <G>
         {barData.map((v, i) => {
-          const x = xAt(i) - barW / 2
-          const h = ((typeof v === 'number' ? v : 0) / (max || 1)) * innerH
+          const val = typeof v === 'number' ? v : 0
+          const xCenter = xAt(i)
+          const x = xCenter - barW / 2
+          const h = (val / (max || 1)) * innerH
           const y = padding.top + (innerH - h)
-          return <Rect key={`b-${i}`} x={x} y={y} width={barW} height={h} rx={4} fill={barColor} opacity={0.8} />
+          return (
+            <Rect
+              key={`b-${i}`}
+              x={x}
+              y={y}
+              width={barW}
+              height={h}
+              rx={4}
+              fill={barColor}
+              opacity={0.8}
+              onPress={onBarPress ? () => onBarPress({ index: i, value: val, x: xCenter, y: scaleY(val) }) : undefined}
+            />
+          )
         })}
       </G>
 
@@ -103,11 +126,34 @@ export default function CombinedBarLineChart({
         <Path d={linePath} stroke={lineColor} strokeWidth={3} fill="none" />
       ) : null}
 
+      {/* Invisible hit areas for line points to support tooltips */}
+      <G>
+        {points.map((p, i) => (
+          <Rect
+            key={`pt-${i}`}
+            x={p[0] - Math.max(12, stepX / 4)}
+            y={p[1] - 12}
+            width={Math.max(24, stepX / 2)}
+            height={24}
+            fill="transparent"
+            onPress={onPointPress ? () => onPointPress({ index: i, value: typeof lineData[i] === 'number' ? lineData[i] : 0, x: p[0], y: p[1] }) : undefined}
+          />
+        ))}
+      </G>
+
       {/* X axis labels */}
       <G>
         {xLabels.slice(0, n).map((label, i) => (
-          <SvgText key={`x-${i}`} x={xAt(i)} y={height - padding.bottom + 16} fontSize={10} fill="#6b7280" textAnchor="middle" transform={`rotate(40 ${xAt(i)} ${height - padding.bottom + 16})`}>
-            {label}
+          <SvgText
+            key={`x-${i}`}
+            x={xAt(i)}
+            y={height - padding.bottom + 16}
+            fontSize={10}
+            fill={axis.xColor || '#6b7280'}
+            textAnchor="middle"
+            transform={`rotate(40 ${xAt(i)} ${height - padding.bottom + 16})`}
+          >
+            {(axis.xFormatter || ((s) => String(s)))(label)}
           </SvgText>
         ))}
       </G>

@@ -23,7 +23,8 @@ export default function OrdersLayout() {
       <Stack.Screen name="index" options={{ headerLeft: () => null, headerBackVisible: false }} />
       {/* Other screens inherit the BackButton with fallback to /orders */}
   <Stack.Screen name="buyerorders" options={{ headerTitle: 'Orders' }} />
-      <Stack.Screen name="farmerorders" options={{ headerTitle: 'Incoming Orders' }} />
+  {/* Use a neutral title here; the screen itself will present the specific section title (Incoming vs Fulfilled) */}
+  <Stack.Screen name="farmerorders" options={{ headerTitle: 'Orders' }} />
       <Stack.Screen name="new" options={{ headerTitle: 'New Order' }} />
       <Stack.Screen name="checkout" options={{ headerTitle: 'Checkout' }} />
       <Stack.Screen name="order-details" options={{ headerTitle: 'Order Details' }} />

@@ -6,10 +6,12 @@ import { useEffect, useState } from 'react'
 import { getJSON } from '../../../context/api'
 import StickySections from '../../../components/analytics/StickySections'
 import ZoomableChart from '../../../components/charts/ZoomableChart'
+import ChartTooltip from '../../../components/charts/ChartTooltip'
 
 export default function UserAnalytics() {
   const [range, setRange] = useState('today')
   const [data, setData] = useState(null)
+  const [tooltip, setTooltip] = useState({ visible:false, section:null, left:0, top:0, label:'', value:0, format: (v)=>String(v) })
 
   useEffect(() => {
     let alive = true
@@ -52,21 +54,67 @@ export default function UserAnalytics() {
     {
       title: 'Growth (Daily)',
       render: () => (
-        <ZoomableChart width={320} height={120}>
-          <SimpleLineChart width={320} height={120} color="#16a34a" area data={daily} />
-        </ZoomableChart>
+        <View style={{ width:320, height:120, position:'relative' }}>
+          <ZoomableChart width={320} height={120}>
+            <SimpleLineChart
+              width={320}
+              height={120}
+              color="#16a34a"
+              area
+              data={daily}
+              onPointPress={({ index, value, x, y }) => {
+                const tooltipWidth = 140
+                const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+                const left = clamp(x - tooltipWidth/2, 8, 320 - tooltipWidth - 8)
+                const top = clamp(y - 48, 8, 120 - 56)
+                setTooltip({ visible: true, section: 'daily', left, top, label: `Day ${index+1}`, value, format: v => String(v) })
+              }}
+            />
+          </ZoomableChart>
+          <ChartTooltip visible={tooltip.visible && tooltip.section==='daily'} left={tooltip.left} top={tooltip.top} label={tooltip.label} value={tooltip.value} formatValue={tooltip.format} />
+        </View>
       )
     },
     {
       title: 'Growth (Weekly vs Monthly)',
       render: () => (
         <View style={{ flexDirection:'row', gap:12 }}>
-          <ZoomableChart width={160} height={120}>
-            <SimpleBarChart width={160} height={120} color="#0ea5e9" data={weekly} />
-          </ZoomableChart>
-          <ZoomableChart width={160} height={120}>
-            <SimpleLineChart width={160} height={120} color="#f59e0b" data={monthly} />
-          </ZoomableChart>
+          <View style={{ width:160, height:120, position:'relative' }}>
+            <ZoomableChart width={160} height={120}>
+              <SimpleBarChart
+                width={160}
+                height={120}
+                color="#0ea5e9"
+                data={weekly}
+                onBarPress={({ index, value, x, y }) => {
+                  const tooltipWidth = 120
+                  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+                  const left = clamp(x - tooltipWidth/2, 4, 160 - tooltipWidth - 4)
+                  const top = clamp(y - 48, 8, 120 - 56)
+                  setTooltip({ visible: true, section: 'weekly', left, top, label: `W${index+1}`, value, format: v => String(v) })
+                }}
+              />
+            </ZoomableChart>
+            <ChartTooltip visible={tooltip.visible && tooltip.section==='weekly'} left={tooltip.left} top={tooltip.top} label={tooltip.label} value={tooltip.value} formatValue={tooltip.format} />
+          </View>
+          <View style={{ width:160, height:120, position:'relative' }}>
+            <ZoomableChart width={160} height={120}>
+              <SimpleLineChart
+                width={160}
+                height={120}
+                color="#f59e0b"
+                data={monthly}
+                onPointPress={({ index, value, x, y }) => {
+                  const tooltipWidth = 120
+                  const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+                  const left = clamp(x - tooltipWidth/2, 4, 160 - tooltipWidth - 4)
+                  const top = clamp(y - 48, 8, 120 - 56)
+                  setTooltip({ visible: true, section: 'monthly', left, top, label: `M${index+1}`, value, format: v => String(v) })
+                }}
+              />
+            </ZoomableChart>
+            <ChartTooltip visible={tooltip.visible && tooltip.section==='monthly'} left={tooltip.left} top={tooltip.top} label={tooltip.label} value={tooltip.value} formatValue={tooltip.format} />
+          </View>
         </View>
       )
     },

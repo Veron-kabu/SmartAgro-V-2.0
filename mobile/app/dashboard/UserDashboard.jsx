@@ -14,6 +14,7 @@ import { useDashboardMedia } from '../../hooks/useDashboardMedia'
 import { router, useFocusEffect } from 'expo-router'
 import CountBadge from '../../components/CountBadge'
 import { useChat } from '../../context/chat'
+import { subscribeAppEvents } from '../../context/favorites'
 import VerificationBanner from '../../components/VerificationBanner'
 import { useResolvedUrls } from '../../hooks/useResolvedUrls'
 import { useToast } from '../../context/toast'
@@ -36,6 +37,7 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
   const [editEmail, setEditEmail] = useState(profile?.email || '')
   const [editUsername, setEditUsername] = useState(profile?.username || '')
   const [editPhone, setEditPhone] = useState(profile?.phone || '')
+  const [editAddress, setEditAddress] = useState(typeof profile?.location === 'string' ? profile.location : '')
   const [editFullName, setEditFullName] = useState(profile?.fullName || '')
   const [pickingImage, setPickingImage] = useState(false)
   // media & stats hooks
@@ -89,24 +91,56 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
   const openNotification = useCallback((item) => {
     const type = item?.type
     const data = item?.data || {}
+    const id = item?.id
+    // Explicit routes in payload take precedence
+    const route = typeof data?.route === 'string' ? data.route : null
+    if (route) {
+      try { router.push(route) } catch {}
+      if (id) markRead(id)
+      setNotifOpen(false)
+      return
+    }
     if ((type === 'review_created' || type === 'review_commented') && data.reviewId) {
       try { router.push({ pathname: '/reviews/[id]', params: { id: String(data.reviewId) } }) } catch {}
+      if (id) markRead(id)
       setNotifOpen(false)
       return
     }
-    if ((type === 'moderation' || type === 'account_suspended') && data?.route && String(data.route).includes('/appeals')) {
-      const params = data?.reportId ? { reportId: String(data.reportId) } : {}
-      try { router.push({ pathname: '/appeals', params }) } catch {}
+    if ((type === 'moderation' || type === 'account_suspended')) {
+      try { router.push({ pathname: '/appeals', params: data?.reportId ? { reportId: String(data.reportId) } : {} }) } catch {}
+      if (id) markRead(id)
       setNotifOpen(false)
       return
     }
-    // Fallback: verification notifications keep current behavior
     if (type === 'verification_status' && data?.submissionId) {
-      // Optionally navigate to verification screen if it exists
       try { router.push('/verification') } catch {}
+      if (id) markRead(id)
       setNotifOpen(false)
+      return
     }
-  }, [])
+    // Generic fallbacks: orders, products, chat
+    if (data?.orderId) {
+      try { router.push({ pathname: '/orders/[id]', params: { id: String(data.orderId) } }) } catch {}
+      if (id) markRead(id)
+      setNotifOpen(false)
+      return
+    }
+    if (data?.productId) {
+      try { router.push({ pathname: '/products/[id]', params: { id: String(data.productId) } }) } catch {}
+      if (id) markRead(id)
+      setNotifOpen(false)
+      return
+    }
+    if (data?.chatId) {
+      try { router.push('/chat') } catch {}
+      if (id) markRead(id)
+      setNotifOpen(false)
+      return
+    }
+    // Nothing matched; just mark read
+    if (id) markRead(id)
+    setNotifOpen(false)
+  }, [markRead])
 
   const deleteNotif = useCallback(async (id) => {
     // If it was unread, also decrement count
@@ -357,6 +391,39 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
     if (!loading) fetchData()
   }, [loading, fetchData])
 
+  // Real-time: when a product is created by this farmer, bump Available count and recent products
+  useEffect(() => {
+    const unsub = subscribeAppEvents(evt => {
+      if (evt.type !== 'product:created') return
+  const { product } = evt.payload || {}
+      const ownerId = product?.farmerId
+      if (!profile?.id) return
+      if (ownerId && ownerId !== profile.id) return
+      // Update count optimistically
+      setDashboardData(prev => {
+        if (!prev) return prev
+        const current = Number(prev.totalProducts || 0)
+        return { ...prev, totalProducts: current + 1 }
+      })
+      // Update recent products list (local only)
+      if (product) {
+        setRecentProducts(prev => {
+          const exists = prev.some(p => p.id === product.id)
+          const next = exists ? prev : [product, ...prev].slice(0, 5)
+          return next
+        })
+        // Optionally refresh the listing thumbnail
+        if (Array.isArray(product.images) && product.images.length > 0) {
+          setListingThumbRaw(t => t || product.images[0])
+        }
+      } else {
+        // Fallback: refetch dashboard to be safe
+        fetchData()
+      }
+    })
+    return () => { unsub && unsub() }
+  }, [profile?.id, fetchData])
+
   // Helper: pick a random listing image (avoid repeating if possible)
   const pickRandomListingThumb = useCallback(() => {
     if (!Array.isArray(recentProducts) || recentProducts.length === 0) {
@@ -396,6 +463,7 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
     setEditUsername(profile?.username || '')
     setEditPhone(profile?.phone || '')
     setEditFullName(profile?.fullName || profile?.username || '')
+    setEditAddress(typeof profile?.location === 'string' ? profile.location : '')
     setEditOpen(true)
   }, [profile])
 
@@ -406,6 +474,7 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
     setEditUsername(profile?.username || '')
     setEditPhone(profile?.phone || '')
     setEditFullName(profile?.fullName || profile?.username || '')
+    setEditAddress(typeof profile?.location === 'string' ? profile.location : '')
   }, [editOpen, profile])
 
   // Avatar refresh handled by useDashboardMedia hook
@@ -420,13 +489,15 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
   const fullNameValid = (editFullName || '').trim().length >= 2
   const phoneValid = !editPhone || (editPhone || '').trim().length >= 7
   const passwordValid = !showPwd || ((newPwd || '').length >= 8 && newPwd === confirmPwd)
-  const isValid = emailValid && usernameValid && fullNameValid && phoneValid && passwordValid
+  const addressValid = true
+  const isValid = emailValid && usernameValid && fullNameValid && phoneValid && addressValid && passwordValid
 
   const hasChanges = (
     (editFullName || '') !== (profile?.fullName || '') ||
     (editUsername || '') !== (profile?.username || '') ||
     (editEmail || '') !== (profile?.email || '') ||
-    (editPhone || '') !== (profile?.phone || '')
+    (editPhone || '') !== (profile?.phone || '') ||
+    ((editAddress || '') !== (typeof profile?.location === 'string' ? profile.location : ''))
   )
 
   const hasPasswordChange = showPwd && passwordValid
@@ -468,7 +539,7 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
         toast.show('Password updated', { type: 'success' })
       }
       if (hasChanges) {
-        await patchProfile({ full_name: editFullName, username: editUsername, email: editEmail, phone: editPhone })
+        await patchProfile({ full_name: editFullName, username: editUsername, email: editEmail, phone: editPhone, location: (editAddress || null) })
       }
       setEditOpen(false)
       if (hasChanges && !hasPasswordChange) {
@@ -483,7 +554,7 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
     } finally {
       setSaving(false)
     }
-  }, [canSubmit, saving, hasPasswordChange, hasChanges, changePassword, editFullName, editUsername, editEmail, editPhone, patchProfile, toast])
+  }, [canSubmit, saving, hasPasswordChange, hasChanges, changePassword, editFullName, editUsername, editEmail, editPhone, editAddress, patchProfile, toast])
 
   // logout logic moved to shared hook useLogout
 
@@ -684,23 +755,21 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
           </View>
         )}
 
-        {/* Funds: single action button like Orders (farmer only) */}
+        {/* Earnings */}
         {role === 'farmer' && (
           <View style={styles.sectionBlock}>
             <TouchableOpacity
               style={styles.ordersButton}
               activeOpacity={0.9}
-              onPress={() => router.push('/funds')}
-              accessibilityLabel="Funds"
+              onPress={() => router.push('/dashboard/earnings')}
+              accessibilityLabel="Earnings"
             >
               <Ionicons name={'wallet-outline'} size={18} color={COLORS.white} style={styles.ordersButtonIcon} />
-              <Text style={styles.ordersButtonText}>Funds</Text>
+              <Text style={styles.ordersButtonText}>Earnings</Text>
             </TouchableOpacity>
-            <Text style={styles.ordersButtonHint}>Earnings • Transactions • Withdrawals</Text>
+            <Text style={styles.ordersButtonHint}>Earnings • Transactions</Text>
           </View>
         )}
-
-        {/* Collapsible Funds metrics section removed (replaced by Funds hub button) */}
 
         {/* Switch Role section removed */}
         {role !== 'admin' && (
@@ -821,6 +890,15 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
                 returnKeyType="done"
               />
               {!phoneValid && <Text style={modalStyles.errorText}>Phone should be at least 7 digits</Text>}
+
+              <Text style={modalStyles.inputLabel}>Address</Text>
+              <TextInput
+                value={editAddress}
+                onChangeText={setEditAddress}
+                style={modalStyles.input}
+                placeholder="e.g. Nairobi, Westlands or GPS address"
+                returnKeyType="done"
+              />
 
               {/* Change Password Section */}
               <View style={modalStyles.passwordSection}>

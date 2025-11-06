@@ -1,4 +1,4 @@
-import { Svg, G, Path } from 'react-native-svg'
+import { Svg, G, Path, Circle } from 'react-native-svg'
 import { View } from 'react-native'
 
 function arcPath(cx, cy, r, startAngle, endAngle, innerR = 0) {
@@ -32,6 +32,24 @@ export default function SimplePieChart({ data = [], width = 120, height = 120, c
   const cx = width / 2, cy = height / 2
   const r = Math.min(width, height) / 2
   const innerR = donut ? r * 0.55 : 0
+  const nonZero = vals.filter(v => v > 0)
+  const nzIndex = vals.findIndex(v => v > 0)
+  // Special case: full circle (only one non-zero slice) — SVG arc cannot draw 360° in one arc
+  if (nonZero.length === 1) {
+    const fill = (colors.length ? colors : ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6'])[nzIndex % (colors.length || 5)]
+    return (
+      <Svg width={width} height={height}>
+        {donut ? (
+          <G>
+            <Circle cx={cx} cy={cy} r={r} fill={fill} />
+            <Circle cx={cx} cy={cy} r={innerR} fill="#fff" />
+          </G>
+        ) : (
+          <Circle cx={cx} cy={cy} r={r} fill={fill} />
+        )}
+      </Svg>
+    )
+  }
   let angle = -Math.PI / 2 // start at top
   const palette = colors.length ? colors : ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6']
   const slices = []

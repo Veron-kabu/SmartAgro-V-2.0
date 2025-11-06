@@ -24,21 +24,24 @@ export default function OrdersIndex() {
             <Text style={styles.cardHint}>Requests to fulfill</Text>
           </TouchableOpacity>
         )}
-  <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={() => router.push('/orders/buyerorders?view=sent')}>
+        <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={() => router.push('/orders/buyerorders?view=sent')}>
           <View style={styles.iconWrap}><Ionicons name="paper-plane-outline" size={22} color={COLORS.white} /></View>
           <Text style={styles.cardTitle}>Sent Orders</Text>
           <Text style={styles.cardHint}>Orders you placed</Text>
         </TouchableOpacity>
-  <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={() => router.push('/orders/buyerorders?view=current')}>
-          <View style={styles.iconWrap}><Ionicons name="time-outline" size={22} color={COLORS.white} /></View>
-          <Text style={styles.cardTitle}>Current Orders</Text>
-          <Text style={styles.cardHint}>In progress</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={() => router.push('/orders/buyerorders?view=fulfilled')}>
-          <View style={styles.iconWrap}><Ionicons name="checkmark-done-circle-outline" size={22} color={COLORS.white} /></View>
-          <Text style={styles.cardTitle}>Fulfilled Orders</Text>
-          <Text style={styles.cardHint}>Delivered and closed</Text>
-        </TouchableOpacity>
+        {role === 'farmer' ? (
+          <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={() => router.push('/orders/farmerorders?view=fulfilled')}>
+            <View style={styles.iconWrap}><Ionicons name="checkmark-done-circle-outline" size={22} color={COLORS.white} /></View>
+            <Text style={styles.cardTitle}>Fulfilled Orders</Text>
+            <Text style={styles.cardHint}>Delivered and closed</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={styles.card} activeOpacity={0.85} onPress={() => router.push('/orders/buyerorders?view=fulfilled')}>
+            <View style={styles.iconWrap}><Ionicons name="checkmark-done-circle-outline" size={22} color={COLORS.white} /></View>
+            <Text style={styles.cardTitle}>Fulfilled Orders</Text>
+            <Text style={styles.cardHint}>Delivered and closed</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   )

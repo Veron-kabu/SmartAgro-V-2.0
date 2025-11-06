@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, ScrollView, Alert } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getJSON, patchJSON, deleteJSON } from '../../context/api'
-import { emitAppEvent } from '../../context/favorites'
+import { emitAppEvent, subscribeAppEvents } from '../../context/favorites'
 import { useProfile } from '../../context/profile'
 import EmptyState from '../../components/EmptyState'
 import { router } from 'expo-router'
@@ -62,6 +62,29 @@ export default function MyListings() {
 	}, [profile?.id, nextCursor])
 
 	useEffect(() => { load({ reset: true }) }, [load])
+
+	// Insert newly created product instantly if it belongs to current farmer
+	useEffect(() => {
+		const unsub = subscribeAppEvents(evt => {
+			if (evt.type !== 'product:created') return
+			const { productId, product } = evt.payload || {}
+			const id = productId || product?.id
+			if (!id) return
+			// Only handle if owned by this farmer
+			const ownerId = product?.farmerId
+			if (profile?.id && ownerId && ownerId !== profile.id) return
+			if (product && (!ownerId || ownerId === profile?.id)) {
+				setItems(prev => {
+					if (prev.some(p => p.id === id)) return prev
+					return [product, ...prev]
+				})
+			} else if (id) {
+				// If no snapshot, fallback to loading latest page and filtering (simple and robust)
+				load({ reset: true })
+			}
+		})
+		return () => { unsub && unsub() }
+	}, [profile?.id, load])
 
 	const onRefresh = useCallback(async () => {
 		setRefreshing(true)

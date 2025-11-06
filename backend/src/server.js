@@ -23,6 +23,7 @@ import verificationRoutes from './routes/verification.js'
 import reviewRoutes from './routes/reviews.js'
 import reportRoutes from './routes/reports.js'
 import marketPricesRoutes from './routes/marketPrices.js'
+import mpesaRoutes from './routes/mpesa.js'
 import { syncClerkUsers } from './utils/clerkSync.js'
 import cron from 'cron'
 import { requestMetrics } from './middleware/metrics.js'
@@ -79,6 +80,7 @@ app.use('/api', reportRoutes)
 app.use('/api', miscRoutes)
 app.use('/api', webhookRoutes)
 app.use('/api', marketPricesRoutes)
+app.use('/api', mpesaRoutes)
 //    Location router not namespaced (legacy path design) — can be migrated later if desired.
 
 // 5) Background jobs (production only) + optional Clerk automation (any env)

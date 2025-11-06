@@ -1,10 +1,11 @@
 import { Router } from 'express'
 import { db } from '../config/db.js'
-import { ordersTable, usersTable, productsTable, reviewsTable, orderStatusHistoryTable } from '../db/schema.js'
+import { ordersTable, usersTable, productsTable, reviewsTable, orderStatusHistoryTable, mpesaTransactionsTable } from '../db/schema.js'
+import { stkQuery } from '../utils/daraja.js'
 import { ensureAuth } from '../middleware/auth.js'
 import { requireRole } from '../middleware/role.js'
 import { requireNotSuspended } from '../middleware/status.js'
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, gte } from 'drizzle-orm'
 
 const router = Router()
 
@@ -47,6 +48,8 @@ router.get('/orders', ensureAuth(), async (req,res) => {
     const result = pageRows.map(o => ({
       id: o.id,
       status: o.status,
+      paymentStatus: o.paymentStatus,
+      paidAt: o.paidAt,
       totalAmount: o.totalAmount,
       createdAt: o.createdAt,
       hasReview: isBuyerQuery ? reviewMap.has(o.id) : undefined,
@@ -82,6 +85,22 @@ router.post('/orders', ensureAuth(), requireNotSuspended(), requireRole(['buyer'
       return res.status(400).json({ error: 'Cannot order your own product' })
     }
     if (product[0].quantityAvailable < quantity) return res.status(400).json({ error: 'Insufficient quantity available' })
+    // Idempotency guard: if a recent pending order exists for same buyer+product, return it
+    try {
+      const oneMinuteAgo = new Date(Date.now() - 60 * 1000)
+      const recent = await db
+        .select()
+        .from(ordersTable)
+        .where(and(
+          eq(ordersTable.buyerId, buyer[0].id),
+          eq(ordersTable.productId, product_id),
+          eq(ordersTable.status, 'pending'),
+          gte(ordersTable.createdAt, oneMinuteAgo),
+        ))
+      if (recent.length) {
+        return res.json({ ...recent[0], remainingQuantity: product[0].quantityAvailable, productStatus: product[0].status })
+      }
+    } catch {}
     const total_amount = Number(product[0].price) * quantity
     // Attempt atomic-like update (optimistic concurrency) to decrement stock and set status when depleted
     const originalQty = product[0].quantityAvailable
@@ -119,12 +138,214 @@ router.post('/orders', ensureAuth(), requireNotSuspended(), requireRole(['buyer'
   } catch (e) { console.error('Error creating order:', e); res.status(500).json({ error: 'Failed to create order' }) }
 })
 
+// Create an order only AFTER successful M-Pesa payment.
+// Client flow: initiate STK without orderId -> poll success -> call this with checkoutRequestID
+router.post('/orders/after-payment', ensureAuth(), requireNotSuspended(), requireRole(['buyer','farmer']), async (req, res) => {
+  try {
+    const meArr = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
+    if (!meArr.length) return res.status(403).json({ error: 'Access denied' })
+    const me = meArr[0]
+    const { product_id, quantity, delivery_address, notes, checkoutRequestID } = req.body || {}
+    if (!product_id || !quantity || !delivery_address || !checkoutRequestID) {
+      return res.status(400).json({ error: 'Missing required fields (product_id, quantity, delivery_address, checkoutRequestID)' })
+    }
+    const qty = Number(quantity)
+    if (!Number.isInteger(qty) || qty <= 0) return res.status(400).json({ error: 'Invalid quantity' })
+    // Resolve product snapshot
+    const prodArr = await db.select().from(productsTable).where(and(eq(productsTable.id, product_id), eq(productsTable.status, 'active')))
+    if (!prodArr.length) return res.status(404).json({ error: 'Product not found or not available' })
+    const product = prodArr[0]
+    if (me.role === 'farmer' && product.farmerId === me.id) {
+      return res.status(400).json({ error: 'Cannot order your own product' })
+    }
+    if (product.quantityAvailable < qty) return res.status(400).json({ error: 'Insufficient quantity available' })
+
+    // Compute effective unit price with discount and round to 2dp
+    const basePrice = Number(product.price)
+    const discountPercent = Number(product.discountPercent || 0)
+    const effectiveUnit = discountPercent > 0
+      ? Math.round((basePrice * (1 - discountPercent / 100)) * 100) / 100
+      : Math.round(basePrice * 100) / 100
+    const totalAmount = Math.round((effectiveUnit * qty) * 100) / 100
+
+    // Verify STK payment success and integrity
+    const txArr = await db.select().from(mpesaTransactionsTable).where(eq(mpesaTransactionsTable.checkoutRequestId, String(checkoutRequestID)))
+    const tx = txArr[0]
+    if (!tx) return res.status(400).json({ error: 'Payment session not found' })
+    if (tx.orderId) return res.status(400).json({ error: 'Payment already used for another order' })
+    // As an extra guard, query live status if we don't have a success yet
+    let isSuccess = String(tx.resultCode || '').toLowerCase() === '0' || String(tx.status || '') === 'success'
+    if (!isSuccess) {
+      try {
+        const q = await stkQuery({ checkoutRequestID: String(checkoutRequestID) })
+        const rc = String(q?.ResultCode ?? '')
+        if (rc === '0') isSuccess = true
+      } catch {}
+    }
+    if (!isSuccess) return res.status(400).json({ error: 'Payment not confirmed' })
+    // Amount match (use numeric compare)
+    const paid = Number(tx.amount)
+    if (!Number.isFinite(paid) || Math.abs(paid - totalAmount) > 0.01) {
+      return res.status(400).json({ error: 'Paid amount does not match order total' })
+    }
+    // Optional: verify phone belongs to current user
+    const mePhone = (me.phone || '').replace(/[^0-9]/g, '')
+    const txPhone = (tx.phone || '').replace(/[^0-9]/g, '')
+    if (mePhone && txPhone && !txPhone.endsWith(mePhone.slice(-9))) {
+      return res.status(403).json({ error: 'Payment phone does not match your profile' })
+    }
+
+    // Decrement stock atomically (optimistic)
+    const originalQty = product.quantityAvailable
+    const nextQty = originalQty - qty
+    const updateFields = { quantityAvailable: nextQty, updatedAt: new Date() }
+    if (nextQty <= 0) updateFields.status = 'sold'
+    const updatedProduct = await db.update(productsTable)
+      .set(updateFields)
+      .where(and(eq(productsTable.id, product_id), eq(productsTable.quantityAvailable, originalQty)))
+      .returning()
+    if (!updatedProduct.length) {
+      return res.status(409).json({ error: 'Stock changed, please retry order' })
+    }
+
+    // Create order as paid
+    const inserted = await db.insert(ordersTable).values({
+      buyerId: me.id,
+      farmerId: product.farmerId,
+      productId: product.id,
+      quantity: qty,
+  unitPrice: String(effectiveUnit),
+  totalAmount: String(totalAmount),
+      deliveryAddress: delivery_address,
+      notes,
+      status: 'paid',
+    }).returning()
+
+    const order = inserted[0]
+    // Link the mpesa tx to order to prevent reuse
+    try {
+      await db.update(mpesaTransactionsTable).set({ orderId: order.id }).where(eq(mpesaTransactionsTable.id, tx.id))
+    } catch {}
+    // Record history
+    try {
+      await db.insert(orderStatusHistoryTable).values({ orderId: order.id, fromStatus: null, toStatus: 'paid', changedByUserId: me.id })
+    } catch {}
+
+    return res.json({ ...order, remainingQuantity: nextQty, productStatus: updateFields.status || product.status })
+  } catch (e) {
+    console.error('after-payment order error', e)
+    return res.status(500).json({ error: 'Failed to create order after payment' })
+  }
+})
+
+// Create multiple orders (cart) after a single successful M-Pesa payment.
+// Body: { items: [{ product_id, quantity, delivery_address, notes }], checkoutRequestID }
+router.post('/orders/cart-after-payment', ensureAuth(), requireNotSuspended(), requireRole(['buyer','farmer']), async (req, res) => {
+  try {
+    const meArr = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
+    if (!meArr.length) return res.status(403).json({ error: 'Access denied' })
+    const me = meArr[0]
+    const { items, checkoutRequestID } = req.body || {}
+    if (!Array.isArray(items) || items.length === 0 || !checkoutRequestID) {
+      return res.status(400).json({ error: 'Missing required fields (items[], checkoutRequestID)' })
+    }
+    // Normalize items
+    const safeItems = items.map(it => ({
+      product_id: Number(it.product_id || it.id),
+      quantity: Number(it.quantity || 0),
+      delivery_address: it.delivery_address || null,
+      notes: it.notes || null,
+    })).filter(it => Number.isInteger(it.product_id) && Number.isInteger(it.quantity) && it.quantity > 0)
+    if (safeItems.length === 0) return res.status(400).json({ error: 'No valid items' })
+
+    // Fetch products
+    const prodIds = Array.from(new Set(safeItems.map(i => i.product_id)))
+    const products = await db.select().from(productsTable).where(inArray(productsTable.id, prodIds))
+    const pmap = new Map(products.map(p => [p.id, p]))
+
+    // Compute total expected amount with discounts
+    let grandTotal = 0
+    for (const it of safeItems) {
+      const p = pmap.get(it.product_id)
+      if (!p || p.status !== 'active') return res.status(400).json({ error: `Product ${it.product_id} unavailable` })
+      if (me.role === 'farmer' && p.farmerId === me.id) return res.status(400).json({ error: 'Cannot order your own product' })
+      if (p.quantityAvailable < it.quantity) return res.status(400).json({ error: `Insufficient quantity for product ${p.id}` })
+      const base = Number(p.price)
+      const disc = Number(p.discountPercent || 0)
+      const unit = disc > 0 ? Math.round((base * (1 - disc / 100)) * 100) / 100 : Math.round(base * 100) / 100
+      grandTotal += unit * it.quantity
+    }
+    grandTotal = Math.round(grandTotal * 100) / 100
+
+    // Verify payment transaction and amount
+    const txArr = await db.select().from(mpesaTransactionsTable).where(eq(mpesaTransactionsTable.checkoutRequestId, String(checkoutRequestID)))
+    const tx = txArr[0]
+    if (!tx) return res.status(400).json({ error: 'Payment session not found' })
+    if (tx.orderId) return res.status(400).json({ error: 'Payment already linked to an order' })
+    let isSuccess = String(tx.resultCode || '').toLowerCase() === '0' || String(tx.status || '') === 'success'
+    if (!isSuccess) {
+      try { const q = await stkQuery({ checkoutRequestID: String(checkoutRequestID) }); const rc = String(q?.ResultCode ?? ''); if (rc === '0') isSuccess = true } catch {}
+    }
+    if (!isSuccess) return res.status(400).json({ error: 'Payment not confirmed' })
+    const paid = Number(tx.amount)
+    if (!Number.isFinite(paid) || Math.abs(paid - grandTotal) > 0.01) {
+      return res.status(400).json({ error: 'Paid amount does not match cart total' })
+    }
+
+    // Create orders one by one with optimistic stock decrement
+    const created = []
+    for (const it of safeItems) {
+      const p = pmap.get(it.product_id)
+      const base = Number(p.price)
+      const disc = Number(p.discountPercent || 0)
+      const unit = disc > 0 ? Math.round((base * (1 - disc / 100)) * 100) / 100 : Math.round(base * 100) / 100
+      const total = Math.round((unit * it.quantity) * 100) / 100
+      // Decrement stock
+      const originalQty = p.quantityAvailable
+      const nextQty = originalQty - it.quantity
+      const updateFields = { quantityAvailable: nextQty, updatedAt: new Date() }
+      if (nextQty <= 0) updateFields.status = 'sold'
+      const updatedProduct = await db.update(productsTable)
+        .set(updateFields)
+        .where(and(eq(productsTable.id, p.id), eq(productsTable.quantityAvailable, originalQty)))
+        .returning()
+      if (!updatedProduct.length) return res.status(409).json({ error: 'Stock changed, please retry order' })
+
+      const inserted = await db.insert(ordersTable).values({
+        buyerId: me.id,
+        farmerId: p.farmerId,
+        productId: p.id,
+        quantity: it.quantity,
+        unitPrice: String(unit),
+        totalAmount: String(total),
+        deliveryAddress: it.delivery_address,
+        notes: it.notes,
+        status: 'paid',
+      }).returning()
+      const order = inserted[0]
+      created.push(order)
+      try { await db.insert(orderStatusHistoryTable).values({ orderId: order.id, fromStatus: null, toStatus: 'paid', changedByUserId: me.id }) } catch {}
+      // Refresh pmap quantities for subsequent items of same product
+      p.quantityAvailable = nextQty
+      if (updateFields.status) p.status = updateFields.status
+    }
+
+    // Link transaction to first created order (one-to-many not modeled; this prevents re-use)
+    try { if (created[0]) await db.update(mpesaTransactionsTable).set({ orderId: created[0].id }).where(eq(mpesaTransactionsTable.id, tx.id)) } catch {}
+
+    return res.json({ ok: true, orders: created })
+  } catch (e) {
+    console.error('cart-after-payment error', e)
+    return res.status(500).json({ error: 'Failed to create cart orders after payment' })
+  }
+})
+
 // Patch order status (farmer/admin). Accept both /:id/status and plain /:id for flexibility.
 router.patch('/orders/:id/status', ensureAuth(), requireNotSuspended({ allowAdminBypass: true }), requireRole(['farmer','admin']), async (req,res) => {
   try {
     const orderId = Number(req.params.id)
     const { status } = req.body
-  const validStatuses = ['pending','accepted','rejected','shipped','delivered','cancelled','paused']
+  const validStatuses = ['pending','paid','shipped','delivered','cancelled','paused']
     if (isNaN(orderId)) return res.status(400).json({ error: 'Invalid order ID' })
     if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Invalid status value' })
     const existing = await db.select().from(ordersTable).where(eq(ordersTable.id, orderId))
@@ -134,7 +355,7 @@ router.patch('/orders/:id/status', ensureAuth(), requireNotSuspended({ allowAdmi
     if (req.userRole !== 'admin' && String(status).toLowerCase() === 'delivered') {
       return res.status(403).json({ error: 'Only the buyer can mark an order as delivered' })
     }
-    const updated = await db.update(ordersTable).set({ status }).where(eq(ordersTable.id, orderId)).returning()
+  const updated = await db.update(ordersTable).set({ status }).where(eq(ordersTable.id, orderId)).returning()
     if (updated.length === 0) return res.status(404).json({ error: 'Order not found' })
     const actor = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
     if (actor.length) {
@@ -182,7 +403,7 @@ router.patch('/orders/:id', ensureAuth(), requireNotSuspended({ allowAdminBypass
   try {
     const orderId = Number(req.params.id)
     const { status } = req.body || {}
-  const validStatuses = ['pending','accepted','rejected','shipped','delivered','cancelled','paused']
+  const validStatuses = ['pending','paid','shipped','delivered','cancelled','paused']
     if (isNaN(orderId)) return res.status(400).json({ error: 'Invalid order ID' })
     if (typeof status === 'undefined') return res.status(400).json({ error: 'No updatable fields supplied' })
     if (!validStatuses.includes(status)) return res.status(400).json({ error: 'Invalid status value' })

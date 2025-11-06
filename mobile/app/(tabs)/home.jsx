@@ -65,6 +65,34 @@ export default function MarketScreen() {
         if (!productId) return
         setProducts(prev => prev.map(p => p.id === productId ? { ...p, quantityAvailable: typeof remaining === 'number' ? remaining : p.quantityAvailable, status: status || p.status } : p))
         setFilteredProducts(prev => prev.map(p => p.id === productId ? { ...p, quantityAvailable: typeof remaining === 'number' ? remaining : p.quantityAvailable, status: status || p.status } : p))
+      } else if (evt.type === 'product:created') {
+        const { productId, product } = evt.payload || {}
+        if (!productId && !product?.id) return
+        const id = productId || product.id
+        // Prefer fetching full details to include farmer info
+        ;(async () => {
+          try {
+            const full = await getJSON(`/api/products/${id}`)
+            // Only insert if visible to buyers (active and in stock)
+            if ((full?.status || 'active') === 'active' && Number(full?.quantityAvailable || 0) > 0) {
+              setProducts(prev => {
+                if (prev.some(p => p.id === id)) return prev
+                return [full, ...prev]
+              })
+              // If we don't have a featured product, seed it
+              setFeaturedProduct(fp => fp || full)
+            }
+          } catch (_) {
+            // Fallback: insert the snapshot if provided and valid
+            if (product && (product.status || 'active') === 'active' && Number(product.quantityAvailable || 0) > 0) {
+              setProducts(prev => {
+                if (prev.some(p => p.id === id)) return prev
+                return [product, ...prev]
+              })
+              setFeaturedProduct(fp => fp || product)
+            }
+          }
+        })()
       }
     })
     return () => { unsub && unsub() }

@@ -5,10 +5,12 @@ import { useEffect, useState } from 'react'
 import { getJSON } from '../../../context/api'
 import StickySections from '../../../components/analytics/StickySections'
 import ZoomableChart from '../../../components/charts/ZoomableChart'
+import ChartTooltip from '../../../components/charts/ChartTooltip'
 
 export default function MarketplaceInsights() {
   const [range, setRange] = useState('today')
   const [data, setData] = useState(null)
+  const [tooltip, setTooltip] = useState({ visible:false, section:null, left:0, top:0, label:'', value:0, format: (v)=>String(v) })
 
   useEffect(() => {
     let alive = true
@@ -49,9 +51,25 @@ export default function MarketplaceInsights() {
     { title: 'Products listed', render: () => (<Text style={{ fontSize:24, fontWeight:'800' }}>{productsListed.toLocaleString()}</Text>) },
     { title: 'Most traded categories', render: () => (
       <View>
-        <ZoomableChart width={320} height={140}>
-          <SimpleBarChart width={320} height={140} color="#6366f1" data={topCats.map(c=>c.value)} />
-        </ZoomableChart>
+        <View style={{ width:320, height:140, position:'relative' }}>
+          <ZoomableChart width={320} height={140}>
+            <SimpleBarChart
+              width={320}
+              height={140}
+              color="#6366f1"
+              data={topCats.map(c=>c.value)}
+              onBarPress={({ index, value, x, y }) => {
+                const tooltipWidth = 140
+                const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+                const left = clamp(x - tooltipWidth/2, 8, 320 - tooltipWidth - 8)
+                const top = clamp(y - 48, 8, 140 - 56)
+                const label = topCats[index]?.label || `Item ${index+1}`
+                setTooltip({ visible: true, section: 'topCats', left, top, label, value, format: v => String(v) })
+              }}
+            />
+          </ZoomableChart>
+          <ChartTooltip visible={tooltip.visible && tooltip.section==='topCats'} left={tooltip.left} top={tooltip.top} label={tooltip.label} value={tooltip.value} formatValue={tooltip.format} />
+        </View>
         <View style={{ flexDirection:'row', justifyContent:'space-between', flexWrap:'wrap', marginTop:8 }}>
           {topCats.map((c,i)=>(<Text key={i} style={{ fontSize:12, width:'48%' }}>{c.label}: {c.value}</Text>))}
         </View>
@@ -68,14 +86,45 @@ export default function MarketplaceInsights() {
       </View>
     ) },
     { title: 'Sales & revenue trend', render: () => (
-      <ZoomableChart width={320} height={120}>
-        <SimpleLineChart width={320} height={120} color="#22c55e" area data={revenueTrend} />
-      </ZoomableChart>
+      <View style={{ width:320, height:120, position:'relative' }}>
+        <ZoomableChart width={320} height={120}>
+          <SimpleLineChart
+            width={320}
+            height={120}
+            color="#22c55e"
+            area
+            data={revenueTrend}
+            onPointPress={({ index, value, x, y }) => {
+              const tooltipWidth = 140
+              const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+              const left = clamp(x - tooltipWidth/2, 8, 320 - tooltipWidth - 8)
+              const top = clamp(y - 48, 8, 120 - 56)
+              setTooltip({ visible: true, section: 'revenueTrend', left, top, label: `Point ${index+1}`, value, format: v => `KSh ${Number(v||0).toLocaleString()}` })
+            }}
+          />
+        </ZoomableChart>
+        <ChartTooltip visible={tooltip.visible && tooltip.section==='revenueTrend'} left={tooltip.left} top={tooltip.top} label={tooltip.label} value={tooltip.value} formatValue={tooltip.format} />
+      </View>
     ) },
     { title: 'Average product price', render: () => (
-      <ZoomableChart width={320} height={120}>
-        <SimpleLineChart width={320} height={120} color="#f59e0b" data={priceTrend} />
-      </ZoomableChart>
+      <View style={{ width:320, height:120, position:'relative' }}>
+        <ZoomableChart width={320} height={120}>
+          <SimpleLineChart
+            width={320}
+            height={120}
+            color="#f59e0b"
+            data={priceTrend}
+            onPointPress={({ index, value, x, y }) => {
+              const tooltipWidth = 140
+              const clamp = (v, min, max) => Math.max(min, Math.min(max, v))
+              const left = clamp(x - tooltipWidth/2, 8, 320 - tooltipWidth - 8)
+              const top = clamp(y - 48, 8, 120 - 56)
+              setTooltip({ visible: true, section: 'priceTrend', left, top, label: `Point ${index+1}`, value, format: v => `KSh ${Number(v||0).toFixed(2)}` })
+            }}
+          />
+        </ZoomableChart>
+        <ChartTooltip visible={tooltip.visible && tooltip.section==='priceTrend'} left={tooltip.left} top={tooltip.top} label={tooltip.label} value={tooltip.value} formatValue={tooltip.format} />
+      </View>
     ) },
   ]
 

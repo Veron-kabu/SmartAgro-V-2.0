@@ -39,13 +39,25 @@ export default function BuyerOrders() {
     return map
   }, [orders, resolvedOrderImages])
 
+  // Merge helper to ensure one card per order id
+  const mergeUniqueById = useCallback((prevList = [], newItems = []) => {
+    const map = new Map()
+    // Put previous first to preserve scroll order where possible
+    for (const o of prevList) { if (o && o.id != null) map.set(o.id, o) }
+    for (const o of newItems) { if (o && o.id != null) map.set(o.id, o) }
+    // Sort by createdAt desc if available; otherwise keep insertion order
+    const arr = Array.from(map.values())
+    arr.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+    return arr
+  }, [])
+
   const load = useCallback(async (nextOffset = 0) => {
     if (nextOffset === 0) setLoading(true)
     if (nextOffset > 0) setLoadingMore(true)
     try {
       const data = await getJSON(`/api/orders?buyer=me&limit=${limit}&offset=${nextOffset}`)
       const items = Array.isArray(data?.items) ? data.items : []
-      setOrders(prev => nextOffset === 0 ? items : [...prev, ...items])
+      setOrders(prev => nextOffset === 0 ? mergeUniqueById([], items) : mergeUniqueById(prev, items))
       setTotal(Number(data?.total || items.length || 0))
       setOffset(nextOffset)
     } catch (_e) {
@@ -54,14 +66,14 @@ export default function BuyerOrders() {
         { id: 1, status: 'pending', totalAmount: 120.5, createdAt: new Date().toISOString(), product: { title: 'Fresh Maize' }, farmer: { fullName: 'John Farmer' } },
         { id: 2, status: 'delivered', totalAmount: 89, createdAt: new Date(Date.now()-86400000).toISOString(), product: { title: 'Organic Beans' }, farmer: { fullName: 'Sarah Grower' } },
       ]
-      setOrders(mock)
+      setOrders(mergeUniqueById([], mock))
       setTotal(mock.length)
     } finally {
       setLoading(false)
       setLoadingMore(false)
       setRefreshing(false)
     }
-  }, [])
+  }, [mergeUniqueById])
 
   useEffect(() => { load(0) }, [load])
 
@@ -70,25 +82,16 @@ export default function BuyerOrders() {
   const canLoadMore = orders.length < total
 
   const sections = useMemo(() => {
-    // Decide which single view to show
-    if (view === 'current') {
-      return [{ key: 'current', title: 'Current Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (current.length ? current : [{ __empty: true }]) }]
-    }
+    // Always default to Sent Orders
+    // For the default 'sent' view, exclude delivered items from the combined list
+    const all = [...current, ...completed]
+    all.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))
+    const nonDelivered = all.filter(o => String(o.status || '').toLowerCase() !== 'delivered')
     if (view === 'fulfilled' || view === 'completed') {
       return [{ key: 'completed', title: 'Fulfilled Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (completed.length ? completed : [{ __empty: true }]) }]
     }
-    if (view === 'sent') {
-      // Sent orders are equivalent to buyer orders overall; show all current+fulfilled together under a single heading
-      const all = [...current, ...completed]
-      // Sort newest first by createdAt
-      all.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))
-      return [{ key: 'sent', title: 'Sent Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (all.length ? all : [{ __empty: true }]) }]
-    }
-    // Default: show both as before
-    return [
-      { key: 'current', title: 'Current Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (current.length ? current : [{ __empty: true }]) },
-    { key: 'completed', title: 'Fulfilled Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (completed.length ? completed : [{ __empty: true }]) },
-    ]
+    // Default 'sent' view hides delivered orders
+    return [{ key: 'sent', title: 'Sent Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (nonDelivered.length ? nonDelivered : [{ __empty: true }]) }]
   }, [view, loading, orders.length, current, completed])
 
   // Auto-scroll to section based on focus/view param and briefly highlight header
@@ -165,7 +168,7 @@ export default function BuyerOrders() {
                 <Text style={{ color: '#92400E', marginTop: 4 }}>This order is paused due to account suspension. Progress will resume after reactivation.</Text>
               </View>
             )}
-            {String(item.status).toLowerCase() === 'pending' && (
+            {(String(item.status).toLowerCase() === 'pending' && String(item.paymentStatus || '').toLowerCase() !== 'paid') && (
               <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 }}>
                 <TouchableOpacity
                   onPress={async () => {

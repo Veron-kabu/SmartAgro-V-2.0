@@ -5,6 +5,7 @@ import CategoryFilter from '../../components/CategoryFilter'
 import { CATEGORIES_FOR_FORM } from '../../constants/categories'
 import { useProfile } from '../../context/profile'
 import { getJSON, postJSON } from '../../context/api'
+import { emitAppEvent } from '../../context/favorites'
 import * as ImagePicker from 'expo-image-picker'
 import { router } from 'expo-router'
 import { useToast } from '../../context/toast'
@@ -33,14 +34,22 @@ export default function PostListing() {
     const s = String(t || '').toLowerCase()
   if (!s || category) return
     const pairs = [
-      [/tomato|tomatoes|kale|spinach|cabbage|onion|onions|carrot|carrots/, 'vegetables'],
-      [/mango|mangos|mangoes|banana|bananas|orange|oranges|pineapple|avocado/, 'fruits'],
-      [/maize|corn|wheat|barley|sorghum|rice/, 'grains'],
-      [/potato|potatoes|cassava|yam|yams|sweet\s*potato/, 'roots'],
-      [/groundnut|groundnuts|peanut|peanuts|sesame|sunflower|seed|seeds|almond|cashew|nut|nuts/, 'nuts'],
-      [/milk|dairy|cheese|yoghurt|yogurt|cream|butter|ghee/, 'dairy'],
+      [/tomato|tomatoes|kale|spinach|cabbage|onion|onions|carrot|carrots|lettuce|broccoli|cauliflower|pepper|peppers|zucchini|eggplant|brinjal|cucumber|okra|pumpkin|beetroot|beet|radish|celery|leek/, 'vegetables'],
+      [/mango|mangos|mangoes|banana|bananas|orange|oranges|pineapple|avocado|apple|apples|pear|pears|grape|grapes|papaya|pawpaw|watermelon|melon|guava|peach|peaches|plum|plums|berry|berries|lemon|lime|tangerine|pomegranate/, 'fruits'],
+      [/maize|corn|wheat|barley|sorghum|rice|oat|oats|millet|quinoa|rye|spelt|buckwheat/, 'grains'],
+      [/potato|potatoes|cassava|yam|yams|sweet\s*potato|taro|arrowroot|plantain/, 'roots'],
+      [/groundnut|groundnuts|peanut|peanuts|sesame|sunflower|seed|seeds|almond|cashew|nut|nuts|walnut|walnuts|hazelnut|pistachio|flaxseed|chia/, 'nuts'],
+      [/bean|beans|lentil|lentils|chickpea|chickpeas|pea|peas|pigeon\s*pea|cowpea|soybean|soybeans|mung\s*bean|kidney\s*bean|black\s*bean|navy\s*bean/, 'legumes'],
+      [/milk|dairy|cheese|yoghurt|yogurt|cream|butter|ghee|curd/, 'dairy'],
       [/egg|eggs/, 'eggs'],
+      [/meat|beef|chicken|goat|mutton|lamb|pork|bacon|ham|turkey|duck|sausage|veal/, 'meat'],
+      [/fish|tilapia|salmon|trout|tuna|sardine|sardines|crab|lobster|shrimp|prawn|catfish|anchovy|oyster|clam|mackerel/, 'fish'],
+      [/spice|spices|herb|herbs|ginger|garlic|turmeric|cumin|cinnamon|peppercorn|paprika|basil|parsley|thyme|rosemary|clove|cardamom|nutmeg|chili|chilli|mint|coriander/, 'spices'],
+      [/bread|buns|cake|cakes|biscuit|biscuits|pastry|flour|dough|pasta|noodle|noodles/, 'bakery'],
+      [/tea|coffee|juice|water|soda|beer|wine|whisky|whiskey|vodka|rum|smoothie|milkshake/, 'beverages'],
+      [/sugar|honey|molasses|syrup|sweetener|glucose|fructose|candy|chocolate|sweet/, 'sweets']
     ]
+
     for (const [re, cat] of pairs) {
       if (re.test(s)) { setCategory(cat); break }
     }
@@ -170,8 +179,10 @@ export default function PostListing() {
         is_organic: false,
         discount_percent: discountPercent === '' ? 0 : Math.min(Math.max(Number(discountPercent)||0,0),90),
       }
-      const created = await postJSON('/api/products', payload)
-      setPosted({ ...payload, id: created?.id, image: payload.images?.[0] })
+  const created = await postJSON('/api/products', payload)
+  setPosted({ ...payload, id: created?.id, image: payload.images?.[0] })
+  // Broadcast creation so Home, My Listings, and Profile can update instantly
+  try { emitAppEvent('product:created', { productId: created?.id, product: created }) } catch {}
       toast.show('Listing posted', { type: 'success' })
     } catch (e) {
       console.error('Create product error:', e)
@@ -198,7 +209,7 @@ export default function PostListing() {
           <View style={{ marginTop: 12 }}>
             <Text style={styles.successLabel}>Product: <Text style={styles.successValue}>{posted.title}</Text></Text>
             {posted.description && <Text style={styles.successDesc}>Description: {posted.description}</Text>}
-            <Text style={styles.successPrice}>Price: ${posted.price} per {posted.unit}</Text>
+            <Text style={styles.successPrice}>Price: Ksh{posted.price} per {posted.unit}</Text>
           </View>
         </View>
         <TouchableOpacity style={styles.actionBtn} onPress={resetForm}>

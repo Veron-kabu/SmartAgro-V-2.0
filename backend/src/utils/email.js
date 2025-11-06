@@ -10,19 +10,35 @@ function getTransporter() {
     port: ENV.SMTP_PORT,
     secure: ENV.SMTP_SECURE,
     auth: { user: ENV.SMTP_USER, pass: ENV.SMTP_PASS },
+    // sensible timeouts for reliability
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
   })
+  // Optional verify to catch misconfig early (non-fatal)
+  if (process.env.SMTP_DEBUG === 'true') {
+    transporter.verify().then(() => {
+      console.log('[smtp] transport verified')
+    }).catch((e) => {
+      console.warn('[smtp] transport verify failed (continuing):', e?.message || e)
+    })
+  }
   return transporter
 }
 
-export async function sendEmail({ to, subject, text, html }) {
+export async function sendEmail({ to, subject, text, html, replyTo }) {
   const t = getTransporter()
   if (!t) return false
   try {
-    await t.sendMail({ from: ENV.EMAIL_FROM, to, subject, text, html })
+    await t.sendMail({ from: ENV.EMAIL_FROM, to, subject, text, html, replyTo })
     return true
   } catch {
     return false
   }
+}
+
+export function isEmailConfigured() {
+  return !!(ENV.SMTP_HOST && ENV.SMTP_USER && ENV.SMTP_PASS && ENV.EMAIL_FROM)
 }
 
 export function renderStatusEmail({ status, reason, submissionId }) {

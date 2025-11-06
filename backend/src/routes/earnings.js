@@ -10,6 +10,7 @@ const router = Router()
 
 router.get('/earnings/farmer/summary', ensureAuth(), async (req,res) => {
   try {
+    // Trend-related query params removed; endpoint returns summary and per-listing stats only
     // Resolve farmer DB id
     let dbUserId = req.auth?.dbUserId
     if (!dbUserId) {
@@ -29,49 +30,47 @@ router.get('/earnings/farmer/summary', ensureAuth(), async (req,res) => {
       orders = await db.select().from(ordersTable).where(inArray(ordersTable.productId, productIds))
     }
     const deliveredStatuses = new Set(['delivered','completed'])
-    const now = new Date()
-    const dayMs = 24*60*60*1000
-    // Prepare 7-day buckets (including today) keyed by yyyy-mm-dd
-    const dailyBuckets = {}
-    for (let i=6;i>=0;i--) {
-      const d = new Date(now.getTime() - i*dayMs)
-      const key = d.toISOString().slice(0,10)
-      dailyBuckets[key] = 0
-    }
-  let totalRevenue = 0
-  let totalDelivered = 0
-  let activeOrders = 0
+    let totalRevenue = 0
+    let totalDelivered = 0
+    let activeOrders = 0
     const perListing = new Map()
     for (const o of orders) {
       const amt = Number(o.totalAmount) || 0
-      const entry = perListing.get(o.productId) || { productId: o.productId, orders: 0, delivered: 0, revenue: 0, qty: 0, deliveredQty: 0, unitPriceSum: 0, lastOrderAt: null }
+      const st = String(o.status || '').toLowerCase()
+      const isPaid = ['paid','shipped','delivered'].includes(st)
+      const isRefunded = false // no refunds tracked in orders schema currently
+      const entry = perListing.get(o.productId) || { productId: o.productId, orders: 0, delivered: 0, revenue: 0, qty: 0, deliveredQty: 0, paidQty: 0, unitPriceSum: 0, lastOrderAt: null }
       entry.orders += 1
       entry.qty += Number(o.quantity) || 0
       entry.unitPriceSum += Number(o.unitPrice) || 0
-      if (deliveredStatuses.has((o.status||'').toLowerCase())) {
+      if (deliveredStatuses.has(st)) {
         entry.delivered += 1
-        entry.revenue += amt
         entry.deliveredQty += Number(o.quantity) || 0
-        totalRevenue += amt
         totalDelivered += 1
       } else {
         // Count only actionable orders as 'active' (exclude cancelled/rejected)
-        const lower = (o.status||'').toLowerCase()
-        if (['pending','accepted','shipped'].includes(lower)) activeOrders += 1
+        if (['pending','paid','shipped'].includes(st)) activeOrders += 1
       }
-      const created = o.createdAt instanceof Date ? o.createdAt : new Date(o.createdAt)
-      if (!isNaN(created)) {
-        if (!entry.lastOrderAt || created > entry.lastOrderAt) entry.lastOrderAt = created
-        const key = created.toISOString().slice(0,10)
-        if (dailyBuckets[key] != null && deliveredStatuses.has((o.status||'').toLowerCase())) {
-          dailyBuckets[key] += amt
+      // Count revenue only when paid (exclude refunded)
+      if (isPaid && !isRefunded) {
+        entry.revenue += amt
+        if (!deliveredStatuses.has(st)) entry.paidQty += Number(o.quantity) || 0
+        else {
+          // delivered are also fully paid; count them under deliveredQty only for breakdown
+        }
+        totalRevenue += amt
+        // Track last activity time per listing; use createdAt since no paidAt column
+        const when = (o.createdAt instanceof Date ? o.createdAt : new Date(o.createdAt))
+        if (!isNaN(when)) {
+          if (!entry.lastOrderAt || when > entry.lastOrderAt) entry.lastOrderAt = when
         }
       }
       perListing.set(o.productId, entry)
     }
     const listingStats = prods.map(p => {
-      const s = perListing.get(p.id) || { productId: p.id, orders: 0, delivered: 0, revenue: 0, qty: 0, deliveredQty: 0, unitPriceSum: 0, lastOrderAt: null }
+      const s = perListing.get(p.id) || { productId: p.id, orders: 0, delivered: 0, revenue: 0, qty: 0, deliveredQty: 0, paidQty: 0, unitPriceSum: 0, lastOrderAt: null }
       const avgUnitPrice = s.unitPriceSum && s.orders ? (s.unitPriceSum / s.orders) : 0
+      const availableQty = Number(p.quantityAvailable || 0)
       return {
         id: p.id,
         title: p.title,
@@ -83,6 +82,9 @@ router.get('/earnings/farmer/summary', ensureAuth(), async (req,res) => {
         revenue: s.revenue,
         totalQuantity: s.qty,
         deliveredQuantity: s.deliveredQty,
+        paidQuantity: s.paidQty,
+        availableQuantity: availableQty,
+        totalUnits: s.deliveredQty + s.paidQty + availableQty,
         avgUnitPrice,
         lastOrderAt: s.lastOrderAt ? s.lastOrderAt.toISOString() : null,
         profit: null, // Placeholder until cost basis is implemented
@@ -90,15 +92,13 @@ router.get('/earnings/farmer/summary', ensureAuth(), async (req,res) => {
       }
     })
     const activeListings = listingStats.filter(l => l.status === 'active').length
-    const trend = Object.entries(dailyBuckets).map(([date, revenue]) => ({ date, revenue }))
     res.json({
-      currency: 'KES',
+      currency: 'Ksh',
       totalRevenue,
       activeOrders,
       deliveredOrders: totalDelivered,
       listings: listingStats,
       activeListings,
-      trend,
       profit: null,
       profitMargin: null,
       loss: null,

@@ -387,3 +387,51 @@ export const requestMetricsTable = pgTable("request_metrics", {
   durationMs: integer("duration_ms").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 })
+
+// =======================
+// M-PESA (Daraja) Tables
+// =======================
+export const mpesaTransactionsTable = pgTable("mpesa_transactions", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id").references(() => ordersTable.id),
+  phone: varchar("phone", { length: 32 }).notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  accountReference: varchar("account_reference", { length: 64 }),
+  transactionDesc: varchar("transaction_desc", { length: 160 }),
+  shortcode: varchar("shortcode", { length: 16 }),
+  checkoutRequestId: text("checkout_request_id").unique(),
+  merchantRequestId: text("merchant_request_id"),
+  resultCode: varchar("result_code", { length: 16 }),
+  resultDesc: text("result_desc"),
+  mpesaReceiptNumber: varchar("mpesa_receipt_number", { length: 64 }),
+  transactionDate: timestamp("transaction_date"),
+  status: varchar("status", { length: 20 }).default('initiated'), // initiated | pending | success | failed | cancelled | timeout
+  rawCallback: jsonb("raw_callback"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+})
+
+export const mpesaB2cPaymentsTable = pgTable("mpesa_b2c_payments", {
+  id: serial("id").primaryKey(),
+  phone: varchar("phone", { length: 32 }).notNull(),
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  commandId: varchar("command_id", { length: 32 }).default('BusinessPayment'),
+  remarks: varchar("remarks", { length: 160 }),
+  occasion: varchar("occasion", { length: 64 }),
+  shortcode: varchar("shortcode", { length: 16 }),
+  conversationId: varchar("conversation_id", { length: 128 }), // OriginatorConversationID / ConversationID
+  transactionId: varchar("transaction_id", { length: 64 }),
+  resultCode: varchar("result_code", { length: 16 }),
+  resultDesc: text("result_desc"),
+  rawResult: jsonb("raw_result"),
+  status: varchar("status", { length: 20 }).default('pending'), // pending | success | failed | timeout
+  createdAt: timestamp("created_at").defaultNow(),
+})
+
+export const mpesaCallbackLogsTable = pgTable("mpesa_callback_logs", {
+  id: serial("id").primaryKey(),
+  type: varchar("type", { length: 32 }).notNull(), // stk | result | timeout | c2b_confirmation | c2b_validation
+  body: jsonb("body").notNull(),
+  relatedId: integer("related_id"), // optional reference id in other tables
+  receivedAt: timestamp("received_at").defaultNow(),
+})

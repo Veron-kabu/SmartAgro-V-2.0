@@ -28,15 +28,18 @@ export function useResolvedUrls(urls) {
     return true
   }
 
-  const makeSig = (arr) => {
-    try { return JSON.stringify(arr) } catch { return String(arr?.length || 0) }
-  }
+  // makeSig no longer used; listSig replaces it
+
+  // Create stable effect keys that won't churn when callers pass new array identities with same contents
+  const listSig = useMemo(() => {
+    try { return JSON.stringify(list) } catch { return String(list?.length || 0) }
+  }, [list])
+  const authSig = isLoaded ? (isSignedIn ? 'auth:in' : 'auth:out') : 'auth:pending'
 
   useEffect(() => {
     let cancelled = false
-    // Include auth readiness in signature so a late token triggers a re-resolve
-    const authSig = isLoaded ? (isSignedIn ? 'auth:in' : 'auth:out') : 'auth:pending'
-    const sig = `${makeSig(list)}|${authSig}`
+    // Compose a signature purely from stable strings to avoid false-positive reruns
+    const sig = `${listSig}|${authSig}`
     // If inputs haven't actually changed, skip work to avoid loops
     if (sigRef.current === sig) return () => { cancelled = true }
     sigRef.current = sig
@@ -46,7 +49,11 @@ export function useResolvedUrls(urls) {
       return () => { cancelled = true }
     }
 
-    if (list.length === 0) {
+    // Recreate list from signature to keep effect dependency strictly on the signature
+    let parsed
+    try { parsed = JSON.parse(listSig) } catch { parsed = [] }
+
+    if (parsed.length === 0) {
       if (resolvedRef.current.length !== 0) {
         resolvedRef.current = []
         setResolved([])
@@ -55,8 +62,10 @@ export function useResolvedUrls(urls) {
     }
 
     ;(async () => {
-      const out = new Array(list.length)
-      const tasks = list.map(async (u, idx) => {
+      // Capture signature for this run to avoid racing setState after deps change
+      const runSig = sig
+      const out = new Array(parsed.length)
+      const tasks = parsed.map(async (u, idx) => {
         try {
           if (cache.has(u)) { out[idx] = cache.get(u); return }
           const q = encodeURIComponent(u)
@@ -70,14 +79,16 @@ export function useResolvedUrls(urls) {
         }
       })
       await Promise.all(tasks)
-      if (!cancelled && !arraysEqual(resolvedRef.current, out)) {
+      // Abort if inputs changed mid-flight or effect cleaned up
+      if (cancelled || sigRef.current !== runSig) return
+      if (!arraysEqual(resolvedRef.current, out)) {
         resolvedRef.current = out
         setResolved(out)
       }
     })()
 
     return () => { cancelled = true }
-  }, [list, isLoaded, isSignedIn])
+  }, [listSig, authSig, isLoaded])
 
   // Keep a ref in sync with the latest resolved array to avoid depending on it in the main effect
   useEffect(() => {
