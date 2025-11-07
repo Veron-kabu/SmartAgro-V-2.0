@@ -8,7 +8,7 @@ import { ENV, validateEnv } from "./config/env.js"
 import cronJob, { blurhashBackfillJob, orphanProductImageCleanupJob, cleanupExpiredCodesTokensJob, dailyDigestJob } from "./config/cron.js"
 import { usersTable } from "./db/schema.js"
 import { eq, like } from "drizzle-orm"
-import locationRouter from "./models/location.js"
+import locationRoutes from './routes/location.js'
 import userRoutes from './routes/users.js'
 import productRoutes from './routes/products.js'
 import uploadRoutes from './routes/uploads.js'
@@ -81,7 +81,8 @@ app.use('/api', miscRoutes)
 app.use('/api', webhookRoutes)
 app.use('/api', marketPricesRoutes)
 app.use('/api', mpesaRoutes)
-//    Location router not namespaced (legacy path design) — can be migrated later if desired.
+//    Location routes (OSM/Nominatim-based)
+app.use('/api', locationRoutes)
 
 // 5) Background jobs (production only) + optional Clerk automation (any env)
 if (ENV.NODE_ENV === "production") {
@@ -138,8 +139,7 @@ if (ENV.NODE_ENV === "production") {
 app.use(protectRoutes(["/protected(.*)"], { mode: "redirect" }))
 app.use(protectRoutes(["/api/admin(.*)", "/api/secure(.*)"], { mode: "api" }))
 
-// 7) Non-namespaced legacy location routes (consider moving under /api later)
-app.use(locationRouter)
+// 7) Legacy location routes removed as part of OSM/Nominatim refactor
 
 // 8) End of core server bootstrap. Webhook + feature logic lives in /routes/*.js
 //    Keep this file focused on wiring, not business logic.

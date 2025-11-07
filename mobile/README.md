@@ -20,6 +20,7 @@ Key Technologies
 - Clerk (auth token; integrated via token getter)
 - Custom hooks (useDashboardMedia, useDashboardStats)
 - Lightweight toast notifications
+ - Leaflet.js via WebView (OpenStreetMap tiles) for location picker
 
 Project Structure (selected)
 ---------------------------
@@ -83,6 +84,10 @@ setAuthTokenGetter(async () => {
 
 Troubleshooting
 ---------------
+Map not showing in location picker:
+- Install the WebView dependency: `npx expo install react-native-webview` (already in package.json).
+- Ensure device has internet to load OSM tiles.
+
 Images stuck blurred:
 - Confirm EXPO_PUBLIC_API_URL is reachable.
 - Ensure device & backend share network (LAN dev).
@@ -97,6 +102,7 @@ Future Enhancements
 - Accessibility labels for images
 - Skeleton loaders for non-image content
 - Prefetch & priority image queue
+ - Native map alternative with UrlTile if WebView is undesirable
 
 License
 -------

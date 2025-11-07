@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native'
+import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, TextInput } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useCart } from '../../context/cart'
 import { useEffect, useState, useCallback } from 'react'
@@ -8,7 +8,8 @@ import { COLORS } from '../../constants/colors'
 import { useProfile } from '../../context/profile'
 import { useToast } from '../../context/toast'
 import { initiateStkPush, getStkStatus } from '../../utils/mpesa'
-import { postJSON } from '../../context/api'
+import { postJSON, patchJSON } from '../../context/api'
+import { Ionicons } from '@expo/vector-icons'
 
 export default function CheckoutPlaceholder() {
   const router = useRouter()
@@ -21,6 +22,9 @@ export default function CheckoutPlaceholder() {
   const [paying, setPaying] = useState(false)
   const { profile } = useProfile()
   const { show } = useToast()
+  const [deliveryAddress, setDeliveryAddress] = useState('')
+  const [deliveryObj, setDeliveryObj] = useState(null)
+  const [phone, setPhone] = useState('')
 
   const validate = useCallback(async () => {
     if (!items.length) { setValidating(false); setCurrentTotal(0); setLastStableTotal(0); setAdjustments([]); setPendingPriceChanges([]); return }
@@ -43,15 +47,40 @@ export default function CheckoutPlaceholder() {
 
   useEffect(() => { validate() }, [validate])
 
+  // Prefill delivery address from profile, allow override
+  useEffect(() => {
+    if (!profile) return
+    setDeliveryAddress(prev => prev || (typeof profile?.location === 'string' ? profile.location : (profile?.placeName || '')))
+    setPhone(prev => prev || (profile?.phone || ''))
+    // Clear any stale structured object when profile changes unless user selected explicitly
+    setDeliveryObj(null)
+  }, [profile])
+
+  // Listen for delivery address picked from map
+  useEffect(() => {
+    const { on, off } = require('../../utils/eventBus')
+    const handler = (payload) => {
+      if (payload?.address) setDeliveryAddress(payload.address)
+      if (payload) setDeliveryObj({ text: payload.address || '', coords: payload.coords || null, details: payload.details || null })
+    }
+    on('location:delivery-selected', handler)
+    return () => off('location:delivery-selected', handler)
+  }, [])
+
   const payNow = useCallback(async () => {
     if (validating) return
     const amount = Number(currentTotal)
-    const phone = profile?.phone || null
-    if (!phone) { show('Add your phone number in Profile to pay via M-Pesa.', { type: 'warning' }); return }
+  const buyerPhone = (phone || '').trim()
+  if (!buyerPhone) { show('Enter a phone number to pay via M-Pesa.', { type: 'warning' }); return }
+    if (!deliveryAddress || !deliveryAddress.trim()) { show('Add a delivery address before paying.', { type: 'warning' }); return }
     if (!Number.isFinite(amount) || amount <= 0) { show('Invalid total amount', { type: 'error' }); return }
     try {
       setPaying(true)
-  const resp = await initiateStkPush({ phone, amount, accountReference: 'SmartAgro Cart', transactionDesc: 'Cart payment' })
+      // Persist phone if newly provided or changed
+      if ((buyerPhone && buyerPhone !== (profile?.phone || ''))) {
+        try { await patchJSON('/api/users/profile', { phone: buyerPhone }) } catch {}
+      }
+  const resp = await initiateStkPush({ phone: buyerPhone, amount, accountReference: 'SmartAgro Cart', transactionDesc: 'Cart payment' })
       show('Prompt sent. Enter M-Pesa PIN to continue…', { type: 'info' })
       const checkoutRequestID = resp?.checkoutRequestID || resp?.CheckoutRequestID
       if (checkoutRequestID) {
@@ -67,7 +96,12 @@ export default function CheckoutPlaceholder() {
               try {
                 const payload = {
                   checkoutRequestID,
-                  items: items.map(it => ({ product_id: it.id, quantity: it.quantity, delivery_address: profile?.location || null, notes: null }))
+                  items: items.map(it => ({
+                    product_id: it.id,
+                    quantity: it.quantity,
+                    delivery_address: deliveryObj || (deliveryAddress ? { text: deliveryAddress } : null),
+                    notes: null
+                  }))
                 }
                 await postJSON('/api/orders/cart-after-payment', payload)
                 clearCart()
@@ -92,11 +126,37 @@ export default function CheckoutPlaceholder() {
     } finally {
       setPaying(false)
     }
-  }, [validating, currentTotal, profile?.phone, profile?.location, items, clearCart, show, router])
+  }, [validating, currentTotal, deliveryAddress, deliveryObj, phone, profile?.phone, items, clearCart, show, router])
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Checkout (Validation)</Text>
+        {/* Delivery address input with map picker */}
+        <View style={{ marginTop: 12 }}>
+          <Text style={styles.meta}>Delivery Address</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
+            <TextInput
+              style={{ flex: 1, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, paddingHorizontal: 12, minHeight: 44, color: COLORS.text }}
+              value={deliveryAddress}
+              onChangeText={(t) => { setDeliveryAddress(t); setDeliveryObj(null) }}
+              placeholder="Enter delivery address or pick on map"
+            />
+            <TouchableOpacity onPress={() => router.push({ pathname: '/location-picker', params: { mode: 'delivery' } })} activeOpacity={0.85} style={{ padding: 8 }}>
+              <Ionicons name="location" size={22} color={COLORS.primary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+        <View style={{ marginTop: 20 }}>
+          <Text style={styles.meta}>Phone Number</Text>
+          <TextInput
+            style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 8, paddingHorizontal: 12, height: 44, color: COLORS.text, marginTop:8 }}
+            keyboardType='phone-pad'
+            value={phone}
+            onChangeText={setPhone}
+            placeholder="+254xxxxxxxxx"
+          />
+          {/* Helper removed as requested */}
+        </View>
       {validating && (
         <View style={{ marginTop:16, flexDirection:'row', alignItems:'center' }}>
           <ActivityIndicator size='small' color={COLORS.primary} />

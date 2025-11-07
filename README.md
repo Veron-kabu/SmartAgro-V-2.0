@@ -17,29 +17,39 @@ Implications:
 
 If you introduce an admin panel later, ensure any role change flow includes audit logging and explicit confirmation.
 
-## Location & Nearby Features
+## Location & Nearby (OSM + Nominatim + Leaflet)
 
-This project supports live user locations and "nearby" discovery for farmers, buyers, and listings — all implemented with free components (no paid services).
+We refactored the entire location system to use free, open-source components:
+- OpenStreetMap (OSM) as tile/map + place data
+- Nominatim for geocoding and reverse geocoding
+- Leaflet.js in the mobile app via a WebView for interactive maps
 
 ### What’s included
-- Save user live location: `PATCH /api/location` (jsonb stored in Postgres)
-- Nearby farmers for buyers: `GET /api/location/nearby/farmers`
-- Nearby buyers for farmers: `GET /api/location/nearby/buyers`
-- Nearby products (farmer listings): `GET /api/location/nearby/products`
-- Get your saved location: `GET /api/location/me`
-- Get any user’s location by id: `GET /api/location/user/:id` (auth required)
-- Performance: free geocell prefilter + index, in-memory bounding box, Haversine distance
+- Save user live location with readable name: `PATCH /api/location`
+- Nearby farmers: `GET /api/location/nearby/farmers`
+- Nearby buyers: `GET /api/location/nearby/buyers`
+- Nearby products: `GET /api/location/nearby/products`
+- My saved location: `GET /api/location/me`
+- Public geocode helpers: `GET /api/location/geocode`, `GET /api/location/reverse`
+
+Normalized DB columns on `users` and `products`:
+- `latitude` (numeric)
+- `longitude` (numeric)
+- `place_name` (text)
+- `address_details` (jsonb)
+(Legacy `location` jsonb kept for backward compatibility; new code should use normalized columns.)
 
 ### Backend setup
-1) Ensure `.env` has your Neon Postgres URL (already present):
+1) Ensure `.env` has your Neon Postgres URL:
 	 - `DATABASE_URL=postgresql://...`
+	 - Optional: `CONTACT_EMAIL=you@example.com` (included in Nominatim User-Agent)
 
-2) Apply the geocell migration (adds `geo_cell`, triggers, indexes, backfills). From the `backend` folder:
+2) Apply the location refactor migration. From the `backend` folder:
 ```pwsh
 cd .\backend
-npm run migrate:geocell
+node .\scripts\apply-location-refactor.mjs
 ```
-Expected: `✅ Geocell migration applied successfully.`
+Expected: `✅ Location refactor migration applied successfully.`
 
 3) Start the API:
 ```pwsh
@@ -47,26 +57,28 @@ npm run dev
 ```
 
 ### API usage (auth required)
-- Save your location:
+- Save your location (reverse geocoded automatically if `place_name` omitted):
 	- `PATCH /api/location` body:
 		```json
-		{ "lat": 0.3476, "lng": 32.5825, "address": "Kampala", "country": "UG" }
+		{ "lat": -1.286389, "lng": 36.817223 }
 		```
+- Nearby (pass `lat`/`lng` or fallback to your saved location):
+	- Buyer → farmers: `GET /api/location/nearby/farmers?radiusKm=25&limit=20`
+	- Buyer → products: `GET /api/location/nearby/products?radiusKm=25&limit=30`
+	- Farmer → buyers: `GET /api/location/nearby/buyers?radiusKm=25&limit=20`
 
-- Nearby (either pass `lat`/`lng` in query OR let the API fall back to your saved location):
-	- Buyer → farmers: `GET /api/location/nearby/farmers?lat=0.3476&lng=32.5825&radiusKm=25&limit=20`
-	- Buyer → products: `GET /api/location/nearby/products?lat=0.3476&lng=32.5825&radiusKm=25&limit=30`
-	- Farmer → buyers: `GET /api/location/nearby/buyers?lat=0.3476&lng=32.5825&radiusKm=25&limit=20`
-
-- Product creation includes `location` (jsonb) to place listings on the map:
+- Product creation requires coordinates and accepts optional name/address:
 	```json
 	{
 		"title": "Organic Tomatoes",
-		"category": "Vegetables",
+		"category": "vegetables",
 		"price": 3.5,
 		"unit": "kg",
 		"quantity_available": 100,
-		"location": { "lat": 0.35, "lng": 32.58, "address": "Kampala" },
+		"latitude": -1.286389,
+		"longitude": 36.817223,
+		"place_name": "Nairobi, Nairobi County, Kenya",
+		"address_details": { "city": "Nairobi", "country": "Kenya" },
 		"description": "Fresh from farm",
 		"images": [],
 		"is_organic": true
@@ -104,59 +116,31 @@ npx expo install expo-location
 ### Verifying data in Neon
 Use the Neon SQL console:
 ```sql
-SELECT id, username, role, geo_cell, location
+SELECT id, username, role, latitude, longitude, place_name
 FROM users
 ORDER BY updated_at DESC
 LIMIT 20;
 
-SELECT id, title, geo_cell, location
+SELECT id, title, latitude, longitude, place_name
 FROM products
 ORDER BY updated_at DESC
 LIMIT 20;
 ```
 
 ### Performance notes (free)
-- Geocell prefilter (0.1° cells) using `users.geo_cell` and `products.geo_cell` + indexes
-- In-memory bounding-box check before Haversine distance
+- SQL bounding-box filter on latitude/longitude
 - Final Haversine distance in Node for accuracy
 
-If your Postgres host supports extensions (`CREATE EXTENSION`), you can switch to PostGIS or `cube/earthdistance` for SQL-native KNN and geo indexes. These are free, but many serverless hosts restrict extensions.
-
-### What is `geo_cell` and why do we use it?
-`geo_cell` is a coarse, string-based geospatial bucket that we compute from a point’s latitude/longitude and store in the database for fast, free prefiltering.
-
-- How it’s computed
-	- We quantize each coordinate at a fixed resolution (default `res = 10`, i.e. 0.1° increments):
-		- `cell_lat = floor(lat * res)`
-		- `cell_lng = floor(lng * res)`
-	- The stored value is `"<cell_lat>:<cell_lng>"`, e.g. `"3:325"`.
-	- A Postgres trigger updates `users.geo_cell` and `products.geo_cell` whenever `location` changes.
-
-- Why it helps
-	- Nearby searches only need to scan a small set of adjacent cells instead of the whole table.
-	- We added a regular B-Tree index on `geo_cell`, so lookups like `WHERE geo_cell IN (...)` are fast—no PostGIS required.
-	- It’s free and works on serverless Postgres providers that don’t allow extensions.
-
-- Caveats / notes
-	- `geo_cell` is approximate; it narrows candidates. We still run a precise Haversine distance check on the filtered rows.
-	- Resolution trade-off:
-		- Higher `res` (smaller cells) = fewer candidates but more neighbor cells to check.
-		- Lower `res` (larger cells) = more candidates but fewer neighbor cells.
-	- We currently use `res = 10` (~0.1° ≈ ~11 km latitude). You can change the function/trigger if needed.
-
-	#### Tuning via environment
-	- App-side geocell resolution: set `GEO_CELL_RES` (default 10) in `backend/.env`.
-		- Bounds: 1–100; larger = finer grid.
-		- Note: The DB trigger currently uses `res = 10`. If you change `GEO_CELL_RES`, consider updating the SQL trigger default to match for tighter prefiltering.
+If your Postgres host supports extensions (`CREATE EXTENSION`), consider PostGIS or `cube/earthdistance` for geo indexes. These are free but not always available on serverless providers.
 
 ### Troubleshooting
 - 401 Unauthorized: make sure you’re authenticated (mobile app provides Clerk JWT automatically). For manual tests, include a valid `Authorization: Bearer <token>` header.
 - Do not run `expo` installs in the backend folder; use the `mobile` folder.
 - Migration can be re-run safely:
-	```pwsh
-	cd .\backend
-	npm run migrate:geocell
-	```
+  ```pwsh
+  cd .\backend
+  node .\scripts\apply-location-refactor.mjs
+  ```
 
 ### Drizzle Migrations (Important)
 

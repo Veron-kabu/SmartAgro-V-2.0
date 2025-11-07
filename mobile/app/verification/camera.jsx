@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { View, Text, Pressable, StyleSheet, Image, Alert } from 'react-native'
+import ImageLightbox from '../../components/ImageLightbox'
 import { useRouter } from 'expo-router'
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import * as Location from 'expo-location'
+import { reverseGeocode } from '../../utils/geocoding'
 import CameraOverlay from '../../components/CameraOverlay'
 import { buildDeviceInfo } from '../../utils/verification'
 import { COLORS, BACKDROP } from '../../constants/colors'
@@ -15,6 +17,7 @@ export default function VerificationCamera() {
   const [locGranted, setLocGranted] = useState(false)
   const [captures, setCaptures] = useState([]) // [{uri, meta}]
   const [busy, setBusy] = useState(false)
+  const [previewIndex, setPreviewIndex] = useState(null) // full-screen preview index
 
   useEffect(() => {
     ;(async () => {
@@ -63,12 +66,24 @@ export default function VerificationCamera() {
         }
         if (position?.coords) {
           const { latitude, longitude, accuracy, altitude, altitudeAccuracy } = position.coords
+          // Reverse geocode to normalized fields (place_name + address_details)
+          let place = null
+          try { place = await reverseGeocode(latitude, longitude) } catch {}
           setCaptures(prev => {
             const next = [...prev]
             if (next[insertIndex] && next[insertIndex].meta) {
               next[insertIndex] = {
                 ...next[insertIndex],
-                meta: { ...next[insertIndex].meta, lat: latitude, lng: longitude, accuracy: accuracy ?? next[insertIndex].meta.accuracy, altitude: altitude ?? next[insertIndex].meta.altitude, altitude_accuracy: altitudeAccuracy ?? next[insertIndex].meta.altitude_accuracy },
+                meta: {
+                  ...next[insertIndex].meta,
+                  lat: latitude,
+                  lng: longitude,
+                  accuracy: accuracy ?? next[insertIndex].meta.accuracy,
+                  altitude: altitude ?? next[insertIndex].meta.altitude,
+                  altitude_accuracy: altitudeAccuracy ?? next[insertIndex].meta.altitude_accuracy,
+                  place_name: place?.placeName || null,
+                  address_details: place?.address || null,
+                },
               }
             }
             return next
@@ -106,7 +121,7 @@ export default function VerificationCamera() {
               {captures.map((c, i) => {
                 const hasGps = c?.meta?.lat != null && c?.meta?.lng != null
                 return (
-                  <View key={i} style={styles.thumbWrap}>
+                  <Pressable key={i} style={styles.thumbWrap} onPress={() => setPreviewIndex(i)} accessibilityLabel={`Preview photo ${i+1}`}>
                     <Image source={{ uri: c.uri }} style={styles.thumb} />
                     {/* Remove button */}
                     <Pressable onPress={() => deleteCapture(i)} style={styles.removeBtn} accessibilityLabel={`Remove photo ${i+1}`}>
@@ -118,7 +133,7 @@ export default function VerificationCamera() {
                         <Ionicons name="location-sharp" size={12} color={COLORS.white} />
                       </View>
                     )}
-                  </View>
+                  </Pressable>
                 )
               })}
             </View>
@@ -141,6 +156,13 @@ export default function VerificationCamera() {
               </Pressable>
             )}
           </View>
+          {/* Zoomable image preview using shared lightbox (falls back gracefully if lib missing) */}
+          <ImageLightbox
+            images={captures.map(c => c.uri)}
+            index={previewIndex ?? 0}
+            visible={previewIndex !== null}
+            onRequestClose={() => setPreviewIndex(null)}
+          />
           {!locGranted && (
             <View style={styles.warn}><Text style={styles.warnText}>Location permission denied. GPS will be missing.</Text></View>
           )}
@@ -170,4 +192,9 @@ const styles = StyleSheet.create({
   warnText: { color: COLORS.white },
   clearBtn: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(255,255,255,0.7)' },
   clearText: { color: COLORS.white, fontWeight: '700' },
+  previewBackdrop: { flex:1, backgroundColor:'rgba(0,0,0,0.9)', alignItems:'center', justifyContent:'center' },
+  previewClose: { position:'absolute', top:40, right:20, padding:8 },
+  previewImage: { width: '92%', height: '70%', borderRadius: 8 },
+  previewMetaBox: { position:'absolute', bottom: 40, left: 20, right: 20, backgroundColor:'rgba(0,0,0,0.6)', padding: 8, borderRadius: 8 },
+  previewMetaText: { color:'#fff', fontSize:12 }
 })

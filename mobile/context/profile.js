@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react"
 import { useAuth, useUser } from "@clerk/clerk-expo"
 import { getJSON, postJSON, setAuthTokenGetter } from "./api"
+import { pushInitialLocationIfMissing } from "../utils/location"
 // Base URL is centralized in the API client; pass only paths
 
 const ProfileContext = createContext({
@@ -82,6 +83,8 @@ export function ProfileProvider({ children }) {
           // Re-fetch after creating
           const created = await getJSON(`/api/users/profile`)
           setProfile(created)
+          // One-time auto-detect on signup to set location
+          try { await pushInitialLocationIfMissing(created) } catch {}
           setError(null)
         } catch (createErr) {
           console.error("Profile auto-create failed:", createErr)

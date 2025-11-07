@@ -111,16 +111,7 @@ export default function ProductCard({ product }) {
     return { label, bg, fg };
   };
 
-  const getLocationText = () => {
-    const loc = product.location;
-    if (!loc) return 'Unknown';
-    if (typeof loc === 'string') return loc;
-    if (typeof loc === 'object') {
-      if (loc.name) return loc.name;
-      if (loc.lat && loc.lng) return `${loc.lat},${loc.lng}`;
-    }
-    return 'Unknown';
-  };
+  // Location text helper removed as location is no longer displayed on the card
 
   const statusInfo = getStatusInfo();
 
@@ -243,22 +234,7 @@ export default function ProductCard({ product }) {
           </View>
         </View>
 
-        {/* Location */}
-        <View style={{
-          flexDirection: "row",
-          alignItems: "center",
-          marginTop: 4,
-          marginBottom: 8,
-        }}>
-          <Ionicons name="location" size={12} color={COLORS.textLight} />
-          <Text style={{
-            fontSize: 11,
-            color: COLORS.textLight,
-            marginLeft: 4,
-          }}>
-            {getLocationText()}
-          </Text>
-        </View>
+        {/* Location intentionally hidden to prevent overflow of long place names */}
 
         {/* Action Buttons */}
         <View style={{

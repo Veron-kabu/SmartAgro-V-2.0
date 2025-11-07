@@ -11,6 +11,7 @@ import {
   jsonb,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
+import { index } from "drizzle-orm/pg-core";
 
 // =======================
 // USERS
@@ -23,8 +24,13 @@ export const usersTable = pgTable("users", {
   role: varchar("role", { length: 20 }).notNull(), // buyer, farmer, admin
   fullName: varchar("full_name", { length: 255 }),
   phone: varchar("phone", { length: 20 }),
+  // New normalized location fields (OSM/Nominatim based)
+  latitude: decimal("latitude", { precision: 10, scale: 7 }), // -90..90 up to ~1cm
+  longitude: decimal("longitude", { precision: 10, scale: 7 }), // -180..180 up to ~1cm
+  placeName: varchar("place_name", { length: 255 }),
+  addressDetails: jsonb("address_details"), // raw Nominatim address object
+  // Deprecated: legacy blob used before OSM/Nominatim refactor. Kept for backward-compat reads only.
   location: jsonb("location"),
-  geoCell: varchar("geo_cell", { length: 32 }),
   profileImageUrl: text("profile_image_url"),
   bannerImageUrl: text("banner_image_url"),
   profileImageBlurhash: text("profile_image_blurhash"),
@@ -38,7 +44,10 @@ export const usersTable = pgTable("users", {
   status: varchar("status", { length: 20 }).default("active"), // active, inactive, suspended
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (t) => ({
+  // Composite index helps nearby queries that filter/sort by both lat & lng
+  idxUsersLatLng: index("idx_users_lat_lng").on(t.latitude, t.longitude),
+}));
 
 // =======================
 // PRODUCTS (Farmer Listings)
@@ -55,8 +64,13 @@ export const productsTable = pgTable("products", {
   minimumOrder: integer("minimum_order").default(1),
   harvestDate: timestamp("harvest_date"),
   expiryDate: timestamp("expiry_date"),
-  location: jsonb("location").notNull(),
-  geoCell: varchar("geo_cell", { length: 32 }),
+  // New normalized location fields for listings
+  latitude: decimal("latitude", { precision: 10, scale: 7 }),
+  longitude: decimal("longitude", { precision: 10, scale: 7 }),
+  placeName: varchar("place_name", { length: 255 }),
+  addressDetails: jsonb("address_details"),
+  // Deprecated: legacy blob used before OSM/Nominatim refactor. Keep for backward-compat
+  location: jsonb("location"),
   images: jsonb("images").default([]),
   thumbnails: jsonb("thumbnails").default([]),
   imageBlurhashes: jsonb("image_blurhashes").default([]),
@@ -65,7 +79,9 @@ export const productsTable = pgTable("products", {
   status: varchar("status", { length: 20 }).default("active"), // active, sold, expired, inactive
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (t) => ({
+  idxProductsLatLng: index("idx_products_lat_lng").on(t.latitude, t.longitude),
+}));
 
 // =======================
 // ORDERS

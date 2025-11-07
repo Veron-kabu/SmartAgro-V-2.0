@@ -1,7 +1,8 @@
 import { useLocalSearchParams, router } from 'expo-router'
 import { useEffect, useState, useCallback } from 'react'
 import { View, Text, ActivityIndicator, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native'
-import { getJSON, postJSON } from '../../context/api'
+import { Ionicons } from '@expo/vector-icons'
+import { getJSON, postJSON, patchJSON } from '../../context/api'
 import { track } from '../../utils/analytics'
 import { ANALYTICS_EVENTS } from '../../constants/analyticsEvents'
 import { formatCurrency } from '../../utils/orders'
@@ -20,6 +21,8 @@ export default function NewOrderScreen() {
   const [submitting, setSubmitting] = useState(false)
   const [quantity, setQuantity] = useState('1')
   const [deliveryAddress, setDeliveryAddress] = useState('')
+  const [deliveryObj, setDeliveryObj] = useState(null)
+  const [phone, setPhone] = useState('')
   const [notes, setNotes] = useState('')
   const { profile } = useProfile()
   const { show } = useToast()
@@ -36,6 +39,24 @@ export default function NewOrderScreen() {
 
   useEffect(() => { load() }, [load])
 
+  // Prefill delivery address from profile on first render
+  useEffect(() => {
+    if (!profile) return
+    setDeliveryAddress(prev => prev || (typeof profile?.location === 'string' ? profile.location : (profile?.placeName || '')))
+    setPhone(prev => prev || (profile?.phone || ''))
+  }, [profile])
+
+  // Listen for delivery address picked from map
+  useEffect(() => {
+    const { on, off } = require('../../utils/eventBus')
+    const handler = (payload) => {
+      if (payload?.address) setDeliveryAddress(payload.address)
+      if (payload) setDeliveryObj({ text: payload.address || '', coords: payload.coords || null, details: payload.details || null })
+    }
+    on('location:delivery-selected', handler)
+    return () => off('location:delivery-selected', handler)
+  }, [])
+
   async function submit() {
     if (!productId) return
     const qty = Number(quantity)
@@ -48,9 +69,9 @@ export default function NewOrderScreen() {
     setSubmitting(true)
     try {
       // Do NOT create the order yet. First take payment, then create.
-      const buyerPhone = profile?.phone || null
+      const buyerPhone = (phone || '').trim()
       if (!buyerPhone) {
-        show('Add your phone number in Profile to pay via M-Pesa.', { type: 'warning' })
+        show('Enter a phone number to pay via M-Pesa.', { type: 'warning' })
         return
       }
       const amount = Number(total)
@@ -59,6 +80,10 @@ export default function NewOrderScreen() {
         return
       }
       show('Sending payment request…', { type: 'info' })
+      // Persist phone if newly provided or changed
+      if ((buyerPhone && buyerPhone !== (profile?.phone || ''))) {
+        try { await patchJSON('/api/users/profile', { phone: buyerPhone }) } catch {}
+      }
       const resp = await initiateStkPush({ phone: buyerPhone, amount, accountReference: 'SmartAgro Order', transactionDesc: `Product #${productId}` })
       const checkoutRequestID = resp?.checkoutRequestID || resp?.CheckoutRequestID
       if (!checkoutRequestID) throw new Error('Failed to start payment')
@@ -81,7 +106,7 @@ export default function NewOrderScreen() {
       const created = await postJSON('/api/orders/after-payment', {
         product_id: productId,
         quantity: qty,
-        delivery_address: deliveryAddress.trim(),
+        delivery_address: deliveryObj || (deliveryAddress.trim() ? { text: deliveryAddress.trim() } : null),
         notes: notes.trim() || undefined,
         checkoutRequestID,
       })
@@ -151,13 +176,28 @@ export default function NewOrderScreen() {
   <Text style={styles.helper}>{product.minimumOrder ? `Minimum order: ${product.minimumOrder}` : ''}</Text>
         <View style={{ height: 16 }} />
         <Text style={styles.label}>Delivery Address</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TextInput
+            style={[styles.input, { minHeight: 60, textAlignVertical: 'top', flex: 1 }]}
+            multiline
+            value={deliveryAddress}
+            onChangeText={(t) => { setDeliveryAddress(t); setDeliveryObj(null) }}
+            placeholder='Enter delivery address'
+          />
+          <TouchableOpacity onPress={() => router.push({ pathname: '/location-picker', params: { mode: 'delivery' } })} activeOpacity={0.85} style={{ padding: 8 }}>
+            <Ionicons name="location" size={22} color={COLORS.primary} />
+          </TouchableOpacity>
+        </View>
+        <View style={{ height: 16 }} />
+        <Text style={styles.label}>Phone Number</Text>
         <TextInput
-          style={[styles.input, { minHeight: 60, textAlignVertical: 'top' }]}
-          multiline
-          value={deliveryAddress}
-          onChangeText={setDeliveryAddress}
-          placeholder='Enter delivery address'
+          style={styles.input}
+          keyboardType='phone-pad'
+          value={phone}
+          onChangeText={(t) => { setPhone(t) }}
+          placeholder='Phone number for payment & contact'
         />
+        {(!phone || phone.trim().length < 7) && <Text style={styles.helper}>Enter a valid phone (min 7 digits)</Text>}
         <View style={{ height: 16 }} />
         <Text style={styles.label}>Notes (optional)</Text>
         <TextInput

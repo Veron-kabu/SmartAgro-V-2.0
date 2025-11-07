@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
-import { View, Text, Image, StyleSheet, Pressable, ActivityIndicator, ScrollView } from 'react-native'
+import { View, Text, Image, StyleSheet, Pressable, ActivityIndicator, ScrollView, TouchableOpacity } from 'react-native'
+import ImageLightbox from '../../components/ImageLightbox'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { getUploadToken, uploadToPresignedUrl, directUploadToBackend, submitVerification, enqueueVerification } from '../../utils/verification'
 import { getJSON, postJSON } from '../../context/api'
@@ -15,6 +16,7 @@ export default function VerificationSubmit() {
   }, [payload])
   const [busy, setBusy] = useState(false)
   const [verifying, setVerifying] = useState(false)
+  const [previewIndex, setPreviewIndex] = useState(null)
 
   const doSubmit = async () => {
     if (!captures || captures.length < 1) return
@@ -59,7 +61,19 @@ export default function VerificationSubmit() {
           uploadKey = res.uploadKey || res.key || res.url || filename
           publicUrl = res.url || null
         }
-        return { uploadKey, lat: item.meta.lat, lng: item.meta.lng, accuracy: item.meta.accuracy, altitude: item.meta.altitude, altitude_accuracy: item.meta.altitude_accuracy, timestamp: item.meta.timestamp_utc, photo_index: item.meta.photo_index, url: publicUrl }
+        return {
+          uploadKey,
+          lat: item.meta.lat,
+          lng: item.meta.lng,
+          accuracy: item.meta.accuracy,
+          altitude: item.meta.altitude,
+          altitude_accuracy: item.meta.altitude_accuracy,
+          timestamp: item.meta.timestamp_utc,
+          photo_index: item.meta.photo_index,
+          place_name: item.meta.place_name || null,
+          address_details: item.meta.address_details || null,
+          url: publicUrl,
+        }
       }))
     const device_info = captures[0]?.meta?.device_info || null
     // Optional attestation token could be included if available in future
@@ -89,7 +103,9 @@ export default function VerificationSubmit() {
         <Text style={styles.title}>Review & Submit</Text>
         <View style={styles.row}>
           {captures.map((c, i) => (
-            <Image key={i} source={{ uri: c.uri }} style={styles.thumb} />
+            <TouchableOpacity key={i} activeOpacity={0.85} onPress={() => setPreviewIndex(i)}>
+              <Image source={{ uri: c.uri }} style={styles.thumb} />
+            </TouchableOpacity>
           ))}
         </View>
   <Text style={styles.p}>Each photo includes GPS and timestamp metadata.</Text>
@@ -104,6 +120,12 @@ export default function VerificationSubmit() {
           )}
         </Pressable>
       </View>
+      <ImageLightbox
+        images={captures.map(c => c.uri)}
+        index={previewIndex ?? 0}
+        visible={previewIndex !== null}
+        onRequestClose={() => setPreviewIndex(null)}
+      />
     </View>
   )
 }
@@ -119,4 +141,7 @@ const styles = StyleSheet.create({
   btn: { backgroundColor: COLORS.primary, paddingVertical: 14, borderRadius: 12, alignItems: 'center' },
   btnBusy: { opacity: 0.7 },
   btnText: { color: COLORS.white, fontWeight: '700' },
+  previewBackdrop: { flex:1, backgroundColor:'rgba(0,0,0,0.9)', alignItems:'center', justifyContent:'center' },
+  previewClose: { position:'absolute', top:40, right:20, padding:8 },
+  previewImage: { width: '92%', height: '75%', borderRadius: 8 },
 })

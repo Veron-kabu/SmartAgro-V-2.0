@@ -1,6 +1,8 @@
 import * as ExpoLocation from "expo-location"
-import { AppState } from "react-native"
 import { patchJSON } from "../context/api"
+import { reverseGeocode } from "./geocoding"
+// Auto-detection has been limited to signup/first profile completion only.
+// Periodic heartbeat removed to comply with user request and avoid excess Nominatim calls.
 
 export async function requestAndGetLatLng(options = { accuracy: ExpoLocation.Accuracy.Balanced }) {
   const { status } = await ExpoLocation.requestForegroundPermissionsAsync()
@@ -11,44 +13,30 @@ export async function requestAndGetLatLng(options = { accuracy: ExpoLocation.Acc
 
 export async function pushMyLocation(extra = {}) {
   const { lat, lng } = await requestAndGetLatLng()
-  return patchJSON("/api/location", { lat, lng, ...extra })
+  // Resolve readable place name via Nominatim
+  let place = null
+  try { place = await reverseGeocode(lat, lng) } catch {}
+  return patchJSON("/api/location", {
+    lat,
+    lng,
+    place_name: place?.placeName,
+    address_details: place?.address || null,
+    ...extra,
+  })
 }
 
-// Periodically update location; also triggers when app returns to foreground
-export function startLocationHeartbeat({ intervalMs = 300000, includeAddress = false } = {}) {
-  let timer = null
-  let appState = AppState.currentState
+// Deprecated: retained as a no-op for backward compatibility with any stale imports
+export function startLocationHeartbeat() {
+  return () => {}
+}
 
-  const doUpdate = async () => {
-    try {
-      const opts = includeAddress ? { accuracy: ExpoLocation.Accuracy.Balanced } : undefined
-      const { lat, lng } = await requestAndGetLatLng(opts)
-      await patchJSON("/api/location", { lat, lng })
-    } catch (_e) {
-      // Silently ignore permission/network issues
-    }
-  }
-
-  const startTimer = () => {
-    if (timer) clearInterval(timer)
-    timer = setInterval(doUpdate, intervalMs)
-  }
-
-  const handleAppStateChange = (nextState) => {
-    if (appState.match(/inactive|background/) && nextState === "active") {
-      // App came to foreground, push a quick update
-      doUpdate()
-    }
-    appState = nextState
-  }
-
-  // Initial immediate update and schedule next ones
-  doUpdate()
-  startTimer()
-  const sub = AppState.addEventListener("change", handleAppStateChange)
-
-  return () => {
-    if (timer) clearInterval(timer)
-    if (sub?.remove) sub.remove()
-  }
+// Run a one-time location push ONLY if the profile lacks coordinates.
+export async function pushInitialLocationIfMissing(profile) {
+  try {
+    if (!profile) return
+    const hasLat = typeof profile.latitude !== 'undefined' && profile.latitude !== null
+    const legacyHas = profile.location && typeof profile.location.lat === 'number'
+    if (hasLat || legacyHas) return
+    await pushMyLocation()
+  } catch { /* ignore */ }
 }

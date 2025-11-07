@@ -8,6 +8,7 @@ import { getJSON, postJSON } from '../../context/api'
 import { emitAppEvent } from '../../context/favorites'
 import * as ImagePicker from 'expo-image-picker'
 import { router } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import { useToast } from '../../context/toast'
 import BlurhashImage from '../../components/BlurhashImage'
 import { useResolvedUrls } from '../../hooks/useResolvedUrls'
@@ -22,7 +23,8 @@ export default function PostListing() {
   const [unit, setUnit] = useState('kg')
   const [quantity, setQuantity] = useState('')
   const [discountPercent, setDiscountPercent] = useState('')
-  const [location, setLocation] = useState(profile?.location || '')
+  const [location, setLocation] = useState(typeof profile?.location === 'string' ? profile.location : (profile?.placeName || ''))
+  const [locationObj, setLocationObj] = useState(null)
   const [imageUri, setImageUri] = useState(null)
   const [imageUploading, setImageUploading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -36,18 +38,11 @@ export default function PostListing() {
     const pairs = [
       [/tomato|tomatoes|kale|spinach|cabbage|onion|onions|carrot|carrots|lettuce|broccoli|cauliflower|pepper|peppers|zucchini|eggplant|brinjal|cucumber|okra|pumpkin|beetroot|beet|radish|celery|leek/, 'vegetables'],
       [/mango|mangos|mangoes|banana|bananas|orange|oranges|pineapple|avocado|apple|apples|pear|pears|grape|grapes|papaya|pawpaw|watermelon|melon|guava|peach|peaches|plum|plums|berry|berries|lemon|lime|tangerine|pomegranate/, 'fruits'],
-      [/maize|corn|wheat|barley|sorghum|rice|oat|oats|millet|quinoa|rye|spelt|buckwheat/, 'grains'],
-      [/potato|potatoes|cassava|yam|yams|sweet\s*potato|taro|arrowroot|plantain/, 'roots'],
-      [/groundnut|groundnuts|peanut|peanuts|sesame|sunflower|seed|seeds|almond|cashew|nut|nuts|walnut|walnuts|hazelnut|pistachio|flaxseed|chia/, 'nuts'],
-      [/bean|beans|lentil|lentils|chickpea|chickpeas|pea|peas|pigeon\s*pea|cowpea|soybean|soybeans|mung\s*bean|kidney\s*bean|black\s*bean|navy\s*bean/, 'legumes'],
+      [/maize|corn|wheat|barley|sorghum|rice|oat|oats|millet|quinoa|rye|spelt|buckwheatbean|beans|lentil|lentils|chickpea|chickpeas|pea|peas|pigeon\s*pea|cowpea|soybean|soybeans|mung\s*bean|kidney\s*bean|black\s*bean|navy\s*bean/, 'grains'],
+      [/potato|potatoes|cassava|yam|yams|sweet\s*potato|taro|arrowroot|ginger|garlic|turmeric|cumin|cinnamon|peppercorn|paprika|plantain/, 'roots'],
+      [/groundnut|groundnuts|macademia|peanut|peanuts|sesame|sunflower|seed|seeds|almond|cashew|nut|nuts|walnut|walnuts|hazelnut|pistachio|flaxseed|chia/, 'nuts'],
       [/milk|dairy|cheese|yoghurt|yogurt|cream|butter|ghee|curd/, 'dairy'],
-      [/egg|eggs/, 'eggs'],
-      [/meat|beef|chicken|goat|mutton|lamb|pork|bacon|ham|turkey|duck|sausage|veal/, 'meat'],
-      [/fish|tilapia|salmon|trout|tuna|sardine|sardines|crab|lobster|shrimp|prawn|catfish|anchovy|oyster|clam|mackerel/, 'fish'],
-      [/spice|spices|herb|herbs|ginger|garlic|turmeric|cumin|cinnamon|peppercorn|paprika|basil|parsley|thyme|rosemary|clove|cardamom|nutmeg|chili|chilli|mint|coriander/, 'spices'],
-      [/bread|buns|cake|cakes|biscuit|biscuits|pastry|flour|dough|pasta|noodle|noodles/, 'bakery'],
-      [/tea|coffee|juice|water|soda|beer|wine|whisky|whiskey|vodka|rum|smoothie|milkshake/, 'beverages'],
-      [/sugar|honey|molasses|syrup|sweetener|glucose|fructose|candy|chocolate|sweet/, 'sweets']
+      [/egg|eggs/, 'eggs']
     ]
 
     for (const [re, cat] of pairs) {
@@ -79,12 +74,13 @@ export default function PostListing() {
     setUnit('kg')
     setQuantity('')
     setDiscountPercent('')
-    setLocation(profile?.location || '')
+    setLocation(typeof profile?.location === 'string' ? profile.location : (profile?.placeName || ''))
+    setLocationObj(null)
     setImageUri(null)
     setErrors({})
     setPosted(null)
   setCategory(null)
-  }, [profile?.location])
+  }, [profile?.location, profile?.placeName])
 
   const pickImage = useCallback(async () => {
     try {
@@ -92,8 +88,7 @@ export default function PostListing() {
       if (status !== 'granted') return Alert.alert('Permission denied', 'Media permission is required')
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4,3],
+        allowsEditing: false,
         quality: 0.9,
       })
       if (result.canceled) return
@@ -126,6 +121,22 @@ export default function PostListing() {
     }
   }, [imageUri])
 
+  // Listen for map selection for product location
+  useEffect(() => {
+    const { on, off } = require('../../utils/eventBus')
+    const handler = (payload) => {
+      const text = payload?.text || payload?.address?.text || ''
+      setLocation(text)
+      setLocationObj({
+        text,
+        coords: payload?.coords || null,
+        details: payload?.details || payload?.address?.details || payload?.address || null,
+      })
+    }
+    on('location:product-selected', handler)
+    return () => off('location:product-selected', handler)
+  }, [])
+
   // Validation logic
   const numeric = (v) => {
     if (v === '' || v === null || v === undefined) return null
@@ -151,8 +162,16 @@ export default function PostListing() {
       if (isNaN(d)) next.discountPercent = 'Discount must be a number'
       else if (d < 0 || d > 90) next.discountPercent = 'Discount 0-90%'
     }
+    // Location: allow submission if either a map selection exists OR profile already has coordinates
+    const profileHasCoords = (
+      (typeof profile?.latitude !== 'undefined' && profile?.latitude !== null && typeof profile?.longitude !== 'undefined' && profile?.longitude !== null) ||
+      (profile?.location && typeof profile.location.lat === 'number' && typeof profile.location.lng === 'number')
+    )
+    if (!(locationObj && locationObj.coords) && !profileHasCoords) {
+      next.location = 'Pick location on map or ensure your profile has a saved location'
+    }
     return next
-  }, [title, category, price, quantity, unit, discountPercent])
+  }, [title, category, price, quantity, unit, discountPercent, locationObj, profile])
 
   const validationErrors = validate()
   const canSubmit = Object.keys(validationErrors).length === 0 && !submitting && !imageUploading
@@ -167,6 +186,16 @@ export default function PostListing() {
     try {
       setSubmitting(true)
       const imgUrl = await uploadImageIfNeeded()
+      // Compute effective location from selection or profile
+      const profileCoords = (profile && (profile.latitude != null && profile.longitude != null))
+        ? { lat: Number(profile.latitude), lng: Number(profile.longitude) }
+        : (profile?.location && typeof profile.location.lat === 'number' && typeof profile.location.lng === 'number')
+          ? { lat: profile.location.lat, lng: profile.location.lng }
+          : null
+      const effectiveCoords = locationObj?.coords || profileCoords
+      const effectivePlaceName = (locationObj?.text) || location || (typeof profile?.location === 'string' ? profile.location : (profile?.placeName || null))
+      const effectiveAddressDetails = locationObj?.details || profile?.addressDetails || (profile?.location?.address ?? null)
+
       const payload = {
         title: title.trim(),
         description: description.trim() || null,
@@ -174,7 +203,18 @@ export default function PostListing() {
         price: Number(price),
         unit: unit || 'kg',
         quantity_available: Number(quantity),
-        location: location || 'Unknown',
+        // Normalized location fields: prefer picker, fallback to profile
+        latitude: effectiveCoords?.lat ?? null,
+        longitude: effectiveCoords?.lng ?? null,
+        place_name: effectivePlaceName || null,
+        address_details: effectiveAddressDetails || null,
+        // Legacy blob for older clients
+        location: effectiveCoords ? {
+          lat: effectiveCoords.lat,
+          lng: effectiveCoords.lng,
+          name: effectivePlaceName || null,
+          address: effectiveAddressDetails || null,
+        } : null,
         images: imgUrl ? [imgUrl] : [],
         is_organic: false,
         discount_percent: discountPercent === '' ? 0 : Math.min(Math.max(Number(discountPercent)||0,0),90),
@@ -190,7 +230,7 @@ export default function PostListing() {
     } finally {
       setSubmitting(false)
     }
-  }, [validate, profile?.role, title, description, price, unit, quantity, location, discountPercent, category, uploadImageIfNeeded, toast])
+  }, [validate, profile, title, description, price, unit, quantity, location, discountPercent, category, uploadImageIfNeeded, toast, locationObj])
 
   if (posted) {
     return (
@@ -274,7 +314,23 @@ export default function PostListing() {
   {errors.discountPercent && <Text style={styles.errorText}>{errors.discountPercent}</Text>}
 
       <Text style={styles.label}>Location</Text>
-      <TextInput style={styles.input} value={location} onChangeText={setLocation} placeholder="Location" />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        <TextInput
+          style={[styles.input, { flex: 1 }]}
+          value={location}
+          onChangeText={(t) => { setLocation(t); setLocationObj(null) }}
+          placeholder="Pick location or type address"
+        />
+        <TouchableOpacity
+          onPress={() => router.push({ pathname: '/location-picker', params: { mode: 'product' } })}
+          activeOpacity={0.85}
+          style={{ padding: 8 }}
+          accessibilityLabel="Pick location on map"
+        >
+          <Ionicons name="location" size={22} color={COLORS.primary} />
+        </TouchableOpacity>
+      </View>
+      {errors.location && <Text style={styles.errorText}>{errors.location}</Text>}
 
       <Text style={styles.label}>Category</Text>
       <CategoryFilter categories={CATEGORIES_FOR_FORM} selectedCategory={category} onSelectCategory={setCategory} />
@@ -285,15 +341,15 @@ export default function PostListing() {
         {imageUri ? (
           <Image source={{ uri: imageUri }} style={styles.imagePreview} resizeMode="cover" />
         ) : (
-          <>
-            <Text style={styles.uploadIcon}>📷</Text>
-            <Text style={styles.uploadHint}>Tap to upload</Text>
-          </>
+          <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="cloud-upload-outline" size={28} color={COLORS.textLight} />
+            <Text style={styles.uploadHint}>Upload Image</Text>
+          </View>
         )}
       </TouchableOpacity>
   {(imageUploading) && <ActivityIndicator style={{ marginTop: 8 }} size="small" color={COLORS.primary} />}
       
-    <TouchableOpacity style={[styles.submitBtn, ((!canSubmit) || verifyStatus !== 'verified' || String(profile?.status||'').toLowerCase()==='suspended') && { opacity: 0.6 }]} disabled={!canSubmit || verifyStatus !== 'verified' || String(profile?.status||'').toLowerCase()==='suspended'} onPress={onSubmit}>
+  <TouchableOpacity style={[styles.submitBtn, ((!canSubmit) || String(profile?.status||'').toLowerCase()==='suspended') && { opacity: 0.6 }]} disabled={!canSubmit || String(profile?.status||'').toLowerCase()==='suspended'} onPress={onSubmit}>
   {submitting ? <ActivityIndicator size="small" color={COLORS.white} /> : <Text style={styles.submitText}>Submit Post</Text>}
       </TouchableOpacity>
       

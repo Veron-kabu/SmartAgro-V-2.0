@@ -1,6 +1,6 @@
 # Routes Overview
 
-This directory contains modular Express routers mounted under the `/api` prefix (except the location router which lives in `models/location.js` currently). Each file encapsulates a domain area. Below is a concise summary of responsibilities and primary endpoints.
+This directory contains modular Express routers mounted under the `/api` prefix. Each file encapsulates a domain area. Below is a concise summary of responsibilities and primary endpoints.
 
 > Status legend: (auth) requires a signed-in user; (role: X) restricts to given roles; (public) no auth.
 
@@ -77,7 +77,7 @@ Clerk user lifecycle webhooks (raw body required for signature). Upserts users a
 
 ## Known Overlaps / Cleanup Candidates
 - Favorites endpoints exist in both `favorites.js` and `misc.js`. Plan: consolidate into one router (`favorites.js`) and deprecate legacy variants.
-- Location geo-based endpoints currently live in `models/location.js` (ESM route). Consider moving to `routes/location.js` for consistency, then update `server.js` import.
+- Location geo-based endpoints now live in `routes/location.js` (OSM/Nominatim-based). The legacy `models/location.js` has been removed from the server wiring.
 - Analytics ingestion is log-only; future: create `analytics_events` table and persist.
 
 ## Conventions

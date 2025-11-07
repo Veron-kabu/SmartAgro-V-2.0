@@ -20,7 +20,7 @@ router.post('/users', ensureAuth(), async (req, res) => {
   try {
     const existingUser = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
     if (existingUser.length > 0) return res.json(existingUser[0])
-    const { username, email, role, full_name, phone, location } = req.body || {}
+  const { username, email, role, full_name, phone } = req.body || {}
     if (!username || !email) return res.status(400).json({ error: 'username and email are required' })
     const allowed = ['buyer','farmer']
     const safeRole = allowed.includes(role) ? role : 'buyer'
@@ -30,6 +30,12 @@ router.post('/users', ensureAuth(), async (req, res) => {
       const primaryEmailObj = clerkUser?.emailAddresses?.find(e => e.id === clerkUser?.primaryEmailAddressId) || clerkUser?.emailAddresses?.[0]
       emailVerified = (primaryEmailObj?.verification?.status === 'verified') || false
     } catch { emailVerified = false }
+    const rawLoc = req.body.location || null
+    const lat = req.body.latitude ?? rawLoc?.lat ?? rawLoc?.latitude
+    const lng = req.body.longitude ?? rawLoc?.lng ?? rawLoc?.longitude
+    const place_name = req.body.place_name ?? rawLoc?.name ?? rawLoc?.placeName
+    const address_details = req.body.address_details ?? rawLoc?.address ?? rawLoc?.addressDetails
+
     const inserted = await db.insert(usersTable).values({
       clerkUserId: req.auth.userId,
       username,
@@ -37,7 +43,12 @@ router.post('/users', ensureAuth(), async (req, res) => {
       role: safeRole,
       fullName: full_name,
       phone,
-      location,
+      latitude: typeof lat !== 'undefined' ? Number(lat) : null,
+      longitude: typeof lng !== 'undefined' ? Number(lng) : null,
+      placeName: typeof place_name === 'string' ? place_name : null,
+      addressDetails: (address_details && typeof address_details === 'object') ? address_details : null,
+      // Backward-compat cache
+      location: (lat != null && lng != null) ? { lat: Number(lat), lng: Number(lng), name: place_name || null, address: address_details || null } : null,
       emailVerified,
     }).returning()
     try {
@@ -88,7 +99,7 @@ router.patch('/users/profile', ensureAuth(), requireNotSuspended(), express.json
   try {
     const me = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
     if (me.length === 0) return res.status(404).json({ error: 'User not found' })
-  const { username, email, full_name, phone, location, profile_image_url, profile_image_blurhash, banner_image_url, banner_image_blurhash } = req.body || {}
+  const { username, email, full_name, phone, profile_image_url, profile_image_blurhash, banner_image_url, banner_image_blurhash } = req.body || {}
     if (typeof username === 'string' && username.trim()) {
       const taken = await db.select().from(usersTable).where(eq(usersTable.username, username.trim()))
       if (taken.length > 0 && taken[0].id !== me[0].id) return res.status(409).json({ error: 'conflict', field: 'username', message: 'Username already taken' })
@@ -103,7 +114,28 @@ router.patch('/users/profile', ensureAuth(), requireNotSuspended(), express.json
     if (typeof email !== 'undefined') updates.email = email?.trim() || null
     if (typeof full_name !== 'undefined') updates.fullName = full_name || null
     if (typeof phone !== 'undefined') updates.phone = phone || null
-    if (typeof location !== 'undefined') updates.location = location || null
+    // Normalize optional location fields; prefer using /api/location endpoint for reverse geocoding + save
+    const rawLoc = req.body.location || null
+    const lat = req.body.latitude ?? rawLoc?.lat ?? rawLoc?.latitude
+    const lng = req.body.longitude ?? rawLoc?.lng ?? rawLoc?.longitude
+    const place_name = req.body.place_name ?? rawLoc?.name ?? rawLoc?.placeName
+    const address_details = req.body.address_details ?? rawLoc?.address ?? rawLoc?.addressDetails
+    if (lat != null && lng != null) {
+      const latNum = Number(lat)
+      const lngNum = Number(lng)
+      if (Number.isFinite(latNum) && Number.isFinite(lngNum) && latNum >= -90 && latNum <= 90 && lngNum >= -180 && lngNum <= 180) {
+        updates.latitude = latNum
+        updates.longitude = lngNum
+        if (typeof place_name === 'string') updates.placeName = place_name
+        if (address_details && typeof address_details === 'object') updates.addressDetails = address_details
+        updates.location = {
+          lat: latNum,
+          lng: lngNum,
+          name: typeof place_name === 'string' ? place_name : (me[0].placeName || null),
+          address: (address_details && typeof address_details === 'object') ? address_details : (me[0].addressDetails || null),
+        }
+      }
+    }
     if (typeof profile_image_url !== 'undefined') {
       const { AWS_S3_BUCKET, AWS_S3_REGION, AWS_CLOUDFRONT_DOMAIN } = ENV
       const allowlistHosts = []

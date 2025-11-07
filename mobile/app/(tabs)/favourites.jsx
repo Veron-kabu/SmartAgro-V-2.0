@@ -5,7 +5,7 @@ import { useEffect, useState, useCallback, useRef } from 'react'
 import Shimmer from '../../components/Shimmer'
 import * as Haptics from 'expo-haptics'
 import AsyncStorage from '@react-native-async-storage/async-storage'
-import { getJSON, postJSON } from '../../context/api'
+import { getJSON } from '../../context/api'
 import { subscribeAppEvents } from '../../context/favorites'
 import { useProfile } from '../../context/profile'
 import { useCart } from '../../context/cart'
@@ -16,16 +16,14 @@ import EmptyState from "../../components/EmptyState";
 import LoadingSpinner from "../../components/LoadingSpinner";
 import { router } from 'expo-router'
 import CountBadge from '../../components/CountBadge'
-import { useToast } from '../../context/toast'
-import { validateCartItems } from '../../utils/cartValidation'
-import { initiateStkPush, getStkStatus } from '../../utils/mpesa'
+// Payment and validation now handled in /orders/checkout
 
 const FavoritesScreen = () => {
   const { signOut } = useClerk();
   const { user } = useUser();
   const { profile } = useProfile()
   const { items: cartItems, updateQuantity, removeItem, clearCart, addItem } = useCart()
-  const { show } = useToast()
+  
   
   const [favoriteProducts, setFavoriteProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +34,7 @@ const FavoritesScreen = () => {
   const undoTimeoutRef = useRef(null)
   const SWIPE_THRESHOLD = 50
   const gestureRefs = useRef({})
-  const [paying, setPaying] = useState(false)
+  // Payment state removed; checkout handled in dedicated screen
   const [priceMap, setPriceMap] = useState({}) // id -> { price, discountPercent, unit }
 
   // Persist collapsed state
@@ -335,84 +333,12 @@ const FavoritesScreen = () => {
                 
                 <TouchableOpacity 
                   style={favoritesStyles.checkoutButton} 
-                  activeOpacity={0.85} 
-                  disabled={paying}
-                  onPress={async () => {
-                    if (paying) return
-                    if (!cartItems.length) { show('Your cart is empty', { type: 'info' }); return }
-                    const phone = profile?.phone || null
-                    if (!phone) { show('Add your phone number in Profile to pay via M-Pesa.', { type: 'warning' }); return }
-                    try {
-                      setPaying(true)
-                      // 1) Validate cart (apply stock clamps and price updates)
-                      const { validated } = await validateCartItems(cartItems, { updatePrices: true })
-                      for (const v of validated) {
-                        if (v.removed) removeItem(v.id)
-                        else if (v.quantity !== cartItems.find(i => i.id === v.id)?.quantity) updateQuantity(v.id, v.quantity)
-                      }
-                      const validItems = validated.filter(v => !v.removed)
-                      if (!validItems.length) { show('No valid items to purchase', { type: 'error' }); return }
-                      // 2) Fetch fresh products to compute discounted total (with robust fallbacks)
-                      const ids = validItems.map(v => v.id)
-                      let products = []
-                      try { const bulk = await getJSON(`/api/products/bulk?ids=${ids.join(',')}`); if (Array.isArray(bulk)) products = bulk } catch {}
-                      const pmap = new Map(products.map(p => [p.id, p]))
-                      let grand = 0
-                      for (const v of validItems) {
-                        const p = pmap.get(v.id)
-                        const meta = priceMap[v.id]
-                        const base = Number((p?.price ?? meta?.price ?? v.price) || 0)
-                        const disc = Number((p?.discountPercent ?? meta?.discountPercent ?? v.discountPercent ?? 0) || 0)
-                        const unit = disc > 0 ? Math.round((base * (1 - disc / 100)) * 100) / 100 : Math.round(base * 100) / 100
-                        const qty = Number(v.quantity || 0)
-                        grand += unit * qty
-                      }
-                      grand = Math.round(grand * 100) / 100
-                      if (!Number.isFinite(grand) || grand <= 0) { show('Invalid total amount', { type: 'error' }); return }
-                      // 3) Initiate payment and poll
-                      const resp = await initiateStkPush({ phone, amount: grand, accountReference: 'SmartAgro Cart', transactionDesc: 'Cart payment' })
-                      show('Prompt sent. Enter M-Pesa PIN to continue…', { type: 'info' })
-                      const checkoutRequestID = resp?.checkoutRequestID || resp?.CheckoutRequestID
-                      if (!checkoutRequestID) { show('Failed to start payment', { type: 'error' }); return }
-                      let attempts = 0
-                      while (attempts < 20) {
-                        attempts++
-                        try {
-                          const q = await getStkStatus(checkoutRequestID)
-                          const code = String(q?.ResultCode ?? q?.resultCode ?? '')
-                          if (code === '0') {
-                            // 4) Create orders for all items
-                            try {
-                              const payload = {
-                                checkoutRequestID,
-                                items: validItems.map(v => ({ product_id: v.id, quantity: v.quantity, delivery_address: profile?.location || null, notes: null }))
-                              }
-                              await postJSON('/api/orders/cart-after-payment', payload)
-                              clearCart()
-                            } catch (e) {
-                              show(e?.body || e?.message || 'Payment received but order creation failed; will retry shortly.', { type: 'warning' })
-                            }
-                            show('Payment received. Redirecting…', { type: 'success' })
-                            router.replace('/orders/buyerorders?view=sent')
-                            break
-                          }
-                          if (['1032','1037','1','2001','2002'].includes(code)) { show('Payment was not completed.', { type: 'error' }); break }
-                        } catch {}
-                        await new Promise(r => setTimeout(r, 2500))
-                      }
-                      if (attempts >= 20) {
-                        show('We couldn’t confirm payment yet. Your orders will update shortly if it completes.', { type: 'warning' })
-                      }
-                    } catch (e) {
-                      show(e?.body || e?.message || 'Failed to process checkout', { type: 'error' })
-                    } finally {
-                      setPaying(false)
-                    }
-                  }}
+                  activeOpacity={0.85}
+                  onPress={() => router.push('/orders/checkout')}
                 >
-                  <Ionicons name={paying ? "time" : "card"} size={20} color={COLORS.white} style={favoritesStyles.checkoutIcon} />
+                  <Ionicons name="card" size={20} color={COLORS.white} style={favoritesStyles.checkoutIcon} />
                   <Text style={favoritesStyles.checkoutText}>
-                    {paying ? 'Processing…' : `Checkout • KSH ${discountedCartTotal().toFixed(2)}`}
+                    {`Checkout • KSH ${discountedCartTotal().toFixed(2)}`}
                   </Text>
                 </TouchableOpacity>
               </View>

@@ -7,7 +7,7 @@ import { requireNotSuspended } from '../middleware/status.js'
 import { and, or, eq, gt, gte, lte, lt, inArray, ilike } from 'drizzle-orm'
 import { computeBlurhashFromUrl } from '../utils/blurhash.js'
 import { takeToken } from '../utils/rateLimit.js'
-import { userVerificationTable } from '../db/schema.js'
+// Note: Verification gate now uses users.farmVerified from schema
 
 const router = Router()
 
@@ -129,16 +129,20 @@ router.post('/products', ensureAuth(), requireNotSuspended(), requireRole(['farm
   try {
     const key = `product_create_${req.auth.userId}`
     if (!takeToken(key, { capacity: 10, refillRatePerSec: 0.25 })) return res.status(429).json({ error: 'Too many product creations, slow down' })
-    // Enforce verified-only product creation for farmers
-    // Enforce verified-only product creation for farmers based on DB status
-    const vrow = await db.select().from(userVerificationTable).where(eq(userVerificationTable.userId, db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))))
-    const vstatus = vrow?.[0]?.status || 'unverified'
-    if (vstatus !== 'verified') {
-      return res.status(403).json({ error: 'Verification required to post listings', status: vstatus })
-    }
+    // Enforce verified-only product creation for farmers using users.farmVerified
     const user = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
-  let { title, category, price, unit, quantity_available, location, discount_percent } = req.body
-    if (!title || !category || !price || !unit || !quantity_available || !location) return res.status(400).json({ error: 'Missing required product fields' })
+    const farmer = user?.[0]
+    if (!farmer) return res.status(401).json({ error: 'User not found' })
+    if (!farmer.farmVerified) {
+      return res.status(403).json({ error: 'Verification required to post listings', status: 'unverified' })
+    }
+  let { title, category, price, unit, quantity_available } = req.body
+    const rawLoc = req.body.location || null
+    const lat = req.body.latitude ?? rawLoc?.lat ?? rawLoc?.latitude
+    const lng = req.body.longitude ?? rawLoc?.lng ?? rawLoc?.longitude
+    const place_name = req.body.place_name ?? rawLoc?.name ?? rawLoc?.placeName
+    const address_details = req.body.address_details ?? rawLoc?.address ?? rawLoc?.addressDetails
+    if (!title || !category || !price || !unit || !quantity_available || lat == null || lng == null) return res.status(400).json({ error: 'Missing required product fields (including latitude & longitude)' })
     // Normalize and validate category
     category = String(category || '').toLowerCase()
     if (!ALLOWED_CATEGORIES.has(category)) {
@@ -161,7 +165,17 @@ router.post('/products', ensureAuth(), requireNotSuspended(), requireRole(['farm
       minimumOrder: minimum_order,
       harvestDate: harvest_date,
       expiryDate: expiry_date,
-      location,
+      latitude: Number(lat),
+      longitude: Number(lng),
+      placeName: typeof place_name === 'string' ? place_name : null,
+      addressDetails: (address_details && typeof address_details === 'object') ? address_details : null,
+      // Maintain legacy blob for backward compatibility in clients still reading product.location
+      location: {
+        lat: Number(lat),
+        lng: Number(lng),
+        name: typeof place_name === 'string' ? place_name : null,
+        address: (address_details && typeof address_details === 'object') ? address_details : null,
+      },
   images: safeImages,
       isOrganic: is_organic,
   discountPercent: typeof discount_percent === 'number' ? Math.min(Math.max(discount_percent, 0), 90) : 0,
@@ -215,6 +229,28 @@ router.patch('/products/:id', ensureAuth(), requireNotSuspended({ allowAdminBypa
     }
   const { discount_percent, price, quantity_available, status, images_add, images_remove, description } = req.body || {}
     const updates = { updatedAt: new Date() }
+    // Optional location update (normalized)
+    const rawLoc = req.body.location || null
+    const lat = req.body.latitude ?? rawLoc?.lat ?? rawLoc?.latitude
+    const lng = req.body.longitude ?? rawLoc?.lng ?? rawLoc?.longitude
+    const place_name = req.body.place_name ?? rawLoc?.name ?? rawLoc?.placeName
+    const address_details = req.body.address_details ?? rawLoc?.address ?? rawLoc?.addressDetails
+    if (lat != null && lng != null) {
+      const latNum = Number(lat)
+      const lngNum = Number(lng)
+      if (Number.isFinite(latNum) && Number.isFinite(lngNum) && latNum >= -90 && latNum <= 90 && lngNum >= -180 && lngNum <= 180) {
+        updates.latitude = latNum
+        updates.longitude = lngNum
+        updates.placeName = typeof place_name === 'string' ? place_name : (prod.placeName || null)
+        updates.addressDetails = (address_details && typeof address_details === 'object') ? address_details : (prod.addressDetails || null)
+        updates.location = {
+          lat: latNum,
+          lng: lngNum,
+          name: updates.placeName || null,
+          address: updates.addressDetails || null,
+        }
+      }
+    }
     if (typeof discount_percent !== 'undefined') {
       const d = Number(discount_percent)
       if (!Number.isFinite(d) || d < 0 || d > 90) return res.status(400).json({ error: 'Invalid discount_percent (0-90)' })
@@ -278,7 +314,7 @@ router.patch('/products/:id', ensureAuth(), requireNotSuspended({ allowAdminBypa
       // Reset blurhashes so backfill job can regenerate if images changed
       updates.imageBlurhashes = []
     }
-    if (Object.keys(updates).length === 1) return res.status(400).json({ error: 'No valid fields to update' })
+  if (Object.keys(updates).length === 1) return res.status(400).json({ error: 'No valid fields to update' })
     const updated = await db.update(productsTable).set(updates).where(eq(productsTable.id, productId)).returning()
     return res.json(updated[0])
   } catch (e) {

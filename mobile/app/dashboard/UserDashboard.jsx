@@ -463,8 +463,9 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
     setEditUsername(profile?.username || '')
     setEditPhone(profile?.phone || '')
     setEditFullName(profile?.fullName || profile?.username || '')
-    setEditAddress(typeof profile?.location === 'string' ? profile.location : '')
-    setEditOpen(true)
+    setEditAddress(typeof profile?.location === 'string' ? profile.location : (profile?.placeName || ''))
+    // Slight delay before opening modal to reduce flicker when rapid back navigation occurs
+    requestAnimationFrame(() => setEditOpen(true))
   }, [profile])
 
   // When the modal becomes visible, prefill from the latest profile as a safety net
@@ -474,7 +475,7 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
     setEditUsername(profile?.username || '')
     setEditPhone(profile?.phone || '')
     setEditFullName(profile?.fullName || profile?.username || '')
-    setEditAddress(typeof profile?.location === 'string' ? profile.location : '')
+    setEditAddress(typeof profile?.location === 'string' ? profile.location : (profile?.placeName || ''))
   }, [editOpen, profile])
 
   // Avatar refresh handled by useDashboardMedia hook
@@ -555,6 +556,17 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
       setSaving(false)
     }
   }, [canSubmit, saving, hasPasswordChange, hasChanges, changePassword, editFullName, editUsername, editEmail, editPhone, editAddress, patchProfile, toast])
+
+  // Listen for profile location picked from the map and update the address field optimistically
+  useEffect(() => {
+    if (!editOpen) return
+    const { on, off } = require('../../utils/eventBus')
+    const handler = (payload) => {
+      if (payload?.address) setEditAddress(payload.address)
+    }
+    on('location:profile-updated', handler)
+    return () => off('location:profile-updated', handler)
+  }, [editOpen])
 
   // logout logic moved to shared hook useLogout
 
@@ -687,6 +699,7 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
           <TouchableOpacity style={styles.editProfileBtn} onPress={openEditModal} activeOpacity={0.8}>
             <Text style={styles.editProfileText}>Edit profile</Text>
           </TouchableOpacity>
+          {/* Removed separate location button. Location picker is accessible inside Edit Profile next to Address. */}
         </View>
 
         {/* Suspended account banner */}
@@ -835,7 +848,7 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
       {/* FabActions removed: actions now integrated into respective sections for farmer */}
 
       {/* Edit Profile Modal (full-screen, scrollable, keyboard-aware) */}
-      <Modal visible={editOpen} animationType="slide" presentationStyle="fullScreen" onRequestClose={() => setEditOpen(false)}>
+  <Modal visible={editOpen} animationType="none" presentationStyle="fullScreen" onRequestClose={() => setEditOpen(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <View style={modalStyles.editContainer}>
             <View style={modalStyles.modalHeader}>
@@ -892,13 +905,23 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
               {!phoneValid && <Text style={modalStyles.errorText}>Phone should be at least 7 digits</Text>}
 
               <Text style={modalStyles.inputLabel}>Address</Text>
-              <TextInput
-                value={editAddress}
-                onChangeText={setEditAddress}
-                style={modalStyles.input}
-                placeholder="e.g. Nairobi, Westlands or GPS address"
-                returnKeyType="done"
-              />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <TextInput
+                  value={editAddress}
+                  onChangeText={setEditAddress}
+                  style={[modalStyles.input, { flex: 1 }]}
+                  placeholder="e.g. Nairobi, Westlands or GPS address"
+                  returnKeyType="done"
+                />
+                <TouchableOpacity
+                  accessibilityLabel="Pick location on map"
+                  onPress={() => router.push({ pathname: '/location-picker', params: { mode: 'profile' } })}
+                  activeOpacity={0.85}
+                  style={{ padding: 8 }}
+                >
+                  <Ionicons name="location" size={22} color={COLORS.primary} />
+                </TouchableOpacity>
+              </View>
 
               {/* Change Password Section */}
               <View style={modalStyles.passwordSection}>
@@ -979,8 +1002,7 @@ async function pickImageFromLibrary({ base64 = true } = {}) {
   }
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ImagePicker?.MediaType ? [ImagePicker.MediaType.Images] : ImagePicker.MediaTypeOptions.Images,
-    allowsEditing: true,
-    aspect: [1, 1],
+    allowsEditing: false,
     quality: 1,
     base64,
     exif: false,
