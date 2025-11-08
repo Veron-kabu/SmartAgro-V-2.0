@@ -104,6 +104,36 @@ Future Enhancements
 - Prefetch & priority image queue
  - Native map alternative with UrlTile if WebView is undesirable
 
+Video Calling (Zego Integration)
+--------------------------------
+Added experimental one-on-one / group video calling using ZegoCloud Prebuilt Call UI.
+
+Setup:
+1. Obtain a Zego AppID and AppSign from the ZegoCloud console.
+2. Add the following to your `.env` (these are public for client usage but treat AppSign with care; rotate if leaked):
+	EXPO_PUBLIC_ZEGO_APP_ID=123456789
+	EXPO_PUBLIC_ZEGO_APP_SIGN=your_app_sign_here
+3. Rebuild the dev client (permissions & native modules):
+	npx expo prebuild --clean && npx expo run:android
+	npx expo run:ios
+	(Or use EAS build for production.)
+
+Usage:
+- From a chat conversation, tap the video camera icon to launch a call using the chat room ID as the callID.
+- Or navigate to /video-call and enter a custom call ID.
+
+Notes:
+- iOS Info.plist now includes Camera & Microphone usage descriptions.
+- Android manifest permissions (CAMERA, RECORD_AUDIO) added via app.config.js.
+- Ensure network quality; WebRTC can degrade on poor connections.
+- Group vs one-on-one decided from participant count (>2 => group mode).
+
+Potential Next Steps:
+- Backend token generation for secure authentication (instead of exposing AppSign directly) using Zego's server-side token mechanism.
+- Call invitations / ringing UI.
+- Persist call history and durations.
+- In-call chat overlay.
+
 License
 -------
 Internal project; update as needed.

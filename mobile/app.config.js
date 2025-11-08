@@ -11,7 +11,11 @@ export default {
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
     ios: {
-      supportsTablet: true
+      supportsTablet: true,
+      infoPlist: {
+        NSCameraUsageDescription: "This app requires access to your camera for video calls.",
+        NSMicrophoneUsageDescription: "This app requires access to your microphone for voice and video calls."
+      }
     },
     android: {
       adaptiveIcon: {
@@ -19,7 +23,8 @@ export default {
         backgroundColor: "#red"
       },
       edgeToEdgeEnabled: true,
-      predictiveBackGestureEnabled: false
+      predictiveBackGestureEnabled: false,
+      permissions: ["CAMERA", "RECORD_AUDIO"]
     },
     web: {
       output: "static",
@@ -27,6 +32,7 @@ export default {
     },
     plugins: [
       "expo-router",
+      "expo-dev-client",
       [
         "expo-splash-screen",
         {
@@ -52,6 +58,8 @@ export default {
       firebaseMessagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
       firebaseAppId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
       firebaseDatabaseURL: process.env.EXPO_PUBLIC_FIREBASE_DATABASE_URL,
+      zegoAppId: process.env.EXPO_PUBLIC_ZEGO_APP_ID,
+      zegoAppSign: process.env.EXPO_PUBLIC_ZEGO_APP_SIGN
     }
   }
 };

@@ -138,6 +138,7 @@ function SplashGate() {
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                   <Stack.Screen name="(auth)" options={{ headerShown: false, presentation: 'modal' }} />
+                  <Stack.Screen name="video-call" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
                 </Stack>
               </SwipeBackGesture>
             </ChatProvider>

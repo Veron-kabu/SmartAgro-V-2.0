@@ -94,7 +94,19 @@ export default function ChatConversation() {
       ),
       headerRight: () => (
         <View style={{ flexDirection: 'row', marginRight: 10 }}>
-          <TouchableOpacity style={{ marginRight: 15 }}>
+          <TouchableOpacity
+            style={{ marginRight: 15 }}
+            onPress={() => {
+              const callId = currentChatRoom?.id || (currentChatRoom?.participants || []).join('-') || 'call'
+              const mode = (currentChatRoom?.participants?.length || 2) > 2 ? 'group' : 'one-on-one'
+              try {
+                router.push({ pathname: '/video-call/[callId]', params: { callId, mode } })
+              } catch (e) {
+                console.warn('Navigate to call failed, retrying...', e)
+                setTimeout(() => router.push({ pathname: '/video-call/[callId]', params: { callId, mode } }), 300)
+              }
+            }}
+          >
             <Ionicons name="videocam" size={24} color={COLORS.white} />
           </TouchableOpacity>
           <TouchableOpacity style={{ marginRight: 10 }}>
