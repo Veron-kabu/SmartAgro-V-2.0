@@ -12,15 +12,17 @@ export default {
     newArchEnabled: true,
     ios: {
       supportsTablet: true,
+      bundleIdentifier: "com.smartagro.simu",
       infoPlist: {
         NSCameraUsageDescription: "This app requires access to your camera for video calls.",
         NSMicrophoneUsageDescription: "This app requires access to your microphone for voice and video calls."
       }
     },
     android: {
+      package: "com.smartagro.simu",
       adaptiveIcon: {
         foregroundImage: "./assets/images/adaptive-icon.png",
-        backgroundColor: "#red"
+        backgroundColor: "#2e7d32" // green tone matching agri theme
       },
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false,
@@ -36,7 +38,7 @@ export default {
       [
         "expo-splash-screen",
         {
-          image: "./assets/images/splash-icon.png",
+          image: "./assets/images/splash/circle.png",
           imageWidth: 200,
           resizeMode: "contain",
           backgroundColor: "#ffffff",
