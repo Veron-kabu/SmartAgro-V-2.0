@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 
 const ChatContext = createContext();
@@ -342,6 +342,193 @@ export const ChatProvider = ({ children }) => {
     };
   };
 
+  // --- Simple Call Signaling (Firestore) ---
+  const [activeCall, setActiveCall] = useState(null) // { id, roomId, callerId, calleeId, status }
+  const currentUserEmail = clerkUser?.emailAddresses?.[0]?.emailAddress || clerkUser?.id
+  const CALL_EXPIRATION_MS = 45000 // auto-expire initiated calls after 45s
+
+  const isCallStale = useCallback((data) => {
+    const created = data?.createdAt
+    if (!created) return false
+    const t = created?.toDate ? created.toDate().getTime() : (created?.getTime?.() || 0)
+    return (Date.now() - t) > CALL_EXPIRATION_MS
+  }, [])
+
+  // Listen for incoming call invitations addressed to current user
+  // Avoid composite index requirement by not ordering server-side; pick latest on client
+  useEffect(() => {
+    if (!isFirebaseReady || !firebaseDatabase || !currentUserEmail) return
+    let unsubscribe = () => {}
+    ;(async () => {
+      try {
+        const { collection, query, where, onSnapshot } = await import('firebase/firestore')
+        const callsRef = collection(firebaseDatabase, 'calls')
+        const q = query(
+          callsRef,
+          where('calleeId', '==', currentUserEmail),
+          where('status', '==', 'initiated')
+        )
+        unsubscribe = onSnapshot(q, (snap) => {
+          if (snap.empty) { setActiveCall(null); return }
+          // Choose the most recent by createdAt on client
+          let latestDoc = snap.docs[0]
+          for (const d of snap.docs) {
+            const a = d.data()?.createdAt
+            const b = latestDoc.data()?.createdAt
+            const aTime = a?.toDate ? a.toDate().getTime() : (a?.getTime?.() || 0)
+            const bTime = b?.toDate ? b.toDate().getTime() : (b?.getTime?.() || 0)
+            if (aTime > bTime) latestDoc = d
+          }
+          const data = latestDoc.data()
+          // Ignore or auto-clear stale initiated calls
+          if (isCallStale(data)) {
+            ;(async () => {
+              try {
+                const { doc, updateDoc } = await import('firebase/firestore')
+                const ref = doc(firebaseDatabase, 'calls', latestDoc.id)
+                await updateDoc(ref, { status: 'ended', endedAt: new Date(), autoExpired: true })
+              } catch (_e) { /* ignore */ }
+            })()
+            setActiveCall(null)
+            return
+          }
+          setActiveCall({ id: latestDoc.id, ...data })
+        }, (error) => {
+          console.warn('[CallSignal] listener error', error)
+        })
+      } catch (e) {
+        console.warn('[CallSignal] listener setup failed', e)
+      }
+    })()
+    return () => unsubscribe()
+  }, [isFirebaseReady, firebaseDatabase, currentUserEmail, isCallStale])
+
+  // Additionally, when we have an active incoming call, also watch that specific call doc
+  // so that if the caller cancels (status changes or doc removed), we clear the modal immediately.
+  useEffect(() => {
+    if (!isFirebaseReady || !firebaseDatabase) return
+    if (!activeCall?.id) return
+    let unsub = null
+    ;(async () => {
+      try {
+        const { doc, onSnapshot } = await import('firebase/firestore')
+        const ref = doc(firebaseDatabase, 'calls', String(activeCall.id))
+        unsub = onSnapshot(ref, (snap) => {
+          if (!snap.exists()) {
+            setActiveCall(null)
+            return
+          }
+          const data = snap.data()
+          // Keep only while initiated for the callee; any other status dismisses the modal
+          if (data?.status !== 'initiated' || isCallStale(data)) {
+            if (data?.status === 'initiated' && isCallStale(data)) {
+              ;(async () => {
+                try {
+                  const { doc, updateDoc } = await import('firebase/firestore')
+                  const ref2 = doc(firebaseDatabase, 'calls', String(activeCall.id))
+                  await updateDoc(ref2, { status: 'ended', endedAt: new Date(), autoExpired: true })
+                } catch (_e) { /* ignore */ }
+              })()
+            }
+            setActiveCall(null)
+          } else {
+            // Update fields like mode/caller info if they changed
+            setActiveCall((c) => c ? { ...c, ...data } : { id: activeCall.id, ...data })
+          }
+        })
+      } catch (e) {
+        console.warn('[CallSignal] doc listener error', e)
+      }
+    })()
+    return () => { if (unsub) unsub() }
+  }, [isFirebaseReady, firebaseDatabase, activeCall?.id, isCallStale])
+
+  const startCall = useCallback(async ({ roomId, calleeId, mode = 'one-on-one' }) => {
+    if (!isFirebaseReady || !firebaseDatabase || !currentUserEmail || !roomId || !calleeId) return null
+    try {
+      const { collection, addDoc, query, where, getDocs, updateDoc, doc } = await import('firebase/firestore')
+      const callsRef = collection(firebaseDatabase, 'calls')
+      // End any stale initiated call between same participants before creating a new one
+      const existingQ = query(callsRef,
+        where('callerId', '==', currentUserEmail),
+        where('calleeId', '==', calleeId),
+        where('status', '==', 'initiated')
+      )
+      const existingSnap = await getDocs(existingQ)
+      for (const d of existingSnap.docs) {
+        const data = d.data()
+        if (isCallStale(data)) {
+          try { await updateDoc(doc(firebaseDatabase, 'calls', d.id), { status: 'ended', endedAt: new Date(), autoExpired: true }) } catch {}
+        }
+      }
+      const docRef = await addDoc(callsRef, {
+        roomId,
+        callerId: currentUserEmail,
+        calleeId,
+        mode,
+        status: 'initiated', // initiated | accepted | declined | ended
+        createdAt: new Date()
+      })
+      return docRef.id
+    } catch (e) {
+      console.warn('[CallSignal] startCall failed', e)
+      return null
+    }
+  }, [isFirebaseReady, firebaseDatabase, currentUserEmail, isCallStale])
+
+  const acceptCall = useCallback(async () => {
+    if (!activeCall || !firebaseDatabase) return
+    try {
+      const { doc, updateDoc } = await import('firebase/firestore')
+      const ref = doc(firebaseDatabase, 'calls', activeCall.id)
+      await updateDoc(ref, { status: 'accepted', acceptedAt: new Date() })
+      setActiveCall((c) => c ? { ...c, status: 'accepted', acceptedAt: new Date() } : c)
+    } catch (e) {
+      console.warn('[CallSignal] acceptCall failed', e)
+    }
+  }, [activeCall, firebaseDatabase])
+
+  const declineCall = useCallback(async () => {
+    if (!activeCall || !firebaseDatabase) return
+    try {
+      const { doc, updateDoc } = await import('firebase/firestore')
+      const ref = doc(firebaseDatabase, 'calls', activeCall.id)
+      await updateDoc(ref, { status: 'declined', declinedAt: new Date() })
+      setActiveCall(null)
+    } catch (e) {
+      console.warn('[CallSignal] declineCall failed', e)
+    }
+  }, [activeCall, firebaseDatabase])
+
+  const endCall = useCallback(async () => {
+    if (!activeCall || !firebaseDatabase) return
+    try {
+      const { doc, updateDoc } = await import('firebase/firestore')
+      const ref = doc(firebaseDatabase, 'calls', activeCall.id)
+      await updateDoc(ref, { status: 'ended', endedAt: new Date() })
+      setActiveCall(null)
+    } catch (e) {
+      console.warn('[CallSignal] endCall failed', e)
+    }
+  }, [activeCall, firebaseDatabase])
+
+  // Allow ending a call by explicit document id (so caller can end too)
+  const endCallById = useCallback(async (callDocId) => {
+    if (!callDocId || !firebaseDatabase) return
+    try {
+      const { doc, updateDoc, getDoc } = await import('firebase/firestore')
+      const ref = doc(firebaseDatabase, 'calls', callDocId)
+      const snap = await getDoc(ref)
+      if (snap.exists()) {
+        await updateDoc(ref, { status: 'ended', endedAt: new Date() })
+      }
+      // Only clear local activeCall if it was this one
+      setActiveCall((c) => (c && c.id === callDocId ? null : c))
+    } catch (e) {
+      console.warn('[CallSignal] endCallById failed', e)
+    }
+  }, [firebaseDatabase])
+
   const value = {
     messages,
     chatRooms,
@@ -351,7 +538,14 @@ export const ChatProvider = ({ children }) => {
     createChatRoom,
     createOrFindChatRoom,
     getCurrentUser,
-    isFirebaseReady
+    isFirebaseReady,
+    // call signaling
+    activeCall,
+    startCall,
+    acceptCall,
+    declineCall,
+    endCall
+    , endCallById
   };
 
   return (

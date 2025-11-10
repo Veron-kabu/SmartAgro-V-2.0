@@ -10,10 +10,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth, useUser } from '@clerk/clerk-expo';
-import { useChat } from '../../context/chat';
-import { messagesTabStyles as styles, COLORS } from '../../assets/styles/chats/messages.tab.styles';
-import EmptyState from '../../components/EmptyState';
-import CountBadge from '../../components/CountBadge';
+import { useChat } from '../../../context/chat';
+import { messagesTabStyles as styles, COLORS } from '../../../assets/styles/chats/messages.tab.styles';
+import EmptyState from '../../../components/EmptyState';
+import CountBadge from '../../../components/CountBadge';
 
 export default function ChatIndex() {
   const { chatRooms, setCurrentChatRoom, isFirebaseReady } = useChat();

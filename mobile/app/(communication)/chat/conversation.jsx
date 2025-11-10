@@ -9,12 +9,14 @@ import {
 import { useRouter, useNavigation, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useUser } from '@clerk/clerk-expo';
-import { useChat } from '../../context/chat';
-import { BackButton } from '../../components/navigation';
-import { COLORS } from '../../constants/colors';
+import { useChat } from '../../../context/chat';
+import { checkCallPermissions, requestCallPermissions } from '../../../utils/permissions';
+import { setLastRoute } from '../../../utils/navHistory';
+import { BackButton } from '../../../components/navigation';
+import { COLORS } from '../../../constants/colors';
 
 export default function ChatConversation() {
-  const { currentChatRoom, setCurrentChatRoom, messages, sendMessage } = useChat();
+  const { currentChatRoom, setCurrentChatRoom, messages, sendMessage, startCall } = useChat();
   const { user } = useUser();
   const router = useRouter();
   const navigation = useNavigation();
@@ -96,14 +98,36 @@ export default function ChatConversation() {
         <View style={{ flexDirection: 'row', marginRight: 10 }}>
           <TouchableOpacity
             style={{ marginRight: 15 }}
-            onPress={() => {
-              const callId = currentChatRoom?.id || (currentChatRoom?.participants || []).join('-') || 'call'
+            onPress={async () => {
+              const roomId = currentChatRoom?.id
+              if (!roomId) return
+              const currentUserEmail = user?.emailAddresses?.[0]?.emailAddress || user?.id
+              const otherParticipant = (currentChatRoom?.participants || []).find(p => p !== currentUserEmail)
               const mode = (currentChatRoom?.participants?.length || 2) > 2 ? 'group' : 'one-on-one'
               try {
-                router.push({ pathname: '/video-call/[callId]', params: { callId, mode } })
+                // Ensure camera/mic permissions before navigating so the call screen doesn't need to wait
+                const status = await checkCallPermissions()
+                if (!status.allGranted) {
+                  await requestCallPermissions()
+                }
+                // Create call signaling document then navigate immediately for caller
+                const callDocId = await startCall({ roomId, calleeId: otherParticipant, mode })
+                const callId = roomId // reuse room id for Zego callID to correlate
+                // Store the route we're leaving so hangup can restore it
+                setLastRoute('call', '/chat/conversation')
+                router.push({ pathname: '/video-call/[callId]', params: { callId, mode, callDocId, previousRoute: '/chat/conversation', permsPreGranted: '1' } })
               } catch (e) {
-                console.warn('Navigate to call failed, retrying...', e)
-                setTimeout(() => router.push({ pathname: '/video-call/[callId]', params: { callId, mode } }), 300)
+                console.warn('Start call failed, retrying...', e)
+                setTimeout(async () => {
+                  try {
+                    const status = await checkCallPermissions()
+                    if (!status.allGranted) await requestCallPermissions()
+                  } catch {}
+                  const callDocId = await startCall({ roomId, calleeId: otherParticipant, mode })
+                  const callId = roomId
+                  setLastRoute('call', '/chat/conversation')
+                  router.push({ pathname: '/video-call/[callId]', params: { callId, mode, callDocId, previousRoute: '/chat/conversation', permsPreGranted: '1' } })
+                }, 300)
               }
             }}
           >
@@ -136,7 +160,7 @@ export default function ChatConversation() {
         // best-effort; ignore
       }
     })()
-  }, [navigation, router, currentChatRoom, setCurrentChatRoom, user]);
+  }, [navigation, router, currentChatRoom, setCurrentChatRoom, user, startCall]);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim()) return;

@@ -3,8 +3,8 @@ import { View, Text, TouchableOpacity, Alert, ActivityIndicator, ScrollView } fr
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '@clerk/clerk-expo';
 import { Ionicons } from '@expo/vector-icons';
-import { testStyles } from '../../assets/styles/chats/test.styles';
-import { COLORS } from '../../constants/colors';
+import { testStyles } from '../../../assets/styles/chats/test.styles';
+import { COLORS } from '../../../constants/colors';
 
 export default function FirebaseTest() {
   const [firebaseStatus, setFirebaseStatus] = useState('Checking...');
@@ -21,7 +21,7 @@ export default function FirebaseTest() {
     setIsLoading(true);
     try {
       console.log('Testing Firestore connection...');
-      const { database } = await import('../../config/firestore');
+  const { database } = await import('../../../config/firestore');
       
       if (!database) {
         setFirebaseStatus('❌ Firestore not initialized');
@@ -70,7 +70,7 @@ export default function FirebaseTest() {
 
     setIsLoading(true);
     try {
-      const { database } = await import('../../config/firestore');
+  const { database } = await import('../../../config/firestore');
       
       if (!database) {
         Alert.alert('Error', 'Firestore not available');

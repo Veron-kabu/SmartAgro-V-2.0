@@ -17,6 +17,9 @@ import SafeScreen from "../components/SafeScreen"
 import { SwipeBackGesture } from "../components/navigation"
 import SplashScreen from "../components/splash/SplashScreen"
 import { StatusBar } from 'expo-status-bar'
+import IncomingCallModal from "../components/IncomingCallModal"
+import { setLastRoute } from '../utils/navHistory'
+import { prewarmCallPermissions } from '../utils/permissions'
 
 
 const tokenCache = {
@@ -116,12 +119,16 @@ function SplashGate() {
   return (
     <ToastProvider>
       <InitialRedirect />
+      <NavHistoryTracker />
+      <CallPermissionsPrewarm />
       <LocationHeartbeat />
       <ProfileProvider>
         <FavoritesProvider>
           <CartProvider>
             <ChatProvider>
               <ForegroundCartValidator />
+              {/* Global incoming call handler */}
+              <IncomingCallModal />
               <SwipeBackGesture 
                 edgeWidth={60}
                 threshold={100}
@@ -138,7 +145,11 @@ function SplashGate() {
                 <Stack screenOptions={{ headerShown: false }}>
                   <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                   <Stack.Screen name="(auth)" options={{ headerShown: false, presentation: 'modal' }} />
-                  <Stack.Screen name="video-call" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+                  {/* Register exactly the names expo-router reports as children (include group prefix) */}
+                  <Stack.Screen name="(communication)/chat" options={{ headerShown: false }} />
+                  {/* Video call screens as full-screen modal */}
+                  <Stack.Screen name="(communication)/video-call/index" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
+                  <Stack.Screen name="(communication)/video-call/[callId]" options={{ headerShown: false, presentation: 'fullScreenModal' }} />
                 </Stack>
               </SwipeBackGesture>
             </ChatProvider>
@@ -147,6 +158,27 @@ function SplashGate() {
       </ProfileProvider>
     </ToastProvider>
   )
+}
+
+function NavHistoryTracker() {
+  const pathname = usePathname()
+
+  useEffect(() => {
+    if (!pathname) return
+    // Ignore call routes so we preserve the last screen user was on before entering a call
+    if (pathname.startsWith('/video-call') || pathname.includes('/video-call/')) return
+    // Store the most recent non-call route
+    setLastRoute('lastNonCall', pathname)
+  }, [pathname])
+  return null
+}
+
+function CallPermissionsPrewarm() {
+  // Prewarm camera/mic permissions once app is ready to avoid call-screen waiting UI
+  useEffect(() => {
+    ;(async () => { try { await prewarmCallPermissions() } catch {} })()
+  }, [])
+  return null
 }
 
 function LocationHeartbeat() {

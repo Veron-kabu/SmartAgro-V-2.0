@@ -1,8 +1,8 @@
 import React, { useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity } from 'react-native'
 import { useRouter } from 'expo-router'
-import SafeScreen from '../../components/SafeScreen'
-import { COLORS } from '../../constants/colors'
+import SafeScreen from '../../../components/SafeScreen'
+import { COLORS } from '../../../constants/colors'
 
 export default function VideoCallHome() {
   const [callId, setCallId] = useState('')

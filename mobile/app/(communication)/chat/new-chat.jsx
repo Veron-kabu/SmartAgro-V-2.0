@@ -10,9 +10,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useChat } from '../../context/chat';
-import { newChatStyles } from '../../assets/styles/chats/newChat.styles';
-import { COLORS } from '../../constants/colors';
+import { useChat } from '../../../context/chat';
+import { newChatStyles } from '../../../assets/styles/chats/newChat.styles';
+import { COLORS } from '../../../constants/colors';
 
 export default function NewChat() {
   const [email, setEmail] = useState('');
