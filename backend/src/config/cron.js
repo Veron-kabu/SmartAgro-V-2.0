@@ -3,7 +3,7 @@ import https from "https"
 import http from "http"
 import { ENV } from "./env.js"
 import { db } from "../config/db.js"
-import { usersTable, productsTable, uploadTokensTable, verificationSubmissionsTable } from "../db/schema.js"
+import { usersTable, productsTable, uploadTokensTable, verificationSubmissionsTable, userVerificationTable } from "../db/schema.js"
 import { S3Client, ListObjectsV2Command, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { computeBlurhashFromUrl } from "../utils/blurhash.js"
 import { sendEmail, renderDigestEmail } from "../utils/email.js"
@@ -149,6 +149,58 @@ const dailyDigestJob = new cron.CronJob(ENV.DIGEST_CRON || '0 8 * * *', async ()
 })
 
 export { dailyDigestJob }
+
+// Automated farmer verification job (runs hourly at minute 5)
+// Criteria (all must pass):
+//  - role == 'farmer' and status == 'active'
+//  - emailVerified == true
+//  - strikesCount <= 1
+//  - At least 1 active product with a location (lat/lng) set
+//  - Has profileImageUrl
+//  - Not already farmVerified
+// Marks users.farmVerified = true and ensures user_verification.status = 'verified'.
+// Best-effort: skips users failing any check; does NOT downgrade existing verified users.
+const autoFarmerVerificationJob = new cron.CronJob('5 * * * *', async () => {
+  try {
+    if (ENV.DISABLE_AUTO_VERIFY === 'true') return
+    const farmers = await db.select().from(usersTable)
+    let updatedCount = 0
+    for (const u of farmers) {
+      try {
+        if (u.role !== 'farmer') continue
+        if (u.status !== 'active') continue
+        if (u.farmVerified) continue
+        if (!u.emailVerified) continue
+        if (Number(u.strikesCount || 0) > 1) continue
+        if (!u.profileImageUrl) continue
+        const latOk = u.latitude != null && u.longitude != null
+        // At least one active product with quantity > 0 and location
+        const prods = await db.select().from(productsTable).where(productsTable.farmerId.eq(u.id))
+        const hasValidProduct = prods.some(p => p.status === 'active' && Number(p.quantityAvailable || 0) > 0 && p.latitude != null && p.longitude != null)
+        if (!hasValidProduct) continue
+        // Ready to verify
+        await db.update(usersTable).set({ farmVerified: true, updatedAt: new Date() }).where(usersTable.id.eq(u.id))
+        // Upsert into user_verification table
+        try {
+          const existing = await db.select().from(userVerificationTable).where(userVerificationTable.userId.eq(u.id))
+          if (existing.length === 0) {
+            await db.insert(userVerificationTable).values({ userId: u.id, status: 'verified' })
+          } else if (existing[0].status !== 'verified') {
+            await db.update(userVerificationTable).set({ status: 'verified', updatedAt: new Date() }).where(userVerificationTable.userId.eq(u.id))
+          }
+        } catch {}
+        updatedCount++
+      } catch (inner) {
+        // Non-fatal; continue with others
+      }
+    }
+    if (updatedCount > 0) console.log(`✅ Auto verification job marked ${updatedCount} farmer(s) verified`)
+  } catch (e) {
+    console.warn('autoFarmerVerificationJob failed', e.message)
+  }
+})
+
+export { autoFarmerVerificationJob }
 
 // CRON JOB EXPLANATION:
 // Cron jobs are scheduled tasks that run periodically at fixed intervals

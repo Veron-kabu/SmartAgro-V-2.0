@@ -235,6 +235,27 @@ export default function MarketScreen() {
           <Text style={{ fontWeight: '800', color: '#9a3412' }}>View today’s market prices</Text>
         </TouchableOpacity>
 
+        {/* Farmers Map CTA */}
+        <TouchableOpacity
+          onPress={() => router.push('/farmers-map')}
+          style={{
+            marginHorizontal: 16,
+            marginBottom: 12,
+            backgroundColor: '#ecfeff',
+            borderRadius: 12,
+            padding: 12,
+            borderWidth: 1,
+            borderColor: '#a5f3fc',
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="map" size={18} color="#0891b2" />
+          <Text style={{ fontWeight: '800', color: '#0e7490' }}>See available farmers on map</Text>
+        </TouchableOpacity>
+
         {/* Categories */}
         <CategoryFilter
           categories={categories}

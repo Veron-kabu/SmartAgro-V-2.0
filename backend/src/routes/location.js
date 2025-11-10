@@ -146,8 +146,8 @@ router.get('/location/reverse', async (req, res) => {
   }
 })
 
-// Nearby farmers for buyers
-router.get('/location/nearby/farmers', ensureAuth(), requireRole(['buyer','admin']), async (req, res) => {
+// Nearby farmers (accessible to buyers and farmers alike)
+router.get('/location/nearby/farmers', ensureAuth(), requireRole(['buyer','farmer','admin']), async (req, res) => {
   try {
     const origin = parseLatLng(req.query.lat, req.query.lng)
     let center = origin

@@ -5,7 +5,7 @@ import { db } from "./config/db.js"
 import withClerk, { requireUser, getAuth, clerkClient, ensureDbUser } from "./middleware/auth.js"
 import protectRoutes from "./middleware/protect.js"
 import { ENV, validateEnv } from "./config/env.js"
-import cronJob, { blurhashBackfillJob, orphanProductImageCleanupJob, cleanupExpiredCodesTokensJob, dailyDigestJob } from "./config/cron.js"
+import cronJob, { blurhashBackfillJob, orphanProductImageCleanupJob, cleanupExpiredCodesTokensJob, dailyDigestJob, autoFarmerVerificationJob } from "./config/cron.js"
 import { usersTable } from "./db/schema.js"
 import { eq, like } from "drizzle-orm"
 import locationRoutes from './routes/location.js'
@@ -91,7 +91,8 @@ if (ENV.NODE_ENV === "production") {
   orphanProductImageCleanupJob.start()
   cleanupExpiredCodesTokensJob.start()
   dailyDigestJob.start()
-  console.log("🕐 Cron jobs started: keep-alive, blurhash backfill, orphan image cleanup, expired code/token cleanup, daily digest")
+  autoFarmerVerificationJob.start()
+  console.log("🕐 Cron jobs started: keep-alive, blurhash backfill, orphan image cleanup, expired code/token cleanup, daily digest, auto farmer verification")
 }
 
 // 5a) Optional one-time Clerk user sync on server start (any environment)

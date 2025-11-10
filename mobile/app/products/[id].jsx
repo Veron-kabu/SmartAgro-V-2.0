@@ -1,5 +1,5 @@
 import { useLocalSearchParams, router } from 'expo-router'
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, Alert, Share, Dimensions, Image, StyleSheet, TextInput, Keyboard } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { getJSON, postJSON, deleteJSON } from '../../context/api'
@@ -27,6 +27,9 @@ export default function ProductDetail() {
   const [favorited, setFavorited] = useState(false)
   const [checkingFav, setCheckingFav] = useState(false)
   const [carouselIndex, setCarouselIndex] = useState(0)
+  const [autoPlayPaused, setAutoPlayPaused] = useState(false)
+  const autoPlayIntervalMs = 4000
+  const isAutoScrollingRef = useRef(false)
   const screenWidth = Dimensions.get('window').width
   const { addItem, removeItem, items } = useCart()
   const { toggleFavorite: toggleFavCtx, isFavorited } = useFavorites()
@@ -40,6 +43,12 @@ export default function ProductDetail() {
   const { profile } = useProfile()
   const isAdmin = String(profile?.role || '').toLowerCase() === 'admin'
   const isSuspended = String(profile?.status || '').toLowerCase() === 'suspended'
+  const scrollRef = useRef(null)
+  const imageCount = useMemo(() => (
+    Array.isArray(resolvedImages) && resolvedImages.length > 0
+      ? resolvedImages.length
+      : (Array.isArray(product?.images) ? product.images.length : 0)
+  ), [resolvedImages, product?.images])
   // Inline reply state
   const [openReply, setOpenReply] = useState(null) // reviewId that is open
   const [replyTextById, setReplyTextById] = useState({})
@@ -250,21 +259,62 @@ export default function ProductDetail() {
     ])
   }, [])
 
+  // Auto-play logic: advance carousel every autoPlayIntervalMs unless paused or user is interacting
+  useEffect(() => {
+    if (imageCount <= 1) return
+    if (autoPlayPaused) return
+    const id = setInterval(() => {
+      setCarouselIndex(curr => {
+        const total = imageCount
+        const next = (curr + 1) % total
+        return next
+      })
+    }, autoPlayIntervalMs)
+    return () => clearInterval(id)
+  }, [imageCount, autoPlayPaused])
+
+  // Scroll to the active index when it changes (autoplay or dots tap)
+  useEffect(() => {
+    if (!scrollRef.current) return
+    if (imageCount <= 1) return
+    try {
+      isAutoScrollingRef.current = true
+      scrollRef.current.scrollTo({ x: carouselIndex * screenWidth, animated: true })
+      // Fallback safety to clear flag in case momentum event doesn't fire
+      setTimeout(() => { isAutoScrollingRef.current = false }, 600)
+    } catch {
+      isAutoScrollingRef.current = false
+    }
+  }, [carouselIndex, screenWidth, imageCount])
+
   const headerCarousel = () => {
   const imgs = (resolvedImages && resolvedImages.length > 0) ? resolvedImages : (product?.images || [])
   if (!imgs.length) return <View style={[styles.heroImage, { backgroundColor: COLORS.divider }]} />
     return (
       <ScrollView
+        ref={scrollRef}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         style={{ flex:1 }}
         onScroll={(e) => {
-          const x = e.nativeEvent.contentOffset.x
-          const i = Math.round(x / screenWidth)
-          if (i !== carouselIndex) setCarouselIndex(i)
+          // Ignore index updates during programmatic auto-scroll to avoid jitter
+          if (isAutoScrollingRef.current) return
         }}
         scrollEventThrottle={16}
+        // When user touches, pause autoplay; resume shortly after release
+        onTouchStart={() => setAutoPlayPaused(true)}
+        onScrollBeginDrag={() => setAutoPlayPaused(true)}
+        onMomentumScrollEnd={(e) => {
+          // Update index to the nearest page after manual scroll or auto-scroll completes
+          const x = e?.nativeEvent?.contentOffset?.x || 0
+          const i = Math.round(x / screenWidth)
+          if (Number.isFinite(i) && i !== carouselIndex) setCarouselIndex(i)
+          // Clear auto-scrolling lock and resume autoplay after a short delay
+          isAutoScrollingRef.current = false
+          // Brief timeout to avoid immediate restart causing jank
+          setTimeout(() => setAutoPlayPaused(false), 3000)
+        }}
       >
         {imgs.map((url, idx) => {
           // Prefetch next image for smoother swipe
@@ -304,9 +354,9 @@ export default function ProductDetail() {
   <ScrollView contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <View style={styles.heroWrap}>
           {headerCarousel()}
-          {Array.isArray(product?.images) && product.images.length > 1 && (
+          {imageCount > 1 && (
             <View style={styles.dotsWrap}>
-              {product.images.map((_,i)=>(
+              {Array.from({ length: imageCount }).map((_,i)=>(
                 <View key={i} style={[styles.dot, carouselIndex===i && styles.dotActive]} />
               ))}
             </View>

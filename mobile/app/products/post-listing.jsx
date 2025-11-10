@@ -25,7 +25,7 @@ export default function PostListing() {
   const [discountPercent, setDiscountPercent] = useState('')
   const [location, setLocation] = useState(typeof profile?.location === 'string' ? profile.location : (profile?.placeName || ''))
   const [locationObj, setLocationObj] = useState(null)
-  const [imageUri, setImageUri] = useState(null)
+  const [imageUris, setImageUris] = useState([]) // support up to 5 images
   const [imageUploading, setImageUploading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState({})
@@ -76,7 +76,7 @@ export default function PostListing() {
     setDiscountPercent('')
     setLocation(typeof profile?.location === 'string' ? profile.location : (profile?.placeName || ''))
     setLocationObj(null)
-    setImageUri(null)
+  setImageUris([])
     setErrors({})
     setPosted(null)
   setCategory(null)
@@ -86,40 +86,54 @@ export default function PostListing() {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync()
       if (status !== 'granted') return Alert.alert('Permission denied', 'Media permission is required')
+      const allowsMultiple = true
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false,
         quality: 0.9,
+        allowsMultipleSelection: allowsMultiple,
       })
       if (result.canceled) return
-      const asset = result.assets?.[0]
-      if (!asset) return
-      setImageUri(asset.uri)
+      const picked = (result.assets || [])
+        .map(a => a?.uri)
+        .filter(Boolean)
+      if (!picked.length) return
+      setImageUris(prev => {
+        const next = [...prev, ...picked]
+        // enforce max 5
+        return next.slice(0, 5)
+      })
     } catch (e) {
       toast.show(e?.message || 'Image pick failed', { type: 'error' })
     }
   }, [toast])
 
-  const uploadImageIfNeeded = useCallback(async () => {
-    if (!imageUri) return null
+  const uploadImagesIfNeeded = useCallback(async () => {
+    if (!imageUris?.length) return []
     try {
       setImageUploading(true)
-      const resp = await fetch(imageUri)
-      const blob = await resp.blob()
-      let presign
-      // Try product specific endpoint first if backend implements it
-      try {
-        presign = await postJSON('/api/uploads/product-presign', { contentType: blob.type || 'image/jpeg', contentLength: blob.size })
-  } catch (_e) {
-        // Fallback to avatar-presign (existing) silently
-        presign = await postJSON('/api/uploads/avatar-presign', { contentType: blob.type || 'image/jpeg', contentLength: blob.size })
+      const uploads = []
+      for (const uri of imageUris.slice(0, 5)) {
+        try {
+          const resp = await fetch(uri)
+          const blob = await resp.blob()
+          let presign
+          try {
+            presign = await postJSON('/api/uploads/product-presign', { contentType: blob.type || 'image/jpeg', contentLength: blob.size })
+          } catch (_e) {
+            presign = await postJSON('/api/uploads/avatar-presign', { contentType: blob.type || 'image/jpeg', contentLength: blob.size })
+          }
+          await fetch(presign.uploadUrl, { method: 'PUT', headers: { 'Content-Type': presign.contentType }, body: blob })
+          uploads.push(presign.publicUrl)
+        } catch (e) {
+          console.warn('Upload failed for one image:', e?.message || e)
+        }
       }
-      await fetch(presign.uploadUrl, { method: 'PUT', headers: { 'Content-Type': presign.contentType }, body: blob })
-      return presign.publicUrl
+      return uploads
     } finally {
       setImageUploading(false)
     }
-  }, [imageUri])
+  }, [imageUris])
 
   // Listen for map selection for product location
   useEffect(() => {
@@ -185,7 +199,7 @@ export default function PostListing() {
     }
     try {
       setSubmitting(true)
-      const imgUrl = await uploadImageIfNeeded()
+  const imgUrls = await uploadImagesIfNeeded()
       // Compute effective location from selection or profile
       const profileCoords = (profile && (profile.latitude != null && profile.longitude != null))
         ? { lat: Number(profile.latitude), lng: Number(profile.longitude) }
@@ -215,7 +229,7 @@ export default function PostListing() {
           name: effectivePlaceName || null,
           address: effectiveAddressDetails || null,
         } : null,
-        images: imgUrl ? [imgUrl] : [],
+  images: Array.isArray(imgUrls) ? imgUrls : [],
         is_organic: false,
         discount_percent: discountPercent === '' ? 0 : Math.min(Math.max(Number(discountPercent)||0,0),90),
       }
@@ -230,7 +244,7 @@ export default function PostListing() {
     } finally {
       setSubmitting(false)
     }
-  }, [validate, profile, title, description, price, unit, quantity, location, discountPercent, category, uploadImageIfNeeded, toast, locationObj])
+  }, [validate, profile, title, description, price, unit, quantity, location, discountPercent, category, uploadImagesIfNeeded, toast, locationObj])
 
   if (posted) {
     return (
@@ -336,17 +350,31 @@ export default function PostListing() {
       <CategoryFilter categories={CATEGORIES_FOR_FORM} selectedCategory={category} onSelectCategory={setCategory} />
       {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
 
-      <Text style={styles.label}>Upload Image</Text>
+      <Text style={styles.label}>Upload Images (up to 5)</Text>
       <TouchableOpacity style={styles.imagePicker} activeOpacity={0.85} onPress={pickImage}>
-        {imageUri ? (
-          <Image source={{ uri: imageUri }} style={styles.imagePreview} resizeMode="cover" />
-        ) : (
-          <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="cloud-upload-outline" size={28} color={COLORS.textLight} />
-            <Text style={styles.uploadHint}>Upload Image</Text>
-          </View>
-        )}
+        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name="cloud-upload-outline" size={28} color={COLORS.textLight} />
+          <Text style={styles.uploadHint}>{imageUris.length ? `Add more images (${imageUris.length}/5)` : 'Select Images'}</Text>
+        </View>
       </TouchableOpacity>
+      {imageUris.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {imageUris.map((uri, idx) => (
+              <View key={uri + idx} style={{ position: 'relative' }}>
+                <Image source={{ uri }} style={{ width: 90, height: 90, borderRadius: 10 }} resizeMode="cover" />
+                <TouchableOpacity
+                  onPress={() => setImageUris(prev => prev.filter((_, i) => i !== idx))}
+                  style={{ position: 'absolute', top: -6, right: -6, backgroundColor: '#0009', borderRadius: 12, padding: 4 }}
+                  accessibilityLabel={`Remove image ${idx+1}`}
+                >
+                  <Ionicons name="close" color="#fff" size={14} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
+      )}
   {(imageUploading) && <ActivityIndicator style={{ marginTop: 8 }} size="small" color={COLORS.primary} />}
       
   <TouchableOpacity style={[styles.submitBtn, ((!canSubmit) || String(profile?.status||'').toLowerCase()==='suspended') && { opacity: 0.6 }]} disabled={!canSubmit || String(profile?.status||'').toLowerCase()==='suspended'} onPress={onSubmit}>

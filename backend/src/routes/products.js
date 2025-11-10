@@ -148,10 +148,12 @@ router.post('/products', ensureAuth(), requireNotSuspended(), requireRole(['farm
     if (!ALLOWED_CATEGORIES.has(category)) {
       return res.status(400).json({ error: 'Invalid category', allowed: Array.from(ALLOWED_CATEGORIES) })
     }
-  const { description, minimum_order, harvest_date, expiry_date, images, is_organic } = req.body
-    // Enforce single image: keep only the first URL if provided
+  const { description, minimum_order, harvest_date, expiry_date, images, is_organic, discount_percent } = req.body
+    // Accept up to 5 images; sanitize to absolute HTTP(S) URLs
     const safeImages = Array.isArray(images) && images.length > 0
-      ? [String(images[0])]
+      ? images
+          .filter(u => typeof u === 'string' && /^https?:\/\//.test(u))
+          .slice(0, 5)
       : []
     const inserted = await db.insert(productsTable).values({
       farmerId: user[0].id,
@@ -184,7 +186,7 @@ router.post('/products', ensureAuth(), requireNotSuspended(), requireRole(['farm
     ;(async () => {
       try {
         if (Array.isArray(safeImages) && safeImages.length > 0) {
-          const slice = safeImages.slice(0,1)
+          const slice = safeImages.slice(0, 5)
           const concurrency = 3
           const queue = [...slice]
           const hashes = []
@@ -288,7 +290,7 @@ router.patch('/products/:id', ensureAuth(), requireNotSuspended({ allowAdminBypa
     }
     // Images mutation logic
     let nextImages = null
-    if (Array.isArray(images_add) || Array.isArray(images_remove)) {
+  if (Array.isArray(images_add) || Array.isArray(images_remove)) {
       const current = Array.isArray(prod.images) ? [...prod.images] : []
       if (Array.isArray(images_remove)) {
         for (const r of images_remove) {
@@ -297,19 +299,18 @@ router.patch('/products/:id', ensureAuth(), requireNotSuspended({ allowAdminBypa
         }
       }
       if (Array.isArray(images_add)) {
-        // Prepend new images so the first one becomes the primary image
         for (const a of images_add) {
-          if (typeof a === 'string' && a.startsWith('http')) current.unshift(a)
+          if (typeof a === 'string' && /^https?:\/\//.test(a)) current.unshift(a)
         }
-        // De-duplicate while preserving first occurrence (prefer the new image at the front)
+        // De-duplicate while preserving first occurrence
         const seen = new Set()
         for (let i = 0; i < current.length; i++) {
           const url = current[i]
           if (seen.has(url)) { current.splice(i,1); i--; } else { seen.add(url) }
         }
       }
-      // Enforce single image only
-      nextImages = current.slice(0,1)
+      // Limit to 5 images max
+      nextImages = current.slice(0,5)
       updates.images = nextImages
       // Reset blurhashes so backfill job can regenerate if images changed
       updates.imageBlurhashes = []

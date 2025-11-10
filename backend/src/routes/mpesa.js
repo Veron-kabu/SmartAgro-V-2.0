@@ -304,7 +304,6 @@ router.post('/mpesa/callbacks/stk', async (req, res) => {
                   ord.deliveryAddress ? `Delivery Address: ${typeof ord.deliveryAddress === 'string' ? ord.deliveryAddress : JSON.stringify(ord.deliveryAddress)}` : null,
                   `Farmer: ${farmerName}`,
                 ].filter(Boolean).join('\n')}</pre>
-                ${productImage ? `<img src="${productImage}" alt="${productTitle}" style="max-width:320px;border-radius:8px;margin:8px 0;"/>` : ''}
                 <p>We will notify you once the farmer ships your product.</p>
                 <p>If you have any questions, reply to this email or contact our support team at <a href="mailto:support@smartagro.com">support@smartagro.com</a>.</p>
                 ${openHref ? `<p><a href="${openHref}" style="display:inline-block;background:#16a34a;color:#fff;padding:10px 14px;border-radius:8px;text-decoration:none;">Open your order</a></p>` : ''}
@@ -327,7 +326,6 @@ router.post('/mpesa/callbacks/stk', async (req, res) => {
               ].filter(Boolean).join('\n')
               const htmlFarmer = `<div>
                 <h3 style="margin:0 0 8px 0; font-family:Arial, sans-serif;">Payment received for Order #${ord.id}</h3>
-                ${productImage ? `<img src="${productImage}" alt="${productTitle}" style="max-width:280px;border-radius:8px;margin:8px 0;"/>` : ''}
                 <p style="font-family:Arial, sans-serif;line-height:1.4;">${textFarmer.replace(/\n/g,'<br/>')}</p>
               </div>`
               if (buyer?.email) { try { await sendEmail({ to: buyer.email, subject: subjectBuyer, text: textBuyer, html: htmlBuyer, replyTo: 'support@smartagro.com' }) } catch {} }
