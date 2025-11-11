@@ -43,6 +43,7 @@ export default function ProductDetail() {
   const { profile } = useProfile()
   const isAdmin = String(profile?.role || '').toLowerCase() === 'admin'
   const isSuspended = String(profile?.status || '').toLowerCase() === 'suspended'
+  const isOwner = profile?.role === 'farmer' && profile?.id === product?.farmerId
   const scrollRef = useRef(null)
   const imageCount = useMemo(() => (
     Array.isArray(resolvedImages) && resolvedImages.length > 0
@@ -369,9 +370,11 @@ export default function ProductDetail() {
               fallbackRoute="/home"
             />
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity style={[styles.circleBtn, (favorited || isFavorited(numericId)) && styles.circleBtnActive]} onPress={toggleFavorite} disabled={checkingFav}>
-                <Ionicons name={(favorited || isFavorited(numericId)) ? 'heart' : 'heart-outline'} size={18} color={(favorited || isFavorited(numericId)) ? COLORS.white : COLORS.text} />
-              </TouchableOpacity>
+              {!isOwner && (
+                <TouchableOpacity style={[styles.circleBtn, (favorited || isFavorited(numericId)) && styles.circleBtnActive]} onPress={toggleFavorite} disabled={checkingFav}>
+                  <Ionicons name={(favorited || isFavorited(numericId)) ? 'heart' : 'heart-outline'} size={18} color={(favorited || isFavorited(numericId)) ? COLORS.white : COLORS.text} />
+                </TouchableOpacity>
+              )}
               <TouchableOpacity style={styles.circleBtn} onPress={shareProduct}>
                 <Ionicons name="share-social-outline" size={18} color={COLORS.text} />
               </TouchableOpacity>

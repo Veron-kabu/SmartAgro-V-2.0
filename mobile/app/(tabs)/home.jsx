@@ -115,7 +115,7 @@ export default function MarketScreen() {
   }
 
   if (loading && !refreshing) {
-    return <LoadingSpinner message="Loading fresh products..." />
+    return <LoadingSpinner message="Loading products..." />
   }
 
   return (
@@ -232,7 +232,7 @@ export default function MarketScreen() {
           activeOpacity={0.8}
         >
           <Ionicons name="pricetag" size={18} color="#ea580c" />
-          <Text style={{ fontWeight: '800', color: '#9a3412' }}>View today’s market prices</Text>
+          <Ionicons name="storefront-outline" size={18} color="#9a3412" />
         </TouchableOpacity>
 
         {/* Farmers Map CTA */}
@@ -253,7 +253,7 @@ export default function MarketScreen() {
           activeOpacity={0.8}
         >
           <Ionicons name="map" size={18} color="#0891b2" />
-          <Text style={{ fontWeight: '800', color: '#0e7490' }}>See available farmers on map</Text>
+          <Ionicons name="location-outline" size={18} color="#0e7490" />
         </TouchableOpacity>
 
         {/* Categories */}

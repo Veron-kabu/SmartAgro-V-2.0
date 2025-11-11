@@ -38,16 +38,16 @@ export function useResolvedUrls(urls) {
 
   useEffect(() => {
     let cancelled = false
-    // Compose a signature purely from stable strings to avoid false-positive reruns
-    const sig = `${listSig}|${authSig}`
-    // If inputs haven't actually changed, skip work to avoid loops
-    if (sigRef.current === sig) return () => { cancelled = true }
-    sigRef.current = sig
-
     // Defer until Clerk auth state is known; avoids calling backend without token on first paint
     if (!isLoaded) {
       return () => { cancelled = true }
     }
+    // Compose a signature purely from stable strings to avoid false-positive reruns
+    const sig = `${listSig}|${authSig}`
+    // If inputs haven't actually changed, skip work to avoid loops
+    if (sigRef.current === sig) return () => { cancelled = true }
+    // claim this signature for this run
+    sigRef.current = sig
 
     // Recreate list from signature to keep effect dependency strictly on the signature
     let parsed
@@ -81,9 +81,24 @@ export function useResolvedUrls(urls) {
       await Promise.all(tasks)
       // Abort if inputs changed mid-flight or effect cleaned up
       if (cancelled || sigRef.current !== runSig) return
-      if (!arraysEqual(resolvedRef.current, out)) {
-        resolvedRef.current = out
-        setResolved(out)
+      try {
+        if (!arraysEqual(resolvedRef.current, out)) {
+          // Break potential render-cycle by scheduling state update on next tick
+          const t = setTimeout(() => {
+            if (cancelled || sigRef.current !== runSig) return
+            try {
+              resolvedRef.current = out
+              setResolved(out)
+            } catch (e) {
+              console.warn('useResolvedUrls: scheduled setResolved failed', e)
+            }
+          }, 0)
+          // ensure we clear the timeout if the effect is torn down early
+          if (cancelled) clearTimeout(t)
+        }
+      } catch (e) {
+        // Defensive: if anything throws during equality or scheduling, bail silently to avoid render loops
+        console.warn('useResolvedUrls: prepare setResolved failed', e)
       }
     })()
 
