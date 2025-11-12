@@ -1,4 +1,4 @@
-import { clerkClient } from '@clerk/express'
+import { clerkClient } from '../middleware/auth.js'
 import { handleUserCreated } from '../../src/routes/webhooks.js'
 import { db } from '../config/db.js'
 import { clerkSyncRunsTable, usersTable } from '../db/schema.js'

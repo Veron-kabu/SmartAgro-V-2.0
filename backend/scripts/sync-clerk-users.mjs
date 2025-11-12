@@ -7,7 +7,7 @@
  * Required env: CLERK_SECRET_KEY, DB creds (see existing env config).
  */
 import 'dotenv/config'
-import { clerkClient } from '@clerk/express'
+import { clerkClient } from '../src/middleware/auth.js'
 import { db } from '../src/config/db.js'
 import { usersTable } from '../src/db/schema.js'
 import { eq } from 'drizzle-orm'
