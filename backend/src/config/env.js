@@ -68,6 +68,16 @@ export const ENV = {
 
 // Validation function to check required environment variables
 export function validateEnv() {
+  // In test/CI environments we may not have all production secrets (Clerk, SMTP, etc.).
+  // Allow smoke tests and CI to run by skipping strict validation when:
+  //  - NODE_ENV === 'test'
+  //  - CI environment variable is truthy (GitHub Actions sets CI=true)
+  //  - or SKIP_ENV_VALIDATION is explicitly set to 'true'
+  if (process.env.NODE_ENV === 'test' || process.env.CI === 'true' || process.env.SKIP_ENV_VALIDATION === 'true') {
+    console.warn('⚠️ Skipping strict environment validation in test/CI mode')
+    return
+  }
+
   const required = ["DATABASE_URL", "CLERK_PUBLISHABLE_KEY", "CLERK_SECRET_KEY", "CLERK_WEBHOOK_SECRET"]
 
   const missing = required.filter((key) => !ENV[key])
