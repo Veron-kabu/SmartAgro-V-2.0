@@ -2,6 +2,7 @@ import express from "express"
 import cors from "cors"
 import "dotenv/config"
 import { db } from "./config/db.js"
+import { sql } from 'drizzle-orm'
 import withClerk, { requireUser, getAuth, clerkClient, ensureDbUser } from "./middleware/auth.js"
 import protectRoutes from "./middleware/protect.js"
 import { ENV, validateEnv } from "./config/env.js"
@@ -139,6 +140,18 @@ if (ENV.NODE_ENV === "production") {
 //    b) API namespaces -> respond 401 JSON when not authorized
 app.use(protectRoutes(["/protected(.*)"], { mode: "redirect" }))
 app.use(protectRoutes(["/api/admin(.*)", "/api/secure(.*)"], { mode: "api" }))
+
+// Health check for load balancers and uptime monitors. Returns 200 when DB is reachable.
+app.get('/health', async (req, res) => {
+  try {
+    // Lightweight DB ping
+    await db.execute(sql`SELECT 1`)
+    return res.json({ status: 'ok' })
+  } catch (e) {
+    console.error('Health check failed:', e?.message || e)
+    return res.status(500).json({ status: 'error', error: String(e?.message || e) })
+  }
+})
 
 // 7) Legacy location routes removed as part of OSM/Nominatim refactor
 

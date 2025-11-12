@@ -1,0 +1,45 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [ main, master, feat/** ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ./backend
+
+      - name: Build Docker image
+        run: |
+          docker build -t smartagro-backend:ci ./backend
+
+      - name: Run container
+        run: |
+          docker run -d --name smartagro-ci -p 8080:3000 -e PORT=3000 smartagro-backend:ci
+
+      - name: Wait for health
+        run: |
+          for i in {1..20}; do
+            if curl -sSf http://localhost:8080/health ; then echo 'healthy' && break; fi
+            sleep 1
+          done
+
+      - name: Smoke test - products list
+        run: |
+          curl -sSf http://localhost:8080/api/products || (echo 'products failed' && exit 1)
+
+      - name: Stop container
+        run: |
+          docker stop smartagro-ci && docker rm smartagro-ci
