@@ -1,11 +1,10 @@
-import { getAuth } from "@clerk/express";
-let clerkMiddleware, requireAuth, clerkClient
+let getAuth, clerkMiddleware, requireAuth, clerkClient
 // Only initialize Clerk integration when keys are present and not running in test/CI mode
 const CLERK_ENABLED = !!(process.env.CLERK_PUBLISHABLE_KEY && process.env.CLERK_SECRET_KEY && process.env.CLERK_WEBHOOK_SECRET) && process.env.NODE_ENV !== 'test' && process.env.CI !== 'true'
 if (CLERK_ENABLED) {
 	// Dynamically import to avoid throwing at module load when keys are absent
 	// eslint-disable-next-line no-unused-vars
-	({ clerkMiddleware, requireAuth, clerkClient } = await import("@clerk/express"))
+	({ clerkMiddleware, requireAuth, clerkClient, getAuth } = await import("@clerk/express"))
 } else {
 	// Provide fallbacks so the app can run in CI/test without Clerk keys
 	clerkMiddleware = () => (req, res, next) => next()
@@ -16,6 +15,8 @@ if (CLERK_ENABLED) {
 			getUser: async () => { throw new Error('Clerk client not configured in this environment') }
 		}
 	}
+	// stub getAuth so code calling getAuth(req) won't throw
+	getAuth = () => null
 }
 import crypto from "crypto";
 import { Webhook as SvixWebhook } from "svix";
