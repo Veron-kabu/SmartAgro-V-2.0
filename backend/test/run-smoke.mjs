@@ -3,6 +3,35 @@
 
 process.env.NODE_ENV = 'test'
 import request from 'supertest'
+import { execSync } from 'child_process'
+import pkg from 'pg'
+const { Client } = pkg
+
+// If DATABASE_URL is set we should ensure the schema is applied before importing the app.
+if (process.env.DATABASE_URL) {
+  console.log('Applying DB schema (drizzle-kit push) before smoke run')
+  // Run push and let failures surface (do not swallow) so CI logs show the reason
+  execSync('npx drizzle-kit push --schema ./src/db/schema.js --url "' + process.env.DATABASE_URL + '" --dialect postgresql --force', { stdio: 'inherit' })
+
+  // Quick verification that the products table exists
+  try {
+    const client = new Client({ connectionString: process.env.DATABASE_URL })
+    await client.connect()
+    const res = await client.query("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='products') as exists")
+    await client.end()
+    const exists = res.rows?.[0]?.exists
+    if (!exists) {
+      console.error('❌ products table does not exist after schema push — aborting smoke run')
+      process.exit(2)
+    } else {
+      console.log('✅ products table exists')
+    }
+  } catch (e) {
+    console.error('❌ Failed to verify products table presence:', e.message || e)
+    process.exit(2)
+  }
+}
+
 import app from '../src/server.js'
 
 async function run() {
