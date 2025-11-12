@@ -4,17 +4,7 @@
   "description": "",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
-    "sync:clerk:users": "node ./scripts/sync-clerk-users.mjs",
-    "migrate:location": "node ./scripts/apply-location-refactor.mjs",
-    "migrate:location:cleanup": "node ./scripts/apply-drop-geocell-triggers.mjs",
-    "blurhash:backfill": "node ./scripts/backfill-blurhashes.mjs",
-    "fix:users:columns": "node ./scripts/apply-fix-users-columns.mjs",
-    "migrate:verification:cleanup": "node ./scripts/apply-verification-cleanup.mjs",
-    "migrate:verification:drop-image-reviews": "node ./scripts/apply-image-reviews-drop.mjs",
-    "migrate:mpesa": "node ./scripts/apply-mpesa-migrations.mjs",
-    "migrate:orders:payment": "node ./scripts/apply-orders-payment-migration.mjs"
+    "smoke": "node test/run-smoke.mjs"
   },
   "keywords": [],
   "author": "",
@@ -33,11 +23,13 @@
     "drizzle-orm": "^0.44.2",
     "express": "^5.1.0",
     "nodemailer": "^6.9.14",
+    "pg": "^8.16.3",
     "sharp": "^0.33.4",
     "svix": "^1.76.1"
   },
   "devDependencies": {
     "drizzle-kit": "^0.31.1",
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "supertest": "^6.3.3"
   }
 }

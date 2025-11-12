@@ -1,0 +1,12 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: smartagro
+      POSTGRES_PASSWORD: smartagro
+      POSTGRES_DB: smartagro_test
+    ports:
+      - '5433:5432'
+    volumes:
+      - ./test/pgdata:/var/lib/postgresql/data

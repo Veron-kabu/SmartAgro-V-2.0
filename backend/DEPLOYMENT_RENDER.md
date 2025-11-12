@@ -87,11 +87,46 @@ What I can do for you
 - I can create GitHub Actions (already scaffolded) and extend it with test suites if you provide tests or want me to add a minimal supertest-based smoke test.
 - I can prepare a Render `render.yaml` manifest if you prefer infra-as-code (I can scaffold it next).
 
----
 
 If you'd like I can now:
 - Scaffold a minimal `render.yaml` manifest for the service + cron jobs.
 - Add a small Node-based smoke-test script in `backend/test/smoke.js` and wire it into CI.
 - Replace the Dockerfile base image with `node:20-bullseye-slim` if you hit `sharp` build issues on Alpine.
+
+Environment variables checklist (what to paste into Render's Environment variables)
+-- copy these names into Render and paste your secret values (do NOT commit values into git):
+
+- DATABASE_URL              # your Neon Postgres connection string
+- CLERK_PUBLISHABLE_KEY     # Clerk publishable key
+- CLERK_SECRET_KEY          # Clerk secret key
+- CLERK_WEBHOOK_SECRET      # Clerk webhook secret
+- AWS_S3_BUCKET
+- AWS_S3_REGION
+- AWS_ACCESS_KEY_ID
+- AWS_SECRET_ACCESS_KEY
+- AWS_CLOUDFRONT_DOMAIN     # optional
+- SMTP_HOST
+- SMTP_PORT
+- SMTP_USER
+- SMTP_PASS
+- EMAIL_FROM
+- ADMIN_EMAILS              # comma-separated list
+- NODE_ENV=production
+- PORT (optional)           # Render injects a PORT; you can set to 3000 if desired
+
+Quick verification steps on Render after adding env vars
+1. In Render dashboard, open your service and review "Environment" → "Environment Variables". Ensure all keys above exist.
+2. Deploy (or redeploy) the service. Monitor the build logs for successful image build and server start.
+3. Open the service URL and visit `/health`. Expect a 200 and JSON { status: 'ok' }.
+4. Check logs (Render UI) for any errors about missing env vars — the server validates env on startup and will log missing keys.
+
+Helper: locally check required env vars without exposing secrets
+Run this small script to confirm required vars are present in your environment (it will not print their values):
+
+```bash
+# from repo root
+node backend/scripts/print-required-envs.mjs
+```
+
 
 Which of these should I do next? If you want me to proceed with manifest + smoke tests, say "Proceed with render manifest and smoke tests" and I'll add them to the repo.

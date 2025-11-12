@@ -150,7 +150,7 @@ const dailyDigestJob = new cron.CronJob(ENV.DIGEST_CRON || '0 8 * * *', async ()
 
 export { dailyDigestJob }
 
-// Automated farmer verification job (runs hourly at minute 5)
+// Automated farmer verification logic (extractable for one-off runs or cron)
 // Criteria (all must pass):
 //  - role == 'farmer' and status == 'active'
 //  - emailVerified == true
@@ -160,7 +160,7 @@ export { dailyDigestJob }
 //  - Not already farmVerified
 // Marks users.farmVerified = true and ensures user_verification.status = 'verified'.
 // Best-effort: skips users failing any check; does NOT downgrade existing verified users.
-const autoFarmerVerificationJob = new cron.CronJob('5 * * * *', async () => {
+export async function runAutoFarmerVerificationOnce() {
   try {
     if (ENV.DISABLE_AUTO_VERIFY === 'true') return
     const farmers = await db.select().from(usersTable)
@@ -196,8 +196,13 @@ const autoFarmerVerificationJob = new cron.CronJob('5 * * * *', async () => {
     }
     if (updatedCount > 0) console.log(`✅ Auto verification job marked ${updatedCount} farmer(s) verified`)
   } catch (e) {
-    console.warn('autoFarmerVerificationJob failed', e.message)
+    console.warn('runAutoFarmerVerificationOnce failed', e.message)
   }
+}
+
+// Cron job wrapper that runs the verification function on schedule
+const autoFarmerVerificationJob = new cron.CronJob('5 * * * *', async () => {
+  await runAutoFarmerVerificationOnce()
 })
 
 export { autoFarmerVerificationJob }

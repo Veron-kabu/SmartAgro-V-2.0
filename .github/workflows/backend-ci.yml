@@ -9,6 +9,23 @@ on:
 jobs:
   build-and-smoke:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: smartagro
+          POSTGRES_PASSWORD: smartagro
+          POSTGRES_DB: smartagro_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U smartagro -d smartagro_test"
+          --health-interval 5s
+          --health-timeout 2s
+          --health-retries 10
+    env:
+      # Make CI steps use the test Postgres service
+      DATABASE_URL: postgres://smartagro:smartagro@localhost:5432/smartagro_test
     steps:
       - uses: actions/checkout@v4
 
@@ -17,29 +34,51 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install dependencies
-        run: npm ci
-        working-directory: ./backend
+      - name: Wait for Postgres
+        run: |
+          echo "Waiting for Postgres service to be ready..."
+          for i in {1..60}; do
+            if nc -z localhost 5432; then
+              echo "Postgres is listening on localhost:5432" && break
+            fi
+            sleep 1
+          done
 
-      - name: Build Docker image
+      - name: Install backend dependencies
+        working-directory: ./backend
+        run: npm ci
+
+      - name: Apply migrations (drizzle-kit up)
+        working-directory: ./backend
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+        run: |
+          npx drizzle-kit up
+
+      - name: Run smoke tests (DB-backed)
+        working-directory: ./backend
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+        run: |
+          npm run smoke
+
+      - name: Build Docker image (optional extra validation)
         run: |
           docker build -t smartagro-backend:ci ./backend
 
-      - name: Run container
+      - name: Run container (optional extra validation)
         run: |
-          docker run -d --name smartagro-ci -p 8080:3000 -e PORT=3000 smartagro-backend:ci
+          docker run -d --name smartagro-ci -p 8080:5001 -e PORT=5001 smartagro-backend:ci
 
-      - name: Wait for health
+      - name: Wait for health (container)
         run: |
           for i in {1..20}; do
             if curl -sSf http://localhost:8080/health ; then echo 'healthy' && break; fi
             sleep 1
           done
 
-      - name: Smoke test - products list
-        run: |
-          curl -sSf http://localhost:8080/api/products || (echo 'products failed' && exit 1)
-
       - name: Stop container
+        if: always()
         run: |
-          docker stop smartagro-ci && docker rm smartagro-ci
+          docker stop smartagro-ci || true
+          docker rm smartagro-ci || true

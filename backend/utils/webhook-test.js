@@ -56,7 +56,8 @@ async function testWebhook() {
   );
 
   try {
-    const response = await fetch("http://localhost:5001/api/webhooks/clerk", {
+  const base = process.env.API_URL || `http://localhost:${process.env.PORT || 5001}`
+  const response = await fetch(`${base.replace(/\/$/, '')}/api/webhooks/clerk`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
