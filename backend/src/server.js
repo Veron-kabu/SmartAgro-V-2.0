@@ -86,14 +86,18 @@ app.use('/api', mpesaRoutes)
 app.use('/api', locationRoutes)
 
 // 5) Background jobs (production only) + optional Clerk automation (any env)
-if (ENV.NODE_ENV === "production") {
+// By default we DO NOT start inline crons in the web process on Render. Use Render Cron Jobs
+// (recommended) or enable RUN_INLINE_CRON=true in the environment to start them here.
+if (ENV.NODE_ENV === "production" && process.env.RUN_INLINE_CRON === 'true') {
   cronJob.start()
   blurhashBackfillJob.start()
   orphanProductImageCleanupJob.start()
   cleanupExpiredCodesTokensJob.start()
   dailyDigestJob.start()
   autoFarmerVerificationJob.start()
-  console.log("🕐 Cron jobs started: keep-alive, blurhash backfill, orphan image cleanup, expired code/token cleanup, daily digest, auto farmer verification")
+  console.log("🕐 Inline cron jobs started: keep-alive, blurhash backfill, orphan image cleanup, expired code/token cleanup, daily digest, auto farmer verification")
+} else if (ENV.NODE_ENV === "production") {
+  console.log("🛑 Inline cron jobs disabled. Set RUN_INLINE_CRON=true to enable in-process crons, or configure Render Cron Jobs for scheduled work.")
 }
 
 // 5a) Optional one-time Clerk user sync on server start (any environment)

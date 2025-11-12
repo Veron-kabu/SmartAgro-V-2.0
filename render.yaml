@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: smartagro-backend
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "3000"
+      # IMPORTANT: Do NOT store your Neon DATABASE_URL in this file. Replace the value below with
+      # a placeholder and set the real secret in the Render dashboard (Environment → Environment
+      # Variables). Committing secrets into Git is unsafe.
+      - key: DATABASE_URL
+        value: "REPLACE_WITH_NEON_URL_IN_RENDER_SECRETS"
+
+cronJobs:
+  - name: backend-alive
+    schedule: "*/14 * * * *"
+    command: "node backend/scripts/cron-ping.mjs"
+    # Prefer that you set the actual API_URL in the Render dashboard (Environment → Environment Variables).
+    # This placeholder keeps secrets out of source control.
+    envVars:
+      - key: API_URL
+        value: "REPLACE_WITH_PUBLIC_API_URL_IN_RENDER" 
