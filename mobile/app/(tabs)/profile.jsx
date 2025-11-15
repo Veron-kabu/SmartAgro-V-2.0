@@ -4,6 +4,7 @@ import { View, ActivityIndicator, Text } from "react-native"
 import { useEffect } from 'react'
 import { useProfile } from "../../context/profile"
 import UserDashboard from "../dashboard/UserDashboard"
+import AdminDashboard from "../dashboard/admin"
 import { router } from 'expo-router'
 import { profileStyles as styles } from "../../assets/styles/(tabs)/profile.styles"
 import { COLORS } from "../../constants/colors"
@@ -12,18 +13,11 @@ export default function ProfileTab() {
   const { profile, loading } = useProfile()
 
   const isAdmin = profile?.role === 'admin'
-  // Fire redirect effect early; runs every render but only triggers navigation when admin and not already there.
-  useEffect(() => {
-    if (!loading && isAdmin) {
-      // Defer navigation slightly to avoid navigating while the current
-      // component is still mounting. On Android Fabric this can cause a
-      // java.lang.IllegalStateException (addViewAt) when the view hierarchy
-      // is being updated during mount.
-      const t = setTimeout(() => router.replace('/dashboard/admin'), 50)
-      return () => clearTimeout(t)
-    }
-    return undefined
-  }, [loading, isAdmin])
+  // Admins previously navigated to a separate Admin screen which lives
+  // outside the bottom Tabs layout. That hides the tab bar. To keep the
+  // tabs visible for admins we render the admin dashboard inline here.
+  // If you prefer a full-screen admin console without tabs, revert to
+  // using `router.replace('/dashboard/admin')` instead.
 
 
   if (loading) {
@@ -36,12 +30,9 @@ export default function ProfileTab() {
   }
 
   if (isAdmin) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Opening admin console…</Text>
-      </View>
-    )
+    // Render the Admin dashboard inside the Profile tab so the bottom
+    // tab bar remains visible and admins keep the same navigation chrome.
+    return <AdminDashboard />
   }
 
   const role = profile?.role === 'farmer' ? 'farmer' : 'buyer'
