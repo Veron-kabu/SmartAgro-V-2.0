@@ -202,6 +202,8 @@ export const productCardStyles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
     overflow: "hidden",
+    flexDirection: 'column',
+    minHeight: 260,
   },
   imageContainer: {
     position: "relative",
@@ -214,6 +216,8 @@ export const productCardStyles = StyleSheet.create({
   },
   content: {
     padding: 12,
+    flex: 1,
+    justifyContent: 'space-between',
   },
   title: {
     fontSize: 15,

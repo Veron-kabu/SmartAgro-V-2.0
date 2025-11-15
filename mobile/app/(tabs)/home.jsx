@@ -189,15 +189,13 @@ export default function MarketScreen() {
 
                     <View style={homeStyles.featuredMeta}>
                       <View style={homeStyles.metaItem}>
-                        <Ionicons name="cash-outline" size={16} color={COLORS.white} />
                         <Text style={homeStyles.metaText}>
-                          Ksh {featuredProduct.price}/{featuredProduct.unit}
+                          Ksh {featuredProduct.price}
                         </Text>
                       </View>
                       <View style={homeStyles.metaItem}>
-                        <Ionicons name="cube-outline" size={16} color={COLORS.white} />
                         <Text style={homeStyles.metaText}>
-                          {featuredProduct.quantityAvailable} {featuredProduct.unit}
+                          {featuredProduct.quantityAvailable} remaining
                         </Text>
                       </View>
                       {featuredProduct.isOrganic && (

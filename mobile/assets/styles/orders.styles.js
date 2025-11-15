@@ -71,6 +71,10 @@ export const checkoutStyles = StyleSheet.create({
   bannerBtn: { paddingVertical:6, paddingHorizontal:12, borderRadius:8, backgroundColor: COLORS.card, borderWidth:1, borderColor: COLORS.border, marginLeft:8 },
   bannerBtnPrimary: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   bannerBtnText: { fontSize:12, fontWeight:'600', color: COLORS.text },
+  // Single-item checkout banner
+  singleBanner: { marginTop: 12, marginHorizontal: 12, padding: 10, borderRadius: 8, backgroundColor: '#eef2ff', borderWidth: 1, borderColor: '#c7ddff' },
+  singleBannerTitle: { color: COLORS.primary, fontWeight: '700' },
+  singleBannerSub: { color: COLORS.text, marginTop: 6 },
   adjustRow: { flexDirection:'row', alignItems:'flex-start', marginBottom:6 },
   adjustIcon: { width:20, textAlign:'center' },
   actionsBar: { marginTop:12 },

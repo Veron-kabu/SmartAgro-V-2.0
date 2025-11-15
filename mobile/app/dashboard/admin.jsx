@@ -48,19 +48,7 @@ export default function AdminDashboard() {
 
       {/* Admin-only tools moved into System drawer */}
 
-      {/* System Analytics entry */}
-      <View style={[styles.sectionBlock, { paddingHorizontal: 16 }]}>        
-        <TouchableOpacity
-          style={styles.ordersButton}
-          activeOpacity={0.9}
-          onPress={() => router.push('/dashboard/system')}
-          accessibilityLabel="System Analytics"
-        >
-          <Ionicons name={'stats-chart-outline'} size={18} color={COLORS.white} style={styles.ordersButtonIcon} />
-          <Text style={styles.ordersButtonText}>System</Text>
-        </TouchableOpacity>
-        <Text style={styles.ordersButtonHint}>Open System Analytics Dashboard</Text>
-      </View>
+      {/* System Analytics moved into Services grid in UserDashboard */}
 
       {/* Verification Reviews and Reports have been integrated into the System drawer */}
 

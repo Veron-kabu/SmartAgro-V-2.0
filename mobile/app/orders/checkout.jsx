@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, TextInput } from 'react-native'
-import { useRouter } from 'expo-router'
+import { useRouter, useLocalSearchParams } from 'expo-router'
 import { useCart } from '../../context/cart'
 import { useEffect, useState, useCallback } from 'react'
 import { validateCartItems } from '../../utils/cartValidation'
@@ -8,18 +8,21 @@ import { COLORS } from '../../constants/colors'
 import { useProfile } from '../../context/profile'
 import { useToast } from '../../context/toast'
 import { initiateStkPush, getStkStatus } from '../../utils/mpesa'
-import { postJSON, patchJSON } from '../../context/api'
+import { postJSON, patchJSON, getJSON } from '../../context/api'
 import { Ionicons } from '@expo/vector-icons'
 
 export default function CheckoutPlaceholder() {
   const router = useRouter()
   const { items, clearCart, updateQuantity, removeItem } = useCart()
-  const [validating, setValidating] = useState(true)
-  const [adjustments, setAdjustments] = useState([])
+  const { singleId, singleQty } = useLocalSearchParams()
+  // We'll lazily fetch a single product inside validate() when needed; avoid extra effect
+  const [singleItemState, setSingleItemState] = useState(null)
   const [currentTotal, setCurrentTotal] = useState(0)
   const [lastStableTotal, setLastStableTotal] = useState(0)
-  const [pendingPriceChanges, setPendingPriceChanges] = useState([])
+  const [validating, setValidating] = useState(true)
   const [paying, setPaying] = useState(false)
+  // When singleItemState is provided we are checking out a single item
+  const itemsCount = singleItemState ? 1 : items.length
   const { profile } = useProfile()
   const { show } = useToast()
   const [deliveryAddress, setDeliveryAddress] = useState('')
@@ -27,21 +30,40 @@ export default function CheckoutPlaceholder() {
   const [phone, setPhone] = useState('')
 
   const validate = useCallback(async () => {
-    if (!items.length) { setValidating(false); setCurrentTotal(0); setLastStableTotal(0); setAdjustments([]); setPendingPriceChanges([]); return }
-    setValidating(true)
-  const { adjustments: adj, validated, total } = await validateCartItems(items, { updatePrices: true })
-    for (const v of validated) {
-      if (v.removed) removeItem(v.id)
-      else if (v.quantity !== items.find(i=>i.id===v.id)?.quantity) updateQuantity(v.id, v.quantity)
+    let sourceItems = items
+    // If singleId is provided, fetch the latest product data and use that single item
+    if (singleId) {
+      try {
+        const pid = Number(Array.isArray(singleId) ? singleId[0] : singleId)
+        if (pid && !Number.isNaN(pid)) {
+          const p = await getJSON(`/api/products/${pid}`)
+          const qty = Number(Array.isArray(singleQty) ? singleQty[0] : singleQty) || 1
+          if (p) {
+            sourceItems = [{ ...p, quantity: qty }]
+            setSingleItemState(sourceItems[0])
+          }
+        }
+      } catch (_e) {
+        // If fetch fails, fall back to an empty list so validation clears
+        sourceItems = []
+      }
     }
-  const priceChanges = adj.filter(a => a.type === 'price')
-  // Prices are auto-applied; keep for visibility only (no user action required)
-  setPendingPriceChanges(priceChanges)
-    setAdjustments(adj)
+
+    if (!sourceItems.length) { setValidating(false); setCurrentTotal(0); setLastStableTotal(0); return }
+    setValidating(true)
+    const { adjustments: adj, validated, total } = await validateCartItems(sourceItems, { updatePrices: true })
+    for (const v of validated) {
+      if (v.removed) {
+        if (!singleId) removeItem(v.id)
+      } else if (!singleId && v.quantity !== items.find(i=>i.id===v.id)?.quantity) {
+        updateQuantity(v.id, v.quantity)
+      }
+    }
+    // Note: adjustments returned by validation are ignored (UI simplified per UX request)
     setCurrentTotal(total)
     setLastStableTotal(total)
     setValidating(false)
-  }, [items, removeItem, updateQuantity])
+  }, [items, removeItem, updateQuantity, singleId, singleQty])
 
   // Manual price change actions removed (auto-applied)
 
@@ -70,7 +92,7 @@ export default function CheckoutPlaceholder() {
   const payNow = useCallback(async () => {
     if (validating) return
     const amount = Number(currentTotal)
-  const buyerPhone = (phone || '').trim()
+    const buyerPhone = (phone || '').trim()
   if (!buyerPhone) { show('Enter a phone number to pay via M-Pesa.', { type: 'warning' }); return }
     if (!deliveryAddress || !deliveryAddress.trim()) { show('Add a delivery address before paying.', { type: 'warning' }); return }
     if (!Number.isFinite(amount) || amount <= 0) { show('Invalid total amount', { type: 'error' }); return }
@@ -94,9 +116,10 @@ export default function CheckoutPlaceholder() {
             if (code === '0') {
               // Create orders for all cart items in one go
               try {
+                const processingItems = singleItemState ? [singleItemState] : items
                 const payload = {
                   checkoutRequestID,
-                  items: items.map(it => ({
+                  items: processingItems.map(it => ({
                     product_id: it.id,
                     quantity: it.quantity,
                     delivery_address: deliveryObj || (deliveryAddress ? { text: deliveryAddress } : null),
@@ -104,7 +127,8 @@ export default function CheckoutPlaceholder() {
                   }))
                 }
                 await postJSON('/api/orders/cart-after-payment', payload)
-                clearCart()
+                if (!singleItemState) clearCart()
+                else removeItem && removeItem(singleItemState.id)
               } catch (e) {
                 // Surface a warning but still navigate; list may update after retry
                 show(e?.body || e?.message || 'Payment received but order creation failed; will retry shortly.', { type: 'warning' })
@@ -131,6 +155,12 @@ export default function CheckoutPlaceholder() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Checkout (Validation)</Text>
+      {singleItemState && (
+        <View style={{ marginTop: 12, marginHorizontal: 12, padding: 10, borderRadius: 8, backgroundColor: '#eef2ff', borderWidth: 1, borderColor: '#c7ddff' }}>
+          <Text style={{ color: COLORS.primary, fontWeight: '700' }}>Purchasing only this item</Text>
+          <Text style={{ color: COLORS.text, marginTop: 6 }} numberOfLines={1}>{singleItemState?.title || ''}</Text>
+        </View>
+      )}
         {/* Delivery address input with map picker */}
         <View style={{ marginTop: 12 }}>
           <Text style={styles.meta}>Delivery Address</Text>
@@ -163,36 +193,10 @@ export default function CheckoutPlaceholder() {
           <Text style={[styles.desc,{ marginLeft:8 }]}>Validating cart…</Text>
         </View>
       )}
-      <Text style={styles.meta}>Items: {items.length}</Text>
+      <Text style={styles.meta}>Items: {itemsCount}</Text>
       <Text style={styles.meta}>Total: KSH {(validating ? lastStableTotal : currentTotal).toFixed(2)}</Text>
-      {/* Prices auto-apply on validation; show a lightweight notice if any changed */}
-      {!!pendingPriceChanges.length && !validating && (
-        <View style={styles.bannerWarning}>
-          <Text style={styles.bannerText}>{pendingPriceChanges.length} price change(s) auto-applied.</Text>
-        </View>
-      )}
       <ScrollView style={{ marginTop:12 }} contentContainerStyle={{ paddingBottom:48 }}>
-        <Text style={styles.desc}>Adjusted pricing & availability will surface below. Payment flow coming soon.</Text>
-        {adjustments.length > 0 && (
-          <View style={{ marginTop:16 }}>
-            <Text style={styles.adjustTitle}>Adjustments</Text>
-            {adjustments.map(a => {
-              let icon = 'ℹ️'; let color = COLORS.text; let text = ''
-              if (a.type === 'removed') { icon = '❌'; color = COLORS.error; text = `Removed: ${a.reason || 'Unavailable'}` }
-              else if (a.type === 'quantity') { icon = '🔄'; color = COLORS.warningText || COLORS.text; text = `Quantity clamped to ${a.newQuantity}` }
-              else if (a.type === 'price') { icon = '💲'; color = COLORS.primary; text = `Price changed ${a.oldPrice} → ${a.newPrice}` }
-              else if (a.type === 'error') { icon = '⚠️'; color = COLORS.error; text = `Validation failed (${a.reason || 'Unknown'})` }
-              return (
-                <View key={a.id + a.type} style={styles.adjustRow}>
-                  <Text style={[styles.adjustIcon,{ opacity:0.9 }]}>{icon}</Text>
-                  <View style={{ flex:1 }}>
-                    <Text style={[styles.adjustLine,{ color }]} numberOfLines={2}>Item #{a.id} – {text}</Text>
-                  </View>
-                </View>
-              )
-            })}
-          </View>
-        )}
+        {/* Adjustments and auto-applied price notices removed per UX request */}
       </ScrollView>
       <View style={styles.actionsBar}>
         <TouchableOpacity

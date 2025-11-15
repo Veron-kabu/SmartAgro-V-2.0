@@ -479,7 +479,7 @@ export default function ProductDetail() {
                   disabled={product.quantityAvailable <= 0}
                 >
                   <Text style={styles.addBtnText}>
-                    {product.quantityAvailable <= 0 ? 'Out of stock' : (inCart ? 'Remove from cart' : 'Add to cart')}
+                    {product.quantityAvailable === 0 ? 'Out of stock' : (inCart ? 'Remove from cart' : 'Add to cart')}
                   </Text>
                 </TouchableOpacity>
               </>

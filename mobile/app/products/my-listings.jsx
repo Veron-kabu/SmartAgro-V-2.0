@@ -225,7 +225,7 @@ export default function MyListings() {
 	}
 
 	const renderItem = ({ item }) => {
-		const outOfStock = item.quantityAvailable <= 0
+		const outOfStock = item.quantityAvailable === 0
 		const discounted = item.discountPercent > 0
 		const recentlyEdited = item.updatedAt && (new Date(item.updatedAt) - new Date(item.createdAt) > 5000) && (Date.now() - new Date(item.updatedAt).getTime() < 10 * 60 * 1000)
 		const isSelected = selected.has(item.id)

@@ -1,59 +1,26 @@
-import { View, Text, Alert, ScrollView, TouchableOpacity, FlatList, RefreshControl, Image, Animated, PanResponder } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, FlatList, RefreshControl } from "react-native";
 import { COLORS } from '../../constants/colors'
-import { useClerk, useUser } from "@clerk/clerk-expo";
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useUser } from "@clerk/clerk-expo";
+import { useEffect, useState, useCallback } from 'react'
 import Shimmer from '../../components/Shimmer'
-import * as Haptics from 'expo-haptics'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getJSON } from '../../context/api'
 import { subscribeAppEvents } from '../../context/favorites'
 import { useProfile } from '../../context/profile'
-import { useCart } from '../../context/cart'
 import { favoritesStyles } from "../../assets/styles/(tabs)/favorites.styles";
 import { Ionicons } from "@expo/vector-icons";
 import ProductCard from "../../components/ProductCard";
 import EmptyState from "../../components/EmptyState";
 import LoadingSpinner from "../../components/LoadingSpinner";
-import { router } from 'expo-router'
-import CountBadge from '../../components/CountBadge'
+
 // Payment and validation now handled in /orders/checkout
 
 const FavoritesScreen = () => {
-  const { signOut } = useClerk();
   const { user } = useUser();
   const { profile } = useProfile()
-  const { items: cartItems, updateQuantity, removeItem, clearCart, addItem } = useCart()
-  
-  
   const [favoriteProducts, setFavoriteProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
-  const [showCart, setShowCart] = useState(true)
-  const [undoData, setUndoData] = useState(null)
-  const undoTimeoutRef = useRef(null)
-  const SWIPE_THRESHOLD = 50
-  const gestureRefs = useRef({})
-  // Payment state removed; checkout handled in dedicated screen
-  const [priceMap, setPriceMap] = useState({}) // id -> { price, discountPercent, unit }
-
-  // Persist collapsed state
-  useEffect(() => {
-    (async () => {
-      try {
-        const saved = await AsyncStorage.getItem('fav:cartCollapsed')
-        if (saved === '0' || saved === '1') setShowCart(saved === '1')
-      } catch {}
-    })()
-  }, [])
-
-  const toggleCart = useCallback(() => {
-    setShowCart(prev => {
-      const next = !prev
-      AsyncStorage.setItem('fav:cartCollapsed', next ? '1':'0').catch(()=>{})
-      return next
-    })
-  }, [])
 
   const loadFavorites = useCallback(async () => {
     if (!user?.id) return;
@@ -158,46 +125,8 @@ const FavoritesScreen = () => {
     setRefreshing(false)
   }, [loadFavorites])
 
-  // Hydrate cart item pricing/discounts for display consistency
-  useEffect(() => {
-    const ids = cartItems.map(i => i.id).filter(Boolean)
-    if (!ids.length) { setPriceMap({}); return }
-    const key = ids.join(',')
-    let cancelled = false
-    ;(async () => {
-      try {
-        const bulk = await getJSON(`/api/products/bulk?ids=${key}`)
-        if (cancelled) return
-        if (Array.isArray(bulk)) {
-          const map = {}
-          for (const p of bulk) {
-            map[p.id] = { price: Number(p.price)||0, discountPercent: Number(p.discountPercent||0), unit: p.unit }
-          }
-          setPriceMap(map)
-        }
-      } catch {}
-    })()
-    return () => { cancelled = true }
-  }, [cartItems])
+  
 
-  const effectiveUnit = useCallback((item) => {
-    const meta = priceMap[item.id]
-    const base = Number((meta?.price ?? item.price) || 0)
-    const disc = Number((meta?.discountPercent ?? item.discountPercent) || 0)
-    const unit = disc > 0 ? Math.round((base * (1 - disc/100)) * 100) / 100 : Math.round(base * 100) / 100
-    return unit
-  }, [priceMap])
-
-  const discountedCartTotal = useCallback(() => {
-    return cartItems.reduce((sum, it) => sum + effectiveUnit(it) * Number(it.quantity||0), 0)
-  }, [cartItems, effectiveUnit])
-
-  const handleSignOut = () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Logout", style: "destructive", onPress: signOut },
-    ]);
-  };
 
   if (loading) return <LoadingSpinner message="Loading your favorites..." />;
 
@@ -208,143 +137,9 @@ const FavoritesScreen = () => {
       }>
         <View style={favoritesStyles.header}>
           <Text style={favoritesStyles.title}>Favorites</Text>
-          <TouchableOpacity style={favoritesStyles.logoutButton} onPress={handleSignOut}>
-            <Ionicons name="log-out-outline" size={22} color={COLORS.text} />
-          </TouchableOpacity>
         </View>
 
-        {/* Enhanced Cart Section */}
-        {cartItems.length > 0 && (
-          <View style={favoritesStyles.cartSection}>
-            <TouchableOpacity 
-              style={favoritesStyles.cartHeader} 
-              onPress={toggleCart} 
-              activeOpacity={0.7}
-            >
-              <View style={favoritesStyles.cartHeaderLeft}>
-                <Ionicons 
-                  name={showCart ? "chevron-down" : "chevron-forward"} 
-                  size={20} 
-                  color={COLORS.text} 
-                />
-                <Ionicons name="cart" size={20} color={COLORS.primary} style={favoritesStyles.cartIcon} />
-                <Text style={favoritesStyles.cartTitle}>Cart</Text>
-                {!showCart && (
-                  <CountBadge
-                    count={cartItems.length}
-                    max={99}
-                    style={{ marginLeft: 8 }}
-                  />
-                )}
-              </View>
-              <View style={favoritesStyles.cartActions}>
-                {/* Removed inline total from header to declutter */}
-                <TouchableOpacity onPress={clearCart} activeOpacity={0.7}>
-                  <View style={favoritesStyles.clearPill}><Text style={favoritesStyles.clearText}>Clear</Text></View>
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-            
-            {showCart && (
-              <View style={favoritesStyles.cartContent}>
-                {cartItems.map(ci => {
-                  if (!gestureRefs.current[ci.id]) {
-                    gestureRefs.current[ci.id] = { translateX: new Animated.Value(0) }
-                  }
-                  const ref = gestureRefs.current[ci.id]
-                  const panResponder = PanResponder.create({
-                    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dy) < 12,
-                    onPanResponderMove: (_, g) => {
-                      if (g.dx < 0) ref.translateX.setValue(Math.max(g.dx, -120))
-                    },
-                    onPanResponderRelease: (_, g) => {
-                      if (g.dx < -SWIPE_THRESHOLD) {
-                        Animated.timing(ref.translateX, { toValue: -120, duration: 160, useNativeDriver: true }).start()
-                      } else {
-                        Animated.spring(ref.translateX, { toValue: 0, useNativeDriver: true }).start()
-                      }
-                    }
-                  })
-                  
-                  const performDelete = () => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(()=>{})
-                    const original = { ...ci }
-                    removeItem(ci.id)
-                    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current)
-                    undoTimeoutRef.current = setTimeout(() => {
-                      setUndoData(null)
-                    }, 5000)
-                    setUndoData({ item: original })
-                  }
-                  
-                  return (
-                    <View key={ci.id} style={favoritesStyles.cartItemContainer}>
-                      <View style={favoritesStyles.swipeDeleteLayer}>
-                        <TouchableOpacity style={favoritesStyles.deleteBtn} onPress={performDelete}>
-                          <Ionicons name="trash" size={20} color={COLORS.white} />
-                          <Text style={favoritesStyles.deleteBtnText}>Remove</Text>
-                        </TouchableOpacity>
-                      </View>
-                      <Animated.View 
-                        style={[favoritesStyles.cartItem, { transform:[{ translateX: ref.translateX }] }]} 
-                        {...panResponder.panHandlers}
-                      >
-                        <Image 
-                          source={{ uri: (Array.isArray(ci.images) && ci.images[0]) || ci.imageUrl || (typeof ci.image === 'string' ? ci.image : undefined) || 'https://via.placeholder.com/60' }} 
-                          style={favoritesStyles.cartItemImage} 
-                        />
-                        <View style={favoritesStyles.cartItemInfo}>
-                          <Text style={favoritesStyles.cartItemName} numberOfLines={1}>{ci.title}</Text>
-                          {Number(priceMap[ci.id]?.discountPercent || ci.discountPercent || 0) > 0 ? (
-                            <Text style={favoritesStyles.cartItemPrice}>
-                              <Text style={{ textDecorationLine: 'line-through', color: COLORS.textLight }}>KSH {Number((priceMap[ci.id]?.price ?? ci.price) || 0).toFixed(2)}</Text>
-                              {`  `}
-                              <Text style={{ color: COLORS.text, fontWeight: '700' }}>KSH {effectiveUnit(ci).toFixed(2)}</Text>
-                              {` / ${priceMap[ci.id]?.unit || ci.unit}`}
-                            </Text>
-                          ) : (
-                            <Text style={favoritesStyles.cartItemPrice}>KSH {Number((priceMap[ci.id]?.price ?? ci.price) || 0).toFixed(2)} / {priceMap[ci.id]?.unit || ci.unit}</Text>
-                          )}
-                          <View style={favoritesStyles.quantityControls}>
-                            <TouchableOpacity 
-                              style={favoritesStyles.quantityBtn} 
-                              onPress={() => updateQuantity(ci.id, ci.quantity - 1)}
-                            >
-                              <Ionicons name="remove" size={16} color={COLORS.text} />
-                            </TouchableOpacity>
-                            <Text style={favoritesStyles.quantityText}>{ci.quantity}</Text>
-                            <TouchableOpacity 
-                              style={favoritesStyles.quantityBtn} 
-                              onPress={() => updateQuantity(ci.id, ci.quantity + 1)}
-                            >
-                              <Ionicons name="add" size={16} color={COLORS.text} />
-                            </TouchableOpacity>
-                          </View>
-                        </View>
-                        <View style={favoritesStyles.cartItemRight}>
-                          <Text style={favoritesStyles.cartItemSubtotal}>
-                            KSH {(effectiveUnit(ci) * ci.quantity).toFixed(2)}
-                          </Text>
-                        </View>
-                      </Animated.View>
-                    </View>
-                  )
-                })}
-                
-                <TouchableOpacity 
-                  style={favoritesStyles.checkoutButton} 
-                  activeOpacity={0.85}
-                  onPress={() => router.push('/orders/checkout')}
-                >
-                  <Ionicons name="card" size={20} color={COLORS.white} style={favoritesStyles.checkoutIcon} />
-                  <Text style={favoritesStyles.checkoutText}>
-                    {`Checkout • KSH ${discountedCartTotal().toFixed(2)}`}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        )}
+              {/* Cart moved to separate Cart tab */}
 
         <View style={favoritesStyles.productsSection}>
           {error ? (
@@ -389,28 +184,7 @@ const FavoritesScreen = () => {
         </View>
       </ScrollView>
 
-      {/* Enhanced Undo Snackbar */}
-      {undoData && (
-        <Animated.View style={favoritesStyles.undoSnackbar}>
-          <View style={favoritesStyles.undoContent}>
-            <Ionicons name="checkmark-circle" size={20} color={COLORS.primary} />
-            <Text style={favoritesStyles.undoText}>
-              Removed {undoData.item.title}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={favoritesStyles.undoButton}
-            onPress={() => {
-              if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current)
-              addItem(undoData.item, undoData.item.quantity)
-              Haptics.selectionAsync().catch(()=>{})
-              setUndoData(null)
-            }}
-          >
-            <Text style={favoritesStyles.undoButtonText}>UNDO</Text>
-          </TouchableOpacity>
-        </Animated.View>
-      )}
+      {/* Undo snackbar removed from Favorites; cart actions live in Cart tab */}
     </View>
   );
 };

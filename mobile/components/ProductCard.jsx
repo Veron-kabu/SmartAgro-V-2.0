@@ -10,7 +10,7 @@ import { useProfile } from "../context/profile";
 import { useFavorites } from "../context/favorites";
 import { useChat } from "../context/chat";
 
-export default function ProductCard({ product }) {
+export default function ProductCard({ product, inCart = false, onBuy = null, onRemove = null }) {
   const router = useRouter();
   const { profile } = useProfile();
   const { toggleFavorite: toggleFavCtx, isFavorited } = useFavorites();
@@ -96,17 +96,18 @@ export default function ProductCard({ product }) {
 
   const getStatusInfo = () => {
     const status = (product.status || '').toLowerCase();
-    const qty = Number(product.quantityAvailable || 0);
+    const qty = (product.quantityAvailable !== undefined && product.quantityAvailable !== null) ? Number(product.quantityAvailable) : null;
     let label = 'Active';
-    let bg = '#d1fae5'; let fg = '#065f46';
-    
+    let bg = COLORS.card; let fg = COLORS.text;
+
     if (status && status !== 'active') {
-      if (status === 'sold') { label = 'Sold'; bg = '#fee2e2'; fg = '#991b1b'; }
-      else if (status === 'expired') { label = 'Expired'; bg = '#e5e7eb'; fg = '#374151'; }
-      else if (status === 'inactive') { label = 'Inactive'; bg = '#fef3c7'; fg = '#92400e'; }
+      if (status === 'sold') { label = 'Sold'; bg = COLORS.errorLight || COLORS.error; fg = COLORS.error; }
+      else if (status === 'expired') { label = 'Expired'; bg = COLORS.border || COLORS.card; fg = COLORS.text; }
+      else if (status === 'inactive') { label = 'Inactive'; bg = COLORS.warning || COLORS.border; fg = COLORS.warningText || COLORS.text; }
       else { label = status; }
     }
-    if (qty === 0) { label = 'Out of Stock'; bg = '#fee2e2'; fg = '#991b1b'; }
+    // Only mark out-of-stock when we explicitly know quantity is zero
+    if (qty === 0) { label = 'Out of Stock'; bg = COLORS.errorLight || COLORS.error; fg = COLORS.error; }
     
     return { label, bg, fg };
   };
@@ -144,7 +145,7 @@ export default function ProductCard({ product }) {
             <Ionicons 
               name={isFavorited(product.id) ? "heart" : "heart-outline"} 
               size={20} 
-              color={isFavorited(product.id) ? "#ef4444" : "#ffffff"} 
+              color={isFavorited(product.id) ? COLORS.error : COLORS.white} 
             />
           </TouchableOpacity>
         )}
@@ -172,12 +173,12 @@ export default function ProductCard({ product }) {
             position: 'absolute',
             top: product.isOrganic ? 36 : 8,
             left: 8,
-            backgroundColor: '#fef3c7',
+            backgroundColor: COLORS.warning || '#fef3c7',
             paddingHorizontal: 8,
             paddingVertical: 4,
             borderRadius: 12,
           }}>
-            <Text style={{ fontSize: 10, fontWeight: '600', color: '#92400e' }}>
+            <Text style={{ fontSize: 10, fontWeight: '600', color: COLORS.warningText || '#92400e' }}>
               Yours
             </Text>
           </View>
@@ -189,48 +190,34 @@ export default function ProductCard({ product }) {
           {product.title}
         </Text>
 
-        {/* Status Badge */}
-        <View style={{ flexDirection: 'row', marginBottom: 6 }}>
-          <Text style={{
-            backgroundColor: statusInfo.bg,
-            color: statusInfo.fg,
-            fontSize: 10,
-            fontWeight: '700',
-            paddingHorizontal: 8,
-            paddingVertical: 3,
-            borderRadius: 8
-          }}>
-            {statusInfo.label}
-          </Text>
-        </View>
-
-        {product.description && (
-          <Text style={productCardStyles.description} numberOfLines={2}>
-            {product.description}
-          </Text>
+        {/* Status Badge (only show when not plain "Active") */}
+        {statusInfo.label && String(statusInfo.label).toLowerCase() !== 'active' && (
+          <View style={{ flexDirection: 'row', marginBottom: 6 }}>
+            <Text style={{
+              backgroundColor: statusInfo.bg,
+              color: statusInfo.fg,
+              fontSize: 10,
+              fontWeight: '700',
+              paddingHorizontal: 8,
+              paddingVertical: 3,
+              borderRadius: 8
+            }}>
+              {statusInfo.label}
+            </Text>
+          </View>
         )}
 
         <View style={productCardStyles.footer}>
           <View style={productCardStyles.timeContainer}>
-            <Ionicons name="cash-outline" size={14} color={COLORS.textLight} />
             {Number(product?.discountPercent) > 0 ? (
               <Text style={productCardStyles.timeText}>
                 <Text style={{ textDecorationLine: 'line-through', color: COLORS.textLight }}>Ksh {Number(product.price).toFixed(2)}</Text>
                 {`  `}
                 <Text style={{ color: COLORS.text, fontWeight: '700' }}>Ksh {(Number(product.price) * (1 - Number(product.discountPercent)/100)).toFixed(2)}</Text>
-                {` / ${product.unit}`}
               </Text>
             ) : (
-              <Text style={productCardStyles.timeText}>
-                Ksh {Number(product.price).toFixed(2)}/{product.unit}
-              </Text>
+              <Text style={[productCardStyles.timeText, { color: COLORS.text, fontWeight: '700' }]}>Ksh {Number(product.price).toFixed(2)}</Text>
             )}
-          </View>
-          <View style={productCardStyles.servingsContainer}>
-            <Ionicons name="cube-outline" size={14} color={COLORS.textLight} />
-            <Text style={productCardStyles.servingsText}>
-              {product.quantityAvailable} {product.unit}
-            </Text>
           </View>
         </View>
 
@@ -243,12 +230,34 @@ export default function ProductCard({ product }) {
           alignItems: "center",
           marginTop: 4,
         }}>
-          {!isOwner ? (
-            <>
-              <TouchableOpacity 
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {inCart ? (
+              // When inside Cart: use original Chat-style pill for Buy (white background, primary border/text)
+              <TouchableOpacity
                 style={{
-                  flexDirection: "row",
-                  alignItems: "center",
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: COLORS.white,
+                  borderWidth: 1,
+                  borderColor: COLORS.primary,
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 12,
+                  marginRight: 8,
+                }}
+                onPress={() => {
+                  if (typeof onBuy === 'function') return onBuy()
+                  // fallback: navigate to product view
+                  goToView()
+                }}
+              >
+                <Text style={{ fontSize: 10, color: COLORS.primary, fontWeight: '600' }}>Buy</Text>
+              </TouchableOpacity>
+            ) : (!isOwner ? (
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
                   backgroundColor: COLORS.white,
                   borderWidth: 1,
                   borderColor: COLORS.primary,
@@ -259,38 +268,13 @@ export default function ProductCard({ product }) {
                 }}
                 onPress={handleStartChat}
               >
-                <Ionicons name="chatbubble" size={12} color={COLORS.primary} />
-                <Text style={{
-                  fontSize: 10,
-                  color: COLORS.primary,
-                  fontWeight: "600",
-                  marginLeft: 4,
-                }}>
-                  Chat
-                </Text>
+                <Text style={{ fontSize: 10, color: COLORS.primary, fontWeight: '600' }}>Chat</Text>
               </TouchableOpacity>
-              <TouchableOpacity 
+            ) : (
+              <TouchableOpacity
                 style={{
-                  backgroundColor: COLORS.primary,
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  borderRadius: 12,
-                }}
-                onPress={goToProduct}
-              >
-                <Text style={{
-                  fontSize: 10,
-                  color: COLORS.white,
-                  fontWeight: "600",
-                }}>
-                  View
-                </Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <View style={{ flexDirection: 'row', marginLeft: 'auto' }}>
-              <TouchableOpacity 
-                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
                   backgroundColor: COLORS.white,
                   borderWidth: 1,
                   borderColor: COLORS.primary,
@@ -299,34 +283,42 @@ export default function ProductCard({ product }) {
                   borderRadius: 12,
                   marginRight: 8,
                 }}
-                onPress={goToView}
-              >
-                <Text style={{
-                  fontSize: 10,
-                  color: COLORS.primary,
-                  fontWeight: "600",
-                }}>
-                  View
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={{
-                  backgroundColor: COLORS.primary,
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  borderRadius: 12,
-                }}
                 onPress={goToEdit}
               >
-                <Text style={{
-                  fontSize: 10,
-                  color: COLORS.white,
-                  fontWeight: "600",
-                }}>
-                  Edit
-                </Text>
+                <Text style={{ fontSize: 10, color: COLORS.primary, fontWeight: '600' }}>Edit</Text>
               </TouchableOpacity>
-            </View>
+            ))}
+          </View>
+
+          {inCart ? (
+            // Render delete as an error-outline pill (like the Clear pill)
+            <TouchableOpacity
+              onPress={() => { if (typeof onRemove === 'function') return onRemove(); /* no-op */ }}
+              style={{
+                backgroundColor: COLORS.card,
+                borderWidth: 1,
+                borderColor: COLORS.error,
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 12,
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <Ionicons name="trash-outline" size={16} color={COLORS.error} />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={{
+                backgroundColor: COLORS.primary,
+                paddingHorizontal: 8,
+                paddingVertical: 4,
+                borderRadius: 12,
+              }}
+              onPress={goToView}
+            >
+              <Text style={{ fontSize: 10, color: COLORS.white, fontWeight: '600' }}>View</Text>
+            </TouchableOpacity>
           )}
         </View>
       </View>

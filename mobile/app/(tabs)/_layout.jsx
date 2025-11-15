@@ -5,11 +5,14 @@ import { Ionicons } from "@expo/vector-icons"
 import { View } from 'react-native'
 import CountBadge from '../../components/CountBadge'
 import { useFavorites } from '../../context/favorites'
+import { useCart } from '../../context/cart'
 
 export default function TabsLayout() {
   // Show the number of FAVORITES on the Favorites tab (not cart items)
   const { favorites } = useFavorites()
   const favCount = Array.isArray(favorites) ? favorites.length : 0
+  const { items: cartItems } = useCart()
+  const cartCount = Array.isArray(cartItems) ? cartItems.length : 0
   return (
       <Tabs
         initialRouteName="home"
@@ -52,6 +55,24 @@ export default function TabsLayout() {
                 {favCount > 0 && (
                   <CountBadge
                     count={favCount}
+                    max={99}
+                    style={{ position: 'absolute', top: -6, right: -12 }}
+                  />
+                )}
+              </View>
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="cart"
+          options={{
+            title: "Cart",
+            tabBarIcon: ({ color, size }) => (
+              <View>
+                <Ionicons name="cart" size={size} color={color} />
+                {cartCount > 0 && (
+                  <CountBadge
+                    count={cartCount}
                     max={99}
                     style={{ position: 'absolute', top: -6, right: -12 }}
                   />

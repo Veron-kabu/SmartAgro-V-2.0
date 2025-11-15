@@ -305,17 +305,20 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
   }, [patchProfile, setBannerUrl, toast])
 
   // Quick actions for media via small icon buttons
-  const openBannerActions = useCallback(() => {
+  // Unified media actions (single camera button will open these)
+  const openMediaActions = useCallback(() => {
     Alert.alert(
-      'Banner',
+      'Media',
       'Choose an action',
       [
-        { text: 'Change', onPress: () => onPickBanner() },
-        { text: 'Remove', style: 'destructive', onPress: () => onRemoveBanner() },
+        { text: 'Change profile photo', onPress: () => onPickImage() },
+        { text: 'Remove profile photo', style: 'destructive', onPress: () => onRemoveAvatar() },
+        { text: 'Change banner', onPress: () => onPickBanner() },
+        { text: 'Remove banner', style: 'destructive', onPress: () => onRemoveBanner() },
         { text: 'Cancel', style: 'cancel' },
       ]
     )
-  }, [onPickBanner, onRemoveBanner])
+  }, [onPickImage, onRemoveAvatar, onPickBanner, onRemoveBanner])
 
   const onRemoveAvatar = useCallback(async () => {
     try {
@@ -325,18 +328,6 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
       toast.show(e?.message || 'Failed to remove profile image', { type: 'error' })
     }
   }, [patchProfile, toast])
-
-  const openAvatarActions = useCallback(() => {
-    Alert.alert(
-      'Profile photo',
-      'Choose an action',
-      [
-        { text: 'Change', onPress: () => onPickImage() },
-        { text: 'Remove', style: 'destructive', onPress: () => onRemoveAvatar() },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    )
-  }, [onPickImage, onRemoveAvatar])
 
   useEffect(() => {
     let mounted = true
@@ -598,7 +589,7 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
       <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         {/* Hero Section */}
         <View style={styles.heroWrapper}>
-          <TouchableOpacity activeOpacity={0.85} onPress={onPickBanner} disabled={pickingImage}>
+          <View>
             {bannerUrl ? (
               <BlurhashImage
                 key={bannerUrl || 'banner-placeholder'}
@@ -642,65 +633,108 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
               </LinearGradient>
             )}
             <View style={styles.bannerOverlay}>
-              {/* Messages quick access button */}
-              <TouchableOpacity
-                accessibilityLabel="Open messages"
-                onPress={() => router.push('/chat')}
-                activeOpacity={0.85}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                style={{ position: 'absolute', right: 48, top: -12, zIndex: 5, backgroundColor: 'rgba(255,255,255,0.95)', borderRadius: 16, padding: 6 }}
-              >
-                <Ionicons name="chatbubbles" size={20} color={COLORS.primary} />
-                {unreadTotal > 0 && (
-                  <CountBadge
-                    count={unreadTotal}
-                    max={99}
-                    size={18}
-                    style={{ position: 'absolute', top: -6, right: -8 }}
-                  />
-                )}
-              </TouchableOpacity>
-              {totalBadge > 0 && (
-                <TouchableOpacity
-                  accessibilityLabel="Open notifications"
-                  onPress={() => { setNotifOpen(true); loadNotifications() }}
-                  activeOpacity={0.8}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                  style={{ position: 'absolute', right: 12, top: -12, zIndex: 5 }}
-                >
-                  <CountBadge
-                    count={totalBadge}
-                    max={99}
-                    size={20}
-                    minWidth={20}
-                  />
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity onPress={openBannerActions} activeOpacity={0.85} style={{ position: 'absolute', right: 12, bottom: 8, padding: 6 }} accessibilityLabel="Banner actions">
-                <Ionicons name="ellipsis-horizontal-circle" size={22} color={COLORS.primary} />
-              </TouchableOpacity>
+                  {/* Notifications overlay removed — use Notifications tile in Services grid */}
             </View>
             {/* Banner remove button hidden while feature deferred */}
-          </TouchableOpacity>
-          <View style={styles.avatarWrapper}>
-            <TouchableOpacity onPress={onPickImage} disabled={pickingImage} activeOpacity={0.85}>
-              <BlurhashImage uri={avatarUrl || profile?.profileImageUrl || 'https://via.placeholder.com/96'} blurhash={profile?.profileImageBlurhash} style={styles.avatarLarge} />
-            </TouchableOpacity>
-            {/* Avatar actions icon */}
-            <TouchableOpacity onPress={openAvatarActions} activeOpacity={0.85} style={{ position: 'absolute', right: '25%', bottom: -10, padding: 6 }} accessibilityLabel="Profile photo actions">
-              <Ionicons name="ellipsis-horizontal-circle" size={22} color={COLORS.primary} />
-            </TouchableOpacity>
           </View>
+          <View style={styles.avatarWrapper}>
+            <View activeOpacity={1} style={{ alignItems: 'center' }}>
+              <BlurhashImage uri={avatarUrl || profile?.profileImageUrl || 'https://via.placeholder.com/96'} blurhash={profile?.profileImageBlurhash} style={styles.avatarLarge} />
+            </View>
+          </View>
+
+          {/* Camera action overlapping banner & avatar: single entry for change/remove profile or banner */}
+          <TouchableOpacity
+            accessibilityLabel="Change profile or banner photo"
+            onPress={openMediaActions}
+            activeOpacity={0.85}
+            style={{ position: 'absolute', right: 18, bottom: -12, zIndex: 20, backgroundColor: '#fff', borderRadius: 20, padding: 8, borderWidth: 1, borderColor: COLORS.border }}
+          >
+            <Ionicons name="camera" size={18} color={COLORS.primary} />
+          </TouchableOpacity>
         </View>
         <View style={styles.profileInfo}>
           {!!greeting && <Text style={styles.greeting}>{greeting}</Text>}
-          <Text style={styles.nameLarge}>{profile?.fullName || profile?.username || fallbackName}</Text>
-          <Text style={styles.username}>@{profile?.username || 'username'}</Text>
-          <TouchableOpacity style={styles.editProfileBtn} onPress={openEditModal} activeOpacity={0.8}>
-            <Text style={styles.editProfileText}>Edit profile</Text>
-          </TouchableOpacity>
-          {/* Removed separate location button. Location picker is accessible inside Edit Profile next to Address. */}
         </View>
+
+        {/* Services Grid (matches requested image style) */}
+        <View style={{ marginHorizontal: 16, marginTop: 12, backgroundColor: '#fff', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#f3f4f6' }}>
+          <Text style={{ fontSize: 16, fontWeight: '800', marginBottom: 12 }}>My Services</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+            {/* Settings tile (opens existing Edit Profile modal) */}
+            <TouchableOpacity onPress={openEditModal} style={{ width: '30%', alignItems: 'center', marginBottom: 12 }} activeOpacity={0.8}>
+              <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="settings-outline" size={24} color={COLORS.primary} />
+              </View>
+              <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>Settings</Text>
+            </TouchableOpacity>
+
+            {/* Messages / Chat tile (grid version) */}
+            <TouchableOpacity onPress={() => { try { router.push('/chat') } catch {} }} style={{ width: '30%', alignItems: 'center', marginBottom: 12 }} activeOpacity={0.8}>
+              <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="chatbubbles-outline" size={24} color={COLORS.primary} />
+                {unreadTotal > 0 && (
+                  <CountBadge count={unreadTotal} max={99} size={14} style={{ position: 'absolute', top: -6, right: -6 }} />
+                )}
+              </View>
+              <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>Messages</Text>
+            </TouchableOpacity>
+
+            {/* Notifications tile (grid) */}
+            <TouchableOpacity onPress={() => { setNotifOpen(true); loadNotifications() }} style={{ width: '30%', alignItems: 'center', marginBottom: 12 }} activeOpacity={0.8}>
+              <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="notifications-outline" size={24} color={COLORS.primary} />
+                {totalBadge > 0 && (
+                  <CountBadge count={totalBadge} max={99} size={14} style={{ position: 'absolute', top: -6, right: -6 }} />
+                )}
+              </View>
+              <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>Notifications</Text>
+            </TouchableOpacity>
+
+            {/* My Reviews removed per request */}
+
+            {/* My Listings (farmers only) */}
+            {String(profile?.role || '').toLowerCase() === 'farmer' && (
+              <TouchableOpacity onPress={() => { try { router.push('/products/my-listings') } catch {} }} style={{ width: '30%', alignItems: 'center', marginBottom: 12 }} activeOpacity={0.8}>
+                <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="layers-outline" size={24} color={COLORS.primary} />
+                </View>
+                <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>My Listings</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Orders (non-admins) */}
+            {String(profile?.role || '').toLowerCase() !== 'admin' && (
+              <TouchableOpacity onPress={() => { try { router.push('/orders') } catch {} }} style={{ width: '30%', alignItems: 'center', marginBottom: 12 }} activeOpacity={0.8}>
+                <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="cube-outline" size={24} color={COLORS.primary} />
+                </View>
+                <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>Orders</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Earnings (farmers only) */}
+            {String(profile?.role || '').toLowerCase() === 'farmer' && (
+              <TouchableOpacity onPress={() => { try { router.push('/dashboard/earnings') } catch {} }} style={{ width: '30%', alignItems: 'center', marginBottom: 12 }} activeOpacity={0.8}>
+                <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="wallet-outline" size={24} color={COLORS.primary} />
+                </View>
+                <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>Earnings</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* System - admin only; place in grid for admins as requested */}
+            {String(profile?.role || '').toLowerCase() === 'admin' && (
+              <TouchableOpacity onPress={() => { try { router.push('/dashboard/system') } catch {} }} style={{ width: '30%', alignItems: 'center', marginBottom: 12 }} activeOpacity={0.8}>
+                <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="analytics-outline" size={24} color={COLORS.primary} />
+                </View>
+                <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>System</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+          {/* Removed separate location button. Location picker is accessible inside Edit Profile next to Address. */}
 
         {/* Suspended account banner */}
         {String(profile?.status || '').toLowerCase() === 'suspended' && (
@@ -718,71 +752,7 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
           <VerificationBanner role={role} containerStyle={{ marginHorizontal: 16, borderRadius: 8, marginTop: 8 }} />
         )}
 
-  {/* My Listings Section (collapsible) - Farmers only */}
-  {role === 'farmer' && (
-  <View style={styles.sectionBlock}>
-          <View style={styles.sectionHeaderRow}>
-            <TouchableOpacity style={styles.sectionTitleBtn} onPress={() => setOpenListings(o=>{ const v=!o; persistCollapse('listings', v); if (v) { pickRandomListingThumb() }; return v })} activeOpacity={0.7}>
-              <Text style={styles.chevron}>{openListings ? '▾' : '▸'}</Text>
-              <Text style={styles.sectionHeading}>My Listings</Text>
-            </TouchableOpacity>
-            <View style={styles.headerActionsRow}>
-              {role === 'farmer' && (
-                <TouchableOpacity style={styles.headingActionBtn} activeOpacity={0.85} onPress={() => router.push('/products/post-listing')}>
-                  <Text style={styles.headingActionText}>＋ Post</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-          {openListings && (
-            <View style={styles.rowCards}>
-              <TouchableOpacity style={styles.listingCard} activeOpacity={0.85} onPress={() => router.push('/products/my-listings')}>
-                <BlurhashImage
-                  uri={listingThumb || listingThumbRaw || 'https://via.placeholder.com/300'}
-                  style={styles.listingImage}
-                  contentFit="cover"
-                  placeholder={BLUR_HASH_THUMB}
-                />
-                <View style={styles.listingCardFooter}>
-                  <Text style={styles.listingLabel}>Available </Text>
-                  <Text style={styles.listingMetric}>{(dashboardData?.totalProducts) ?? 0}</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          )}
-  </View>
-  )}
-  {/* Orders: single action button (hidden for admin) */}
-        {role !== 'admin' && (
-          <View style={styles.sectionBlock}>
-            <TouchableOpacity
-              style={styles.ordersButton}
-              activeOpacity={0.9}
-              onPress={() => router.push('/orders')}
-              accessibilityLabel="Orders"
-            >
-              <Ionicons name={role === 'farmer' ? 'newspaper-outline' : 'paper-plane-outline'} size={18} color={COLORS.white} style={styles.ordersButtonIcon} />
-              <Text style={styles.ordersButtonText}>Orders</Text>
-            </TouchableOpacity>
-            <Text style={styles.ordersButtonHint}>Incoming • Sent • Current • Completed</Text>
-          </View>
-        )}
-
-        {/* Earnings */}
-        {role === 'farmer' && (
-          <View style={styles.sectionBlock}>
-            <TouchableOpacity
-              style={styles.ordersButton}
-              activeOpacity={0.9}
-              onPress={() => router.push('/dashboard/earnings')}
-              accessibilityLabel="Earnings"
-            >
-              <Ionicons name={'wallet-outline'} size={18} color={COLORS.white} style={styles.ordersButtonIcon} />
-              <Text style={styles.ordersButtonText}>Earnings</Text>
-            </TouchableOpacity>
-            <Text style={styles.ordersButtonHint}>Earnings • Transactions</Text>
-          </View>
-        )}
+  {/* Sections moved into Services grid: My Listings, Orders, Earnings (UI cleaned) */}
 
         {/* Switch Role section removed */}
         {role !== 'admin' && (
