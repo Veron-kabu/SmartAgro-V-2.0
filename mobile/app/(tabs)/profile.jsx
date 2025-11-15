@@ -15,8 +15,14 @@ export default function ProfileTab() {
   // Fire redirect effect early; runs every render but only triggers navigation when admin and not already there.
   useEffect(() => {
     if (!loading && isAdmin) {
-      router.replace('/dashboard/admin')
+      // Defer navigation slightly to avoid navigating while the current
+      // component is still mounting. On Android Fabric this can cause a
+      // java.lang.IllegalStateException (addViewAt) when the view hierarchy
+      // is being updated during mount.
+      const t = setTimeout(() => router.replace('/dashboard/admin'), 50)
+      return () => clearTimeout(t)
     }
+    return undefined
   }, [loading, isAdmin])
 
 
