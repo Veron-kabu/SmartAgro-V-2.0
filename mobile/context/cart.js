@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, useRef } from "react"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { useProfile } from './profile'
+import { getJSON, postJSON, patchJSON, deleteJSON } from './api'
 
 const CartContext = createContext({
   items: [],
@@ -24,7 +25,32 @@ export function CartProvider({ children }) {
   const currentKey = profile?.id ? `cart:${profile.id}` : 'cart:guest'
 
   const loadCart = async (key) => {
+    // Try server-backed cart first for authenticated users, fall back to AsyncStorage
     try {
+      let serverItems = null
+      try {
+        serverItems = await getJSON('/api/cart')
+      } catch (e) {
+        // if 401 or network error, fall back to local cache
+        serverItems = null
+      }
+      if (serverItems && Array.isArray(serverItems)) {
+        // Map server shape to local item shape and include cart row id as _cartId
+        const mapped = serverItems.map((r) => ({
+          id: r.product?.id || r.productId,
+          _cartId: r.id,
+          quantity: r.quantity,
+          price: r.product?.price ?? r.unitPrice ?? 0,
+          title: r.product?.title || null,
+          images: r.product?.images || [],
+          productSnapshot: r.product || null,
+          metadata: r.metadata || {},
+        }))
+        setItems(mapped)
+        try { await AsyncStorage.setItem(key, JSON.stringify(mapped)) } catch {}
+        return
+      }
+
       const raw = await AsyncStorage.getItem(key)
       if (raw) setItems(JSON.parse(raw))
       else setItems([])
@@ -62,35 +88,75 @@ export function CartProvider({ children }) {
   }, [items, currentKey])
 
 
-  const addItem = (product, quantity = 1) => {
+  const addItem = async (product, quantity = 1) => {
+    // Optimistic local update for snappy UI
     setItems((currentItems) => {
       const existingItem = currentItems.find((item) => item.id === product.id)
-
-      if (existingItem) {
-        return currentItems.map((item) =>
-          item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item,
-        )
-      } else {
-        return [...currentItems, { ...product, quantity }]
-      }
+      if (existingItem) return currentItems.map((item) => (item.id === product.id ? { ...item, quantity: item.quantity + quantity } : item))
+      return [...currentItems, { ...product, quantity }]
     })
+
+    // If server is available, persist there and then refresh canonical state
+    try {
+      await postJSON('/api/cart', { productId: product.id, quantity })
+      // Refresh from server to get cart row ids and product snapshots
+      await loadCart(currentKey)
+    } catch (e) {
+      // Ignore network errors — keep local state and let background sync retry
+    }
   }
 
-  const removeItem = (productId) => {
+  const removeItem = async (productId) => {
+    // Find any server cart id
+    const existing = items.find(i => i.id === productId)
+    if (existing?._cartId) {
+      try {
+        await deleteJSON(`/api/cart/${existing._cartId}`)
+      } catch (e) {
+        // ignore network errors; still update local state
+      }
+    }
     setItems((currentItems) => currentItems.filter((item) => item.id !== productId))
   }
 
-  const updateQuantity = (productId, quantity) => {
+  const updateQuantity = async (productId, quantity) => {
     if (quantity <= 0) {
-      removeItem(productId)
+      await removeItem(productId)
       return
     }
-
+    // Optimistic update
     setItems((currentItems) => currentItems.map((item) => (item.id === productId ? { ...item, quantity } : item)))
+
+    // Try to persist change server-side
+    const existing = items.find(i => i.id === productId)
+    try {
+      if (existing?._cartId) {
+        await patchJSON(`/api/cart/${existing._cartId}`, { quantity })
+      } else {
+        // No server row yet — create one
+        await postJSON('/api/cart', { productId, quantity })
+      }
+      // Refresh canonical state
+      await loadCart(currentKey)
+    } catch (e) {
+      // keep optimistic local state; background sync will reconcile
+    }
   }
 
   const clearCart = () => {
-    setItems([])
+    // Try to clear server items when possible
+    (async () => {
+      try {
+        for (const it of items) {
+          if (it?._cartId) {
+            await deleteJSON(`/api/cart/${it._cartId}`)
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+      setItems([])
+    })()
   }
 
   const updateItemPrice = (productId, newPrice) => {

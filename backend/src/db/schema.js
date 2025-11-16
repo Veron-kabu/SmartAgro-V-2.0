@@ -124,6 +124,23 @@ export const favoritesTable = pgTable("favorites", {
 });
 
 // =======================
+// CART (persistent cart items)
+// =======================
+export const cartTable = pgTable("cart", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id).notNull(),
+  productId: integer("product_id").references(() => productsTable.id).notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }),
+  metadata: jsonb("metadata").default({}), // flexible place to store image snapshot, unit, etc.
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  // prevent duplicate cart rows for same user+product
+  uniqueUserProduct: index("idx_cart_user_product").on(t.userId, t.productId),
+}));
+
+// =======================
 // REVIEWS
 // =======================
 export const reviewsTable = pgTable("reviews", {
@@ -175,6 +192,7 @@ export const usersRelations = relations(usersTable, ({ many }) => ({
   ordersAsBuyer: many(ordersTable, { relationName: "buyer" }),
   ordersAsFarmer: many(ordersTable, { relationName: "farmer" }),
   favorites: many(favoritesTable),
+  carts: many(cartTable),
   reviewsWritten: many(reviewsTable, { relationName: "reviewer" }),
   reviewsReceived: many(reviewsTable, { relationName: "reviewed" }),
 }));
@@ -186,6 +204,7 @@ export const productsRelations = relations(productsTable, ({ many, one }) => ({
   }),
   orders: many(ordersTable),
   favorites: many(favoritesTable),
+  carts: many(cartTable),
 }));
 
 export const ordersRelations = relations(ordersTable, ({ one }) => ({

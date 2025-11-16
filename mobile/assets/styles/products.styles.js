@@ -11,11 +11,15 @@ export const productDetailStyles = StyleSheet.create({
     position: 'relative', 
     width: '100%', 
     height: 300, 
-    backgroundColor: COLORS.border 
+    backgroundColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden'
   },
   heroImage: { 
     width: '100%', 
-    height: '100%' 
+    height: '100%',
+    alignSelf: 'stretch'
   },
   dotsWrap: { 
     position: 'absolute', 
@@ -45,7 +49,7 @@ export const productDetailStyles = StyleSheet.create({
     alignItems: 'center' 
   },
   navBtn: { 
-    backgroundColor: OVERLAY.light, 
+    backgroundColor: 'transparent', 
     width: 40, 
     height: 40, 
     borderRadius: 20, 
@@ -101,10 +105,10 @@ export const productDetailStyles = StyleSheet.create({
     letterSpacing: 0.5 
   },
   sheet: { 
-    marginTop: -28, 
+    marginTop: 0, 
     backgroundColor: COLORS.card, 
-    borderTopLeftRadius: 32, 
-    borderTopRightRadius: 32, 
+    borderTopLeftRadius: 0, 
+    borderTopRightRadius: 0, 
     padding: 24, 
     minHeight: 340 
   },
@@ -139,17 +143,20 @@ export const productDetailStyles = StyleSheet.create({
   },
   metaRow: { 
     flexDirection: 'row', 
-    marginTop: 8 
+    marginTop: 8,
+    alignItems: 'flex-start'
   },
   metaLabel: { 
     fontSize: 12, 
     color: COLORS.textLight, 
-    width: 110 
+    width: 70
   },
   metaValue: { 
     fontSize: 12, 
     color: COLORS.text, 
-    fontWeight: '600' 
+    fontWeight: '600',
+    flex: 1,
+    flexWrap: 'wrap'
   },
   qtyRow: { 
     flexDirection: 'row', 
@@ -236,7 +243,9 @@ export const productDetailStyles = StyleSheet.create({
     backgroundColor: COLORS.background, 
     paddingVertical: 14, 
     borderRadius: 28, 
-    alignItems:'center' 
+    alignItems:'center',
+    borderWidth: 2,
+    borderColor: COLORS.online
   },
   secondaryActionBtnText: { 
     color: COLORS.text, 
@@ -392,3 +401,21 @@ export const productEditStyles = StyleSheet.create({
     marginRight:4 
   },
 });
+
+// Shared image container styles (use for product hero and featured cards)
+export const featuredImageStyles = StyleSheet.create({
+  container: {
+    width: '100%',
+    height: 300,
+    backgroundColor: COLORS.divider,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden'
+  },
+  image: {
+    width: '100%',
+    height: '100%',
+    alignSelf: 'stretch'
+    // Use Image/BlurhashImage with contentFit='contain' to show full image
+  }
+})

@@ -325,7 +325,7 @@ export default function ProductDetail() {
               key={idx}
               uri={url}
               blurhash={product?.imageBlurhashes?.[idx]}
-              style={[styles.heroImage, { width: screenWidth }]}
+              style={[styles.heroImage, { width: screenWidth, height: 300 }]}
               contentFit="cover"
             />
           )
@@ -363,12 +363,7 @@ export default function ProductDetail() {
             </View>
           )}
           <View style={styles.topButtons}>
-            <BackButton 
-              color={COLORS.text}
-              size={20}
-              style={styles.navBtn}
-              fallbackRoute="/home"
-            />
+            <View style={styles.navBtn} />
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {!isOwner && (
                 <TouchableOpacity style={[styles.circleBtn, (favorited || isFavorited(numericId)) && styles.circleBtnActive]} onPress={toggleFavorite} disabled={checkingFav}>
@@ -396,7 +391,6 @@ export default function ProductDetail() {
         ) : !product ? null : (
           <View style={styles.sheet}>
             <View style={{ flexDirection:'row', alignItems:'center', flexWrap:'wrap', gap:8 }}>
-              <Text style={styles.title}>{product.title}</Text>
               {(() => {
                 const status = (product.status || '').toLowerCase()
                 const qty = Number(product.quantityAvailable||0)
@@ -409,6 +403,8 @@ export default function ProductDetail() {
                   else { label = status }
                 }
                 if (qty === 0) { label='Out of Stock'; bg=COLORS.errorLight; fg=COLORS.error }
+                // Only show a badge when the status is not the default 'Active'
+                if (String(label).toLowerCase() === 'active') return null
                 return <Text style={{ backgroundColor:bg, color:fg, fontSize:10, fontWeight:'700', paddingHorizontal:10, paddingVertical:4, borderRadius:12 }}>{label}</Text>
               })()}
             </View>
@@ -569,6 +565,7 @@ export default function ProductDetail() {
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }}>
                               <TextInput
                                 placeholder="Write a reply"
+                                placeholderTextColor={COLORS.messageInputPlaceholder}
                                 value={replyTextById[rv.id] || ''}
                                 onChangeText={(t) => setReplyTextById(prev => ({ ...prev, [rv.id]: t }))}
                                 editable={!isSuspended}
@@ -580,7 +577,7 @@ export default function ProductDetail() {
                                 disabled={sendingReplyId === rv.id || !String(replyTextById[rv.id] || '').trim() || isSuspended}
                                 style={{ backgroundColor: (!String(replyTextById[rv.id] || '').trim() || isSuspended) ? COLORS.divider : COLORS.primary, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 6 }}
                               >
-                                <Text style={{ color: '#fff', fontWeight: '700' }}>{sendingReplyId === rv.id ? 'Sending…' : 'Send'}</Text>
+                                <Text style={{ color: COLORS.white, fontWeight: '700' }}>{sendingReplyId === rv.id ? 'Sending…' : 'Send'}</Text>
                               </TouchableOpacity>
                             </View>
                           </View>
@@ -596,22 +593,23 @@ export default function ProductDetail() {
               )}
 
               {/* Write a review */}
-              <View style={{ marginTop: 16, padding: 12, borderWidth: 1, borderColor: COLORS.divider, borderRadius: 8 }}>
+              <View style={{ marginTop: 16, padding: 12, borderWidth: 2, borderColor: COLORS.border, borderRadius: 10 }}>
                 <Text style={{ color: COLORS.text, marginBottom: 8, fontWeight: '600' }}>Rate this seller</Text>
                 <StarRating value={myRating} editable={!isSuspended} onChange={setMyRating} />
                 <TextInput
                   placeholder="Optional comment"
+                  placeholderTextColor={COLORS.messageInputPlaceholder}
                   value={myComment}
                   onChangeText={setMyComment}
                   editable={!isSuspended}
-                  style={{ marginTop: 8, backgroundColor: COLORS.inputBackground, padding: 10, borderRadius: 6, color: COLORS.text, opacity: isSuspended ? 0.6 : 1 }}
+                  style={{ marginTop: 8, backgroundColor: COLORS.inputBackground, padding: 10, borderRadius: 8, color: COLORS.text, opacity: isSuspended ? 0.6 : 1, borderWidth: 2, borderColor: COLORS.online }}
                 />
                 <TouchableOpacity
                   onPress={submitReview}
                   disabled={submittingReview || myRating < 1 || isSuspended}
                   style={{ marginTop: 10, backgroundColor: (myRating < 1 || isSuspended) ? COLORS.divider : COLORS.primary, paddingVertical: 10, borderRadius: 6, alignItems: 'center' }}
                 >
-                  <Text style={{ color: 'white', fontWeight: '700' }}>{submittingReview ? 'Submitting…' : 'Submit review'}</Text>
+                  <Text style={{ color: COLORS.white, fontWeight: '700' }}>{submittingReview ? 'Submitting…' : 'Submit review'}</Text>
                 </TouchableOpacity>
               </View>
             </View>

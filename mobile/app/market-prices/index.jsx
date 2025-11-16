@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
-import { View, Text, TextInput, FlatList, ActivityIndicator, RefreshControl, StyleSheet, TouchableOpacity, Modal } from 'react-native'
+import { View, Text, TextInput, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity, Modal } from 'react-native'
 import MarketPriceCard from '../../components/MarketPriceCard'
 import { useRouter } from 'expo-router'
 import { fetchMarketPrices } from '../../utils/marketPrices'
@@ -7,6 +7,8 @@ import { searchMarketProducts } from '../../utils/marketSearch'
 import { useDebounce } from '../../hooks/useDebounce'
 import { fetchMarkets } from '../../utils/markets'
 import { Ionicons } from '@expo/vector-icons'
+import { marketStyles as s } from '../../assets/styles/market-prices.styles'
+import { COLORS } from '../../constants/colors'
 
 export default function MarketPricesScreen() {
   const router = useRouter()
@@ -201,29 +203,29 @@ export default function MarketPricesScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#f1f5f9' }}>
+    <View style={s.container}>
       <View style={s.topBar}>
-        <Text style={s.title}>Market Prices</Text>
+        <Text style={s.titleLarge}>Market Prices</Text>
         <View style={s.searchRow}>
-          <TextInput
+            <TextInput
             placeholder={selectedMarket ? `Search (filter: ${selectedMarket})` : "Search commodity / market / county"}
             value={q}
             onChangeText={setQ}
-            style={s.search}
-            placeholderTextColor="#94a3b8"
+              style={s.search}
+              placeholderTextColor={COLORS.textLight}
           />
           <TouchableOpacity onPress={openMarkets} activeOpacity={0.8} style={s.storeBtn}>
-            <Ionicons name="storefront" size={20} color="#fff" />
+            <Ionicons name="storefront" size={20} color={COLORS.white} />
           </TouchableOpacity>
         </View>
       </View>
 
       {selectedMarket ? (
-        <View style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#fff', borderBottomColor: '#e5e7eb', borderBottomWidth: StyleSheet.hairlineWidth }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <Text style={{ fontWeight: '800', color: '#0f172a' }}>Products in {selectedMarket}</Text>
+        <View style={s.selectedMarketBar}>
+          <View style={s.selectedMarketRow}>
+            <Text style={s.sheetTitle}>Products in {selectedMarket}</Text>
             <TouchableOpacity onPress={() => { setSelectedMarket(null); setCursor(null); seenIdsRef.current = new Set(); }}>
-              <Text style={{ color: '#f97316', fontWeight: '700' }}>Clear</Text>
+              <Text style={s.clearText}>Clear</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -232,12 +234,12 @@ export default function MarketPricesScreen() {
       {loading ? (
         <View style={s.center}><ActivityIndicator size="large" /></View>
       ) : error ? (
-        <View style={s.center}><Text style={{ color: '#991b1b' }}>{error}</Text></View>
+      <View style={s.center}><Text style={{ color: COLORS.error }}>{error}</Text></View>
       ) : (
         <FlatList
           data={filtered}
           keyExtractor={keyExtractor}
-          contentContainerStyle={{ padding: 12 }}
+          contentContainerStyle={s.listContent}
           renderItem={renderItem}
           refreshControl={<RefreshControl refreshing={loading && !isSearchMode} onRefresh={load} />}
           onEndReachedThreshold={0.5}
@@ -255,19 +257,17 @@ export default function MarketPricesScreen() {
           scrollEventThrottle={16}
           ListFooterComponent={
             searching ? (
-              <View style={{ paddingVertical: 16 }}>
+              <View style={s.footerLoader}>
                 <ActivityIndicator size="small" />
               </View>
             ) : isSearchMode ? null : isLoadingMore ? (
-              <View style={{ paddingVertical: 16 }}>
+              <View style={s.footerLoader}>
                 <ActivityIndicator size="small" />
               </View>
             ) : null
           }
           ListEmptyComponent={
-            isSearchMode && !searching
-              ? <Text style={{ textAlign: 'center', color: '#64748b', marginTop: 20 }}>No products found for your search.</Text>
-              : <Text style={{ textAlign: 'center', color: '#64748b', marginTop: 20 }}>No results</Text>
+            isSearchMode && !searching ? <Text style={s.emptyMessage}>No products found for your search.</Text> : null
           }
         />
       )}
@@ -275,54 +275,54 @@ export default function MarketPricesScreen() {
       <Modal visible={marketsOpen} animationType="slide" transparent onRequestClose={() => setMarketsOpen(false)}>
         <View style={s.modalOverlay}>
           <View style={s.modalSheet}>
-            <View style={s.modalHeader}>
+              <View style={s.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Ionicons name="filter" size={18} color="#0f172a" />
+                <Ionicons name="filter" size={18} color={COLORS.primary} />
                 <Text style={s.modalTitle}> Filter Markets</Text>
               </View>
               <TouchableOpacity onPress={() => setMarketsOpen(false)} accessibilityLabel="Close">
-                <Ionicons name="close" size={22} color="#0f172a" />
+                <Ionicons name="close" size={22} color={COLORS.primary} />
               </TouchableOpacity>
             </View>
 
-            <View style={{ paddingHorizontal: 12, paddingBottom: 8 }}>
-              <TextInput
+            <View style={s.contentPadding}>
+                <TextInput
                 placeholder="Search markets..."
                 value={marketsQ}
                 onChangeText={setMarketsQ}
                 style={s.marketSearch}
-                placeholderTextColor="#94a3b8"
+                  placeholderTextColor={COLORS.textLight}
               />
             </View>
 
             {marketsLoading ? (
-              <View style={{ padding: 20, alignItems: 'center' }}>
+              <View style={s.center}>
                 <ActivityIndicator />
-                <Text style={{ marginTop: 8, color: '#64748b' }}>Loading markets...</Text>
+                <Text style={s.emptyText}>Loading markets...</Text>
               </View>
             ) : marketsError ? (
-              <View style={{ padding: 20, alignItems: 'center' }}>
-                <Text style={{ color: '#991b1b' }}>{marketsError}</Text>
+              <View style={s.center}>
+                <Text style={{ color: COLORS.error }}>{marketsError}</Text>
               </View>
             ) : (
               <FlatList
                 data={filterMarkets(markets, marketsQ)}
                 keyExtractor={(m, i) => `${m.name}:${m.county}:${i}`}
-                ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: '#e5e7eb', marginLeft: 12 }} />}
+                ItemSeparatorComponent={() => <View style={s.itemSeparator} />}
                 ListHeaderComponent={null}
                 renderItem={({ item }) => (
-                  <TouchableOpacity
+                    <TouchableOpacity
                     onPress={() => { setSelectedMarket(`${item.name}`); setMarketsOpen(false); setCursor(null); seenIdsRef.current = new Set(); }}
                     style={s.marketRow}
                   >
                     <Text style={s.marketText}>{item.name}{item.county ? ` (${item.county})` : ''}</Text>
-                    {item.featured ? <Ionicons name="star" size={16} color="#f97316" /> : null}
+                    {item.featured ? <Ionicons name="star" size={16} color={COLORS.warning} /> : null}
                   </TouchableOpacity>
                 )}
-                ListEmptyComponent={<Text style={{ textAlign: 'center', color: '#64748b', padding: 16 }}>No markets found</Text>}
-                contentContainerStyle={{ paddingBottom: 10 }}
+                ListEmptyComponent={<Text style={s.emptyMessage}>No markets found</Text>}
+                contentContainerStyle={s.modalListContent}
                 keyboardShouldPersistTaps="handled"
-                style={{ flex: 1 }}
+                style={s.scrollFlex}
               />
             )}
           </View>
@@ -332,18 +332,4 @@ export default function MarketPricesScreen() {
   )
 }
 
-const s = StyleSheet.create({
-  topBar: { paddingTop: 14, paddingHorizontal: 12, paddingBottom: 10, backgroundColor: '#fff', borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#e5e7eb' },
-  title: { fontSize: 22, fontWeight: '800', color: '#0f172a', marginBottom: 8 },
-  searchRow: { flexDirection: 'row', alignItems: 'center' },
-  search: { flex: 1, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, paddingHorizontal: 12, height: 40, backgroundColor: '#f8fafc', color: '#0f172a' },
-  storeBtn: { marginLeft: 10, width: 40, height: 40, backgroundColor: '#f97316', borderRadius: 20, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 4, elevation: 2 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.25)', justifyContent: 'flex-start', paddingTop: 50 },
-  modalSheet: { height: '75%', width: '100%', backgroundColor: '#fff', borderBottomLeftRadius: 16, borderBottomRightRadius: 16, overflow: 'hidden', elevation: 3, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 6 },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#e5e7eb' },
-  modalTitle: { fontSize: 18, fontWeight: '800', color: '#0f172a', marginLeft: 6 },
-  marketSearch: { borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 12, paddingHorizontal: 12, height: 40, backgroundColor: '#f8fafc', color: '#0f172a' },
-  marketRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, paddingHorizontal: 12 },
-  marketText: { fontSize: 16, color: '#0f172a' },
-})
+// styling moved to ../../assets/styles/market-prices.styles.js

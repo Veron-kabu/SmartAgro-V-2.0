@@ -19,6 +19,7 @@ import miscRoutes from './routes/misc.js'
 import webhookRoutes from './routes/webhooks.js'
 import favoritesRoutes from './routes/favorites.js'
 import analyticsRoutes from './routes/analytics.js'
+import cartRoutes from './routes/cart.js'
 import earningsRoutes from './routes/earnings.js'
 import verificationRoutes from './routes/verification.js'
 import reviewRoutes from './routes/reviews.js'
@@ -73,6 +74,7 @@ app.use('/api', productRoutes)
 app.use('/api', orderRoutes)
 app.use('/api', blurhashRoutes)
 app.use('/api', favoritesRoutes)
+app.use('/api', cartRoutes)
 app.use('/api', analyticsRoutes)
 app.use('/api', earningsRoutes)
 app.use('/api', verificationRoutes)

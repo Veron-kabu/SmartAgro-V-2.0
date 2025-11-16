@@ -6,7 +6,7 @@ const coffeeTheme = {
   white: "#FFFFFF",
   textLight: "#9A8478",
   card: "#FFFFFF",
-  shadow: "#000000",
+  shadow: "rgba(0,0,0,0.15)",
   // Profile and dashboard specific colors
   error: "#DC2626",
   errorLight: "#FEF2F2",
@@ -358,6 +358,57 @@ const roseGoldTheme = {
   sendButtonBg: "#E0BFB8",
 };
 
+const SmartAgroTheme = {
+  // Neutral, soft UI with reserved accents
+  primary: "#111827", // dark slate for headings/primary accents
+  background: "#F6F7F9", // very light gray page background
+  text: "#0F1724", // nearly-black for strong headings
+  border: "#E6E9EE", // soft border
+  white: "#FFFFFF",
+  textLight: "#6B7280", // muted body text
+  card: "#FFFFFF", // card surface
+  shadow: "rgba(16,24,40,0.06)",
+  // Profile and dashboard specific colors
+  error: "#DC2626",
+  errorLight: "#FEF2F2",
+  warning: "#F59E0B",
+  warningText: "#111827",
+  // New colors for modern chat interface
+  online: "#10B981",
+  offline: "#9CA3AF",
+  divider: "#E6E9EE",
+  messagePreview: "#9CA3AF",
+  timestamp: "#9CA3AF",
+  unreadBadge: "#EF4444",
+  // Chat interface specific colors
+  chatBubbleUser: "#111827",
+  chatBubbleOther: "#F3F4F6",
+  chatBubbleText: "#FFFFFF",
+  chatBubbleTextOther: "#111827",
+  inputBackground: "#F3F4F6",
+  inputBorder: "#E6E9EE",
+  sendButton: "#111827",
+  messageTime: "#9CA3AF",
+  chatHeaderBg: "#FFFFFF",
+  // WhatsApp-style dark chat colors
+  chatDarkBg: "#1C1C1C",
+  chatPatternBg: "#242424",
+  receivedBubble: "#2A2A2A",
+  sentBubble: "#111827",
+  receivedText: "#E6E9EE",
+  sentText: "#FFFFFF",
+  chatTimestamp: "#10B981",
+  messageInputBg: "#2A2A2A",
+  messageInputText: "#E6E9EE",
+  messageInputPlaceholder: "#9CA3AF",
+  sendButtonBg: "#111827",
+};
+// Badge colors for market price changes
+SmartAgroTheme.badgeUpBg = '#d1fae5'
+SmartAgroTheme.badgeDownBg = '#fee2e2'
+SmartAgroTheme.badgeUpText = '#065f46'
+SmartAgroTheme.badgeDownText = '#991b1b'
+
 export const THEMES = {
   coffee: coffeeTheme,
   forest: forestTheme,
@@ -367,10 +418,11 @@ export const THEMES = {
   mint: mintTheme,
   midnight: midnightTheme,
   roseGold: roseGoldTheme,
+  smartAgro: SmartAgroTheme,
 };
 
 // 👇 change this to switch theme
-export const COLORS = THEMES.forest;
+export const COLORS = THEMES.midnight;
 
 // Common semi-transparent overlays used across components (kept separate from theme hues)
 export const OVERLAY = {

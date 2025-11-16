@@ -9,6 +9,7 @@ import { getJSON } from "../context/api";
 import { useProfile } from "../context/profile";
 import { useFavorites } from "../context/favorites";
 import { useChat } from "../context/chat";
+import { useCart } from "../context/cart";
 
 export default function ProductCard({ product, inCart = false, onBuy = null, onRemove = null }) {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function ProductCard({ product, inCart = false, onBuy = null, onR
   const { toggleFavorite: toggleFavCtx, isFavorited } = useFavorites();
   const { createOrFindChatRoom, setCurrentChatRoom } = useChat();
   const resolvedImages = useResolvedUrls(product?.images || []);
+  const { updateQuantity } = useCart();
   
   const isOwner = profile?.role === 'farmer' && profile?.id === product.farmerId;
 
@@ -230,95 +232,140 @@ export default function ProductCard({ product, inCart = false, onBuy = null, onR
           alignItems: "center",
           marginTop: 4,
         }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            {inCart ? (
-              // When inside Cart: use original Chat-style pill for Buy (white background, primary border/text)
-              <TouchableOpacity
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  backgroundColor: COLORS.white,
-                  borderWidth: 1,
-                  borderColor: COLORS.primary,
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  borderRadius: 12,
-                  marginRight: 8,
-                }}
-                onPress={() => {
-                  if (typeof onBuy === 'function') return onBuy()
-                  // fallback: navigate to product view
-                  goToView()
-                }}
-              >
-                <Text style={{ fontSize: 10, color: COLORS.primary, fontWeight: '600' }}>Buy</Text>
-              </TouchableOpacity>
-            ) : (!isOwner ? (
-              <TouchableOpacity
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  backgroundColor: COLORS.white,
-                  borderWidth: 1,
-                  borderColor: COLORS.primary,
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  borderRadius: 12,
-                  marginRight: 8,
-                }}
-                onPress={handleStartChat}
-              >
-                <Text style={{ fontSize: 10, color: COLORS.primary, fontWeight: '600' }}>Chat</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  backgroundColor: COLORS.white,
-                  borderWidth: 1,
-                  borderColor: COLORS.primary,
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  borderRadius: 12,
-                  marginRight: 8,
-                }}
-                onPress={goToEdit}
-              >
-                <Text style={{ fontSize: 10, color: COLORS.primary, fontWeight: '600' }}>Edit</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
           {inCart ? (
-            // Render delete as an error-outline pill (like the Clear pill)
-            <TouchableOpacity
-              onPress={() => { if (typeof onRemove === 'function') return onRemove(); /* no-op */ }}
-              style={{
-                backgroundColor: COLORS.card,
-                borderWidth: 1,
-                borderColor: COLORS.error,
-                paddingHorizontal: 8,
-                paddingVertical: 4,
-                borderRadius: 12,
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <Ionicons name="trash-outline" size={16} color={COLORS.error} />
-            </TouchableOpacity>
+            <View style={{ width: '100%' }}>
+              {/* Quantity stepper centered */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                <TouchableOpacity
+                  onPress={() => {
+                    const currentQty = Number(product.quantity || 1)
+                    const next = Math.max(1, currentQty - 1)
+                    if (next !== currentQty) updateQuantity(product.id, next)
+                  }}
+                  style={{
+                    backgroundColor: COLORS.card,
+                    borderWidth: 1,
+                    borderColor: COLORS.border,
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    borderRadius: 12,
+                    marginRight: 6,
+                  }}
+                >
+                  <Ionicons name="remove" size={14} color={COLORS.text} />
+                </TouchableOpacity>
+                <Text style={{ minWidth: 18, textAlign: 'center', color: COLORS.text, fontWeight: '600' }}>{Number(product.quantity || 1)}</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    const currentQty = Number(product.quantity || 1)
+                    const maxAvail = Number.isFinite(Number(product.quantityAvailable)) ? Number(product.quantityAvailable) : null
+                    const next = maxAvail ? Math.min(maxAvail, currentQty + 1) : currentQty + 1
+                    if (next !== currentQty) updateQuantity(product.id, next)
+                  }}
+                  style={{
+                    backgroundColor: COLORS.card,
+                    borderWidth: 1,
+                    borderColor: COLORS.border,
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    borderRadius: 12,
+                    marginLeft: 6,
+                  }}
+                >
+                  <Ionicons name="add" size={14} color={COLORS.text} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Buy and Delete row beneath the stepper */}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
+                <TouchableOpacity
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: COLORS.white,
+                    borderWidth: 1,
+                    borderColor: COLORS.primary,
+                    paddingHorizontal: 8,
+                    paddingVertical: 6,
+                    borderRadius: 12,
+                  }}
+                  onPress={() => {
+                    if (typeof onBuy === 'function') return onBuy()
+                    goToView()
+                  }}
+                >
+                  <Text style={{ fontSize: 12, color: COLORS.primary, fontWeight: '700' }}>Buy</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => { if (typeof onRemove === 'function') return onRemove(); }}
+                  style={{
+                    backgroundColor: COLORS.card,
+                    borderWidth: 1,
+                    borderColor: COLORS.error,
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    borderRadius: 12,
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <Ionicons name="trash-outline" size={18} color={COLORS.error} />
+                </TouchableOpacity>
+              </View>
+            </View>
           ) : (
-            <TouchableOpacity
-              style={{
-                backgroundColor: COLORS.primary,
-                paddingHorizontal: 8,
-                paddingVertical: 4,
-                borderRadius: 12,
-              }}
-              onPress={goToView}
-            >
-              <Text style={{ fontSize: 10, color: COLORS.white, fontWeight: '600' }}>View</Text>
-            </TouchableOpacity>
+            <>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                {!isOwner ? (
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: COLORS.white,
+                      borderWidth: 1,
+                      borderColor: COLORS.primary,
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 12,
+                      marginRight: 8,
+                    }}
+                    onPress={handleStartChat}
+                  >
+                    <Text style={{ fontSize: 10, color: COLORS.primary, fontWeight: '600' }}>Chat</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: COLORS.white,
+                      borderWidth: 1,
+                      borderColor: COLORS.primary,
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 12,
+                      marginRight: 8,
+                    }}
+                    onPress={goToEdit}
+                  >
+                    <Text style={{ fontSize: 10, color: COLORS.primary, fontWeight: '600' }}>Edit</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={{
+                  backgroundColor: COLORS.primary,
+                  paddingHorizontal: 8,
+                  paddingVertical: 4,
+                  borderRadius: 12,
+                }}
+                onPress={goToView}
+              >
+                <Text style={{ fontSize: 10, color: COLORS.white, fontWeight: '600' }}>View</Text>
+              </TouchableOpacity>
+            </>
           )}
         </View>
       </View>
