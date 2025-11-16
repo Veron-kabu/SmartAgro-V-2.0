@@ -124,6 +124,22 @@ export const favoritesTable = pgTable("favorites", {
 });
 
 // =======================
+// CART
+// =======================
+export const cartTable = pgTable("cart", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => usersTable.id).notNull(),
+  productId: integer("product_id").references(() => productsTable.id).notNull(),
+  quantity: integer("quantity").default(1).notNull(),
+  unitPrice: decimal("unit_price", { precision: 10, scale: 2 }),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (t) => ({
+  idxCartUserProduct: index("idx_cart_user_product").on(t.userId, t.productId),
+}));
+
+// =======================
 // REVIEWS
 // =======================
 export const reviewsTable = pgTable("reviews", {
