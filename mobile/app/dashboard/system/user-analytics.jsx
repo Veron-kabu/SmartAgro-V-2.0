@@ -5,6 +5,7 @@ import SimplePieChart from '../../../components/charts/SimplePieChart'
 import { useEffect, useState } from 'react'
 import { getJSON } from '../../../context/api'
 import StickySections from '../../../components/analytics/StickySections'
+import { useRouter } from 'expo-router'
 import ZoomableChart from '../../../components/charts/ZoomableChart'
 import ChartTooltip from '../../../components/charts/ChartTooltip'
 
@@ -35,7 +36,9 @@ export default function UserAnalytics() {
   const header = (
     <View style={{ padding:16, paddingBottom:0 }}>
       <Text style={{ fontSize:20, fontWeight:'800', color:'#111827', marginBottom:4 }}>User Analytics</Text>
-      <View style={{ flexDirection:'row', gap:8, marginBottom:8 }}>
+      <View style={{ flexDirection:'row', gap:8, marginBottom:8, alignItems:'center' }}>
+        <UsersButton />
+        
         {[
           { key:'today', label:'Today' },
           { key:'1w', label:'1W' },
@@ -49,6 +52,15 @@ export default function UserAnalytics() {
       </View>
     </View>
   )
+
+  function UsersButton() {
+    const router = useRouter()
+    return (
+      <TouchableOpacity onPress={() => router.push('/dashboard/system/users')} style={{ backgroundColor:'#0f172a', paddingHorizontal:12, paddingVertical:8, borderRadius:10, marginRight:8 }}>
+        <Text style={{ color:'#fff', fontWeight:'700' }}>Users</Text>
+      </TouchableOpacity>
+    )
+  }
 
   const sections = [
     {

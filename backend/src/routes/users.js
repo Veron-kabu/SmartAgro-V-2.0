@@ -1,12 +1,31 @@
 import { Router } from 'express'
 import express from 'express'
 import { db } from '../config/db.js'
-import { usersTable, ordersTable, orderStatusHistoryTable } from '../db/schema.js'
+import {
+  usersTable,
+  ordersTable,
+  orderStatusHistoryTable,
+  productsTable,
+  favoritesTable,
+  cartTable,
+  reviewsTable,
+  reviewCommentsTable,
+  userReportsTable,
+  reportAppealsTable,
+  userVerificationTable,
+  verificationSubmissionsTable,
+  verificationStatusHistoryTable,
+  uploadTokensTable,
+  userNotificationsTable,
+  auditLogsTable,
+  mpesaTransactionsTable,
+  verificationAppealsTable,
+} from '../db/schema.js'
 import { ensureAuth, clerkClient } from '../middleware/auth.js'
 import { handleUserCreated } from './webhooks.js'
 import { requireRole } from '../middleware/role.js'
 import { ENV } from '../config/env.js'
-import { eq, and, or, inArray, desc } from 'drizzle-orm'
+import { eq, and, or, inArray, desc, sql } from 'drizzle-orm'
 import { createNotification } from '../utils/notifications.js'
 import { requireNotSuspended } from '../middleware/status.js'
 
@@ -64,6 +83,8 @@ router.post('/users', ensureAuth(), async (req, res) => {
     res.status(500).json({ error: 'Failed to create user' })
   }
 })
+
+export default router
 
 // Get profile
 router.get('/users/profile', ensureAuth(), async (req, res) => {
@@ -211,7 +232,7 @@ router.get('/users/:id', async (req, res) => {
   }
 })
 
-export default router
+// export the router at the end of the file
 
 // Admin-only user status endpoints
 router.post('/admin/users/:id/suspend', ensureAuth(), requireRole(['admin']), async (req, res) => {
@@ -349,6 +370,129 @@ router.post('/admin/users/:id/trust', ensureAuth(), requireRole(['admin']), asyn
     return res.json({ ok: true, user: updated[0] })
   } catch (e) {
     console.error('trust toggle error', e)
+    return res.status(500).json({ error: 'failed' })
+  }
+})
+
+// Admin: list users (simple, paginated, supports search)
+router.get('/admin/users', ensureAuth(), requireRole(['admin']), async (req, res) => {
+  try {
+    const limit = Math.min(200, Number(req.query.limit || 50))
+    const offset = Number(req.query.offset || 0)
+    const q = req.query.q ? String(req.query.q).trim() : null
+    let rows
+    if (q) {
+      const like = `%${q}%`
+      rows = await db.execute(sql`
+        select id, username, email, role, status, full_name as fullName, created_at
+        from users
+        where username ilike ${like} or email ilike ${like}
+        order by id desc
+        limit ${limit} offset ${offset}
+      `)
+    } else {
+      rows = await db.execute(sql`
+        select id, username, email, role, status, full_name as fullName, created_at
+        from users
+        order by id desc
+        limit ${limit} offset ${offset}
+      `)
+    }
+    return res.json({ items: rows.rows || [], limit, offset })
+  } catch (e) {
+    console.error('admin users list error', e)
+    return res.status(500).json({ error: 'failed' })
+  }
+})
+
+// Admin: soft-delete user (marks status as 'deleted')
+router.delete('/admin/users/:id', ensureAuth(), requireRole(['admin']), async (req, res) => {
+  try {
+    const idNum = Number(req.params.id)
+    if (isNaN(idNum)) return res.status(400).json({ error: 'invalid id' })
+    const rows = await db.select().from(usersTable).where(eq(usersTable.id, idNum))
+    if (!rows.length) return res.status(404).json({ error: 'not found' })
+    const userRow = rows[0]
+    const clerkId = userRow.clerkUserId
+
+    // Attempt to mark Clerk user as deleted (prevent re-provision) and delete from Clerk if possible
+    if (clerkId) {
+      try {
+        // Mark unsafe metadata flag so webhooks / ensureDbUser won't re-create the DB row
+        await clerkClient.users.updateUser(clerkId, { unsafeMetadata: { deleted: true } })
+      } catch (e) {
+        console.warn('Failed to set Clerk unsafeMetadata.deleted flag (continuing):', e?.message || e)
+      }
+      try {
+        // Attempt to fully delete the Clerk user (best-effort)
+        if (typeof clerkClient.users.deleteUser === 'function') {
+          await clerkClient.users.deleteUser(clerkId)
+        } else if (typeof clerkClient.users.adminDeleteUser === 'function') {
+          await clerkClient.users.adminDeleteUser(clerkId)
+        }
+      } catch (e) {
+        // Non-fatal: we already set the deleted flag; continue with DB cleanup
+        console.warn('Failed to delete Clerk user (continuing):', e?.message || e)
+      }
+    }
+
+    // Perform a transactional hard-delete of user and related rows to avoid FK constraint errors
+    await db.transaction(async (tx) => {
+      const uid = idNum
+
+      // 1) Orders (as buyer or farmer) and related payments/history
+      const userOrders = await tx.select().from(ordersTable).where(or(eq(ordersTable.buyerId, uid), eq(ordersTable.farmerId, uid)))
+      const orderIds = userOrders.map(o => o.id)
+      if (orderIds.length) {
+        try { await tx.delete(mpesaTransactionsTable).where(inArray(mpesaTransactionsTable.orderId, orderIds)) } catch {}
+        try { await tx.delete(orderStatusHistoryTable).where(inArray(orderStatusHistoryTable.orderId, orderIds)) } catch {}
+        try { await tx.delete(ordersTable).where(inArray(ordersTable.id, orderIds)) } catch {}
+      }
+
+      // 2) Products owned by user (as farmer) and related resources
+      const products = await tx.select().from(productsTable).where(eq(productsTable.farmerId, uid))
+      const productIds = products.map(p => p.id)
+      if (productIds.length) {
+        try { await tx.delete(favoritesTable).where(inArray(favoritesTable.productId, productIds)) } catch {}
+        try { await tx.delete(cartTable).where(inArray(cartTable.productId, productIds)) } catch {}
+        try { await tx.delete(reviewsTable).where(inArray(reviewsTable.productId, productIds)) } catch {}
+        try { await tx.delete(ordersTable).where(inArray(ordersTable.productId, productIds)) } catch {}
+        try { await tx.delete(productsTable).where(inArray(productsTable.id, productIds)) } catch {}
+      }
+
+      // 3) Reviews, review comments
+      try { await tx.delete(reviewCommentsTable).where(eq(reviewCommentsTable.authorUserId, uid)) } catch {}
+      try { await tx.delete(reviewsTable).where(or(eq(reviewsTable.reviewerId, uid), eq(reviewsTable.reviewedId, uid))) } catch {}
+
+      // 4) Favorites & Cart for this user
+      try { await tx.delete(favoritesTable).where(eq(favoritesTable.buyerId, uid)) } catch {}
+      try { await tx.delete(cartTable).where(eq(cartTable.userId, uid)) } catch {}
+
+      // 5) Reports & appeals
+      try { await tx.delete(userReportsTable).where(or(eq(userReportsTable.reportedUserId, uid), eq(userReportsTable.reporterId, uid), eq(userReportsTable.validatedByUserId, uid))) } catch {}
+      try { await tx.delete(reportAppealsTable).where(or(eq(reportAppealsTable.userId, uid), eq(reportAppealsTable.resolverUserId, uid))) } catch {}
+
+      // 6) Verification-related
+      try { await tx.delete(verificationAppealsTable).where(or(eq(verificationAppealsTable.userId, uid), eq(verificationAppealsTable.resolverUserId, uid))) } catch {}
+      try { await tx.delete(verificationSubmissionsTable).where(or(eq(verificationSubmissionsTable.userId, uid), eq(verificationSubmissionsTable.reviewerId, uid), eq(verificationSubmissionsTable.reviewerId2, uid))) } catch {}
+      try { await tx.delete(userVerificationTable).where(eq(userVerificationTable.userId, uid)) } catch {}
+      try { await tx.delete(verificationStatusHistoryTable).where(eq(verificationStatusHistoryTable.actorUserId, uid)) } catch {}
+
+      // 7) Upload tokens, notifications, audit logs
+      try { await tx.delete(uploadTokensTable).where(eq(uploadTokensTable.userId, uid)) } catch {}
+      try { await tx.delete(userNotificationsTable).where(eq(userNotificationsTable.userId, uid)) } catch {}
+      try { await tx.delete(auditLogsTable).where(eq(auditLogsTable.actorUserId, uid)) } catch {}
+
+      // 8) Order status history rows referencing this user as actor
+      try { await tx.delete(orderStatusHistoryTable).where(eq(orderStatusHistoryTable.changedByUserId, uid)) } catch {}
+
+      // 9) Finally delete the user row
+      await tx.delete(usersTable).where(eq(usersTable.id, uid))
+    })
+
+    return res.json({ ok: true })
+  } catch (e) {
+    console.error('admin hard-delete user error', e)
     return res.status(500).json({ error: 'failed' })
   }
 })

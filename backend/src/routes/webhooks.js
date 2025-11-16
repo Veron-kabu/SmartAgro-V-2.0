@@ -20,6 +20,12 @@ export async function handleUserCreated(userData, opts = {}) {
   const image_url = userData?.image_url ?? userData?.imageUrl
   const unsafe_metadata = userData?.unsafe_metadata ?? userData?.unsafeMetadata ?? {}
 
+  // If Clerk user is marked deleted via unsafe metadata, do not re-provision
+  if (unsafe_metadata?.deleted === true || unsafe_metadata?.deleted === 'true') {
+    if (DEBUG) console.log(`[clerk:webhook] Skipping provisioning for deleted Clerk user ${id}`)
+    return { action: 'skipped_deleted' }
+  }
+
   // Email addresses
   let email_addresses = userData?.email_addresses
   if (!Array.isArray(email_addresses) && Array.isArray(userData?.emailAddresses)) {
