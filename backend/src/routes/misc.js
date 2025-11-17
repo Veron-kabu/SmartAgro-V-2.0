@@ -1,7 +1,6 @@
 import { Router } from 'express'
 import { db } from '../config/db.js'
-import { favoritesTable, reviewsTable, usersTable, productsTable, ordersTable, marketDataTable, clerkSyncRunsTable } from '../db/schema.js'
-import { syncClerkUsers } from '../utils/clerkSync.js'
+import { favoritesTable, reviewsTable, usersTable, productsTable, ordersTable, marketDataTable } from '../db/schema.js'
 import { ensureAuth } from '../middleware/auth.js'
 import { requireRole } from '../middleware/role.js'
 import { and, eq, inArray, desc, sql } from 'drizzle-orm'
@@ -79,41 +78,6 @@ router.get('/market-data', async (req,res) => {
   } catch (e) { console.error('Error fetching market data:', e); res.status(500).json({ error: 'Failed to fetch market data' }) }
 })
 
-// =============================
-// Clerk Sync Operational Endpoints
-// =============================
-router.get('/admin/clerk-sync-status', ensureAuth(), requireRole(['admin']), async (req,res) => {
-  try {
-    const latestArr = await db.select().from(clerkSyncRunsTable).orderBy(desc(clerkSyncRunsTable.id)).limit(1)
-    const latest = Array.isArray(latestArr) && latestArr.length > 0 ? latestArr[0] : null
-
-    const execRes = await db.execute(sql`SELECT COUNT(*)::int as count FROM users`)
-    let dbUserCount = 0
-    if (Array.isArray(execRes)) {
-      dbUserCount = Number(execRes[0]?.count ?? 0)
-    } else if (execRes && typeof execRes === 'object') {
-      // Some drivers return { rows: [...] }
-      const rows = Array.isArray(execRes.rows) ? execRes.rows : []
-      dbUserCount = Number(rows[0]?.count ?? 0)
-    }
-    res.json({ latestRun: latest, dbUserCount })
-  } catch (e) {
-    try {
-      console.error('clerk-sync-status error', e?.message || e, { type: typeof e, keys: e && typeof e === 'object' ? Object.keys(e) : null })
-    } catch { console.error('clerk-sync-status error (logging failed)') }
-    res.status(500).json({ error: 'Failed to load sync status' })
-  }
-})
-
-router.post('/admin/clerk-sync-run', ensureAuth(), requireRole(['admin']), async (req,res) => {
-  try {
-    const { dryRun = false, logDiffs = false, verbose = false } = req.body || {}
-    const result = await syncClerkUsers({ dryRun, logDiffs, verbose, source: 'api' })
-    res.json(result)
-  } catch (e) {
-    console.error('clerk-sync-run error', e)
-    res.status(500).json({ error: 'Failed to run clerk sync' })
-  }
-})
+// Clerk Sync operational endpoints removed (feature retired)
 
 export default router

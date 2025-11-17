@@ -10,7 +10,7 @@ import Shimmer from '../../components/Shimmer'
 import { useCart } from '../../context/cart'
 import { track } from '../../utils/analytics'
 import { ANALYTICS_EVENTS } from '../../constants/analyticsEvents'
-import { BackButton } from '../../components/navigation'
+// Removed unused BackButton import (not used in this view)
 import { productDetailStyles as styles } from '../../assets/styles/products.styles'
 import { COLORS } from '../../constants/colors'
 import StarRating from '../../components/StarRating'

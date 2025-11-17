@@ -75,68 +75,25 @@ export default function SystemDrawerLayout() {
         }}
       />
       <Drawer.Screen
-        name="user-analytics"
+        name="users"
         options={{
-          title: 'User Analytics',
+          title: 'Users',
           drawerIcon: ({ color, size }) => (
             <Ionicons name="people-outline" size={size} color={color} />
           ),
         }}
       />
       <Drawer.Screen
-        name="marketplace-insights"
+        name="listings"
         options={{
-          title: 'Marketplace Insights',
+          title: 'Listings',
           drawerIcon: ({ color, size }) => (
-            <Ionicons name="storefront-outline" size={size} color={color} />
+            <Ionicons name="list-outline" size={size} color={color} />
           ),
         }}
       />
-      <Drawer.Screen
-        name="transactions"
-        options={{
-          title: 'Transactions',
-          drawerIcon: ({ color, size }) => (
-            <Ionicons name="swap-horizontal-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Drawer.Screen
-        name="system-health"
-        options={{
-          title: 'System Health',
-          drawerIcon: ({ color, size }) => (
-            <Ionicons name="pulse-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Drawer.Screen
-        name="engagement"
-        options={{
-          title: 'Engagement',
-          drawerIcon: ({ color, size }) => (
-            <Ionicons name="chatbubbles-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Drawer.Screen
-        name="admin-tools"
-        options={{
-          title: 'Administrative Tools',
-          drawerIcon: ({ color, size }) => (
-            <Ionicons name="construct-outline" size={size} color={color} />
-          ),
-        }}
-      />
-      <Drawer.Screen
-        name="clerk-sync"
-        options={{
-          title: 'Clerk User Sync',
-          drawerIcon: ({ color, size }) => (
-            <Ionicons name="sync-outline" size={size} color={color} />
-          ),
-        }}
-      />
+      {/* Removed marketplace-insights and transactions screens (files deleted) */}
+      {/* Removed system-health, engagement, admin-tools and clerk-sync screens (files deleted) */}
       <Drawer.Screen
         name="verification-reviews"
         options={{

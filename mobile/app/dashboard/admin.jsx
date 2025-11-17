@@ -1,10 +1,9 @@
 import { COLORS } from '../../constants/colors'
 import { View, Text, ActivityIndicator, ScrollView, TouchableOpacity, RefreshControl } from 'react-native'
-import { Ionicons } from '@expo/vector-icons'
 import { useProfile } from '../../context/profile'
 import { useLogout } from '../../hooks/useLogout'
 import { useCallback, useState } from 'react'
-import { router } from 'expo-router'
+// Removed unused imports: Ionicons, router
 import UserDashboard from './UserDashboard'
 import { profileStyles as styles } from '../../assets/styles/(tabs)/profile.styles'
 

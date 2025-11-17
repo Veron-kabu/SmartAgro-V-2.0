@@ -1,11 +1,10 @@
 "use client"
 
 import { View, ActivityIndicator, Text } from "react-native"
-import { useEffect } from 'react'
 import { useProfile } from "../../context/profile"
 import UserDashboard from "../dashboard/UserDashboard"
 import AdminDashboard from "../dashboard/admin"
-import { router } from 'expo-router'
+// removed unused imports: useEffect, router
 import { profileStyles as styles } from "../../assets/styles/(tabs)/profile.styles"
 import { COLORS } from "../../constants/colors"
 

@@ -51,7 +51,7 @@ export default function CheckoutPlaceholder() {
 
     if (!sourceItems.length) { setValidating(false); setCurrentTotal(0); setLastStableTotal(0); return }
     setValidating(true)
-    const { adjustments: adj, validated, total } = await validateCartItems(sourceItems, { updatePrices: true })
+    const { validated, total } = await validateCartItems(sourceItems, { updatePrices: true })
     for (const v of validated) {
       if (v.removed) {
         if (!singleId) removeItem(v.id)
