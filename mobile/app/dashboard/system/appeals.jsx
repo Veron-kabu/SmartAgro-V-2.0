@@ -5,9 +5,13 @@ import { useToast } from '../../../context/toast'
 import { useAuth } from '@clerk/clerk-expo'
 import { useProfile } from '../../../context/profile'
 
+// Module cache to make the UI appear instantly on open
+let cachedAppeals = global.__cached_appeals__
+const DEFAULT_APPEALS = []
+
 export default function VerificationAppealsAdmin() {
-  const [items, setItems] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [items, setItems] = useState(cachedAppeals || DEFAULT_APPEALS)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [resolvingId, setResolvingId] = useState(null)
   const [note, setNote] = useState('')
@@ -21,7 +25,9 @@ export default function VerificationAppealsAdmin() {
       setLoading(true)
       setError(null)
       const res = await getJSON('/api/admin/verification-appeals?status=open')
-      setItems(Array.isArray(res?.items) ? res.items : [])
+      const rows = Array.isArray(res?.items) ? res.items : []
+      setItems(rows)
+      try { global.__cached_appeals__ = rows } catch {}
     } catch (e) {
       if (e?.status === 401) setError('Sign in required.')
       else if (e?.status === 403) setError('Admin access required.')

@@ -7,6 +7,7 @@ import {
   reviewsTable,
   appSettingsTable,
   requestMetricsTable,
+  mpesaTransactionsTable,
 } from '../db/schema.js'
 import { and, between, count, desc, eq, gte, lte, sql, sum, avg } from 'drizzle-orm'
 import { ensureAuth } from '../middleware/auth.js'
@@ -189,10 +190,18 @@ router.get('/analytics/marketplace', ensureAuth(), requireRole(['admin']), async
       group by o.farmer_id, u.email, u.username, u.full_name
       order by sales desc limit 5
     `)
+    // Revenue trend should reflect successful M-Pesa payments (result_code = '0')
+    const txDateFilter = (() => {
+      if (start && end) return sql`and coalesce(t.transaction_date, t.created_at) between ${start} and ${end}`
+      if (start) return sql`and coalesce(t.transaction_date, t.created_at) >= ${start}`
+      if (end) return sql`and coalesce(t.transaction_date, t.created_at) <= ${end}`
+      return sql``
+    })()
     const revenueTrend = await db.execute(sql`
-      select date_trunc('day', ${ordersTable.createdAt}) as d, sum(${ordersTable.totalAmount})::float as revenue
-      from ${ordersTable}
-      where ${ordersTable.status}='delivered' ${whereRangeOrders ? sql`and ${whereRangeOrders}` : sql``}
+      select date_trunc('day', coalesce(t.transaction_date, t.created_at)) as d,
+             sum(t.amount::numeric)::float as revenue
+      from ${mpesaTransactionsTable} t
+      where t.result_code = '0' ${txDateFilter}
       group by 1 order by 1 asc
     `)
     const avgPriceTrend = await db.execute(sql`

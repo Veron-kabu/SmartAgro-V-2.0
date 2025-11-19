@@ -83,8 +83,12 @@ function GroupRow({ group, status }) {
   )
 }
 
+// Module cache for fast subsequent opens
+let cachedVerifications = global.__cached_verifications__
+const DEFAULT_VERIFICATIONS = []
+
 export default function VerificationReviewsList() {
-  const [items, setItems] = useState([])
+  const [items, setItems] = useState(cachedVerifications || DEFAULT_VERIFICATIONS)
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [status, setStatus] = useState('pending')
@@ -96,7 +100,9 @@ export default function VerificationReviewsList() {
       if (status) params.set('status', status)
       const qs = params.toString()
       const data = await getJSON(`/api/admin/verifications${qs ? `?${qs}` : ''}`)
-      setItems(data?.items || [])
+      const rows = data?.items || []
+      setItems(rows)
+      try { global.__cached_verifications__ = rows } catch {}
     } catch (e) {
       console.log('fetch verifs failed', e?.message)
     } finally {

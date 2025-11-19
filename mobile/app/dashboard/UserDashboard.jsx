@@ -473,6 +473,29 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
 
   const role = profile?.role || expectedRole
 
+  // Prefetch admin system pages data to make system pages open instantly on first click.
+  useEffect(() => {
+    if (String(role || '').toLowerCase() !== 'admin') return
+    // Fire-and-forget prefetch; store into global cache variables used by system pages
+    ;(async () => {
+      try {
+        const prodP = getJSON('/api/analytics/marketplace').catch(() => null)
+        const txP = getJSON('/api/analytics/transactions').catch(() => null)
+        const verP = getJSON('/api/admin/verifications?status=pending').catch(() => null)
+        const repP = getJSON('/api/admin/reports').catch(() => null)
+        const appealsP = getJSON('/api/admin/verification-appeals?status=open').catch(() => null)
+        const [prod, tx, ver, rep, appeals] = await Promise.all([prodP, txP, verP, repP, appealsP])
+        try { if (prod) global.__cached_products_data__ = prod } catch {}
+        try { if (tx) global.__cached_transactions__ = tx } catch {}
+        try { if (Array.isArray(ver?.items)) global.__cached_verifications__ = ver.items } catch {}
+        try { if (Array.isArray(rep?.items)) global.__cached_reports__ = rep.items } catch {}
+        try { if (Array.isArray(appeals?.items)) global.__cached_appeals__ = appeals.items } catch {}
+      } catch (e) {
+        // ignore prefetch errors
+      }
+    })()
+  }, [role])
+
   // Orders navigation removed in new UI layout (add back if needed)
 
   // ---------- Edit form derived state & actions ----------
@@ -723,17 +746,51 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
               </TouchableOpacity>
             )}
 
-            {/* System - admin only; place in grid for admins as requested */}
-            {String(profile?.role || '').toLowerCase() === 'admin' && (
-              <TouchableOpacity onPress={() => { try { router.push('/dashboard/system') } catch {} }} style={{ width: '30%', alignItems: 'center', marginBottom: 12 }} activeOpacity={0.8}>
-                <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
-                  <Ionicons name="analytics-outline" size={24} color={COLORS.primary} />
-                </View>
-                <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>System</Text>
-              </TouchableOpacity>
-            )}
+            {/* System tile removed from Services grid; moved into its own grid below */}
           </View>
         </View>
+        {/* Admin-only: System grid placed below Services */}
+        {String(profile?.role || '').toLowerCase() === 'admin' && (
+          <View style={{ marginHorizontal: 16, marginTop: 12, backgroundColor: '#fff', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#f3f4f6' }}>
+            <Text style={{ fontSize: 16, fontWeight: '800', marginBottom: 12 }}>System</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+              <TouchableOpacity onPress={() => { try { router.push('/dashboard/system/users') } catch {} }} style={{ width: '30%', alignItems: 'center', marginBottom: 12 }} activeOpacity={0.8}>
+                <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="people-outline" size={24} color={COLORS.primary} />
+                </View>
+                <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>Users</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => { try { router.push('/dashboard/system/products-transactions') } catch {} }} style={{ width: '30%', alignItems: 'center', marginBottom: 12 }} activeOpacity={0.8}>
+                <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="stats-chart-outline" size={24} color={COLORS.primary} />
+                </View>
+                <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>Products & Transactions</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => { try { router.push('/dashboard/system/verification-reviews') } catch {} }} style={{ width: '30%', alignItems: 'center', marginBottom: 12 }} activeOpacity={0.8}>
+                <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="shield-checkmark-outline" size={24} color={COLORS.primary} />
+                </View>
+                <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>Verification Reviews</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => { try { router.push('/dashboard/system/reports') } catch {} }} style={{ width: '30%', alignItems: 'center', marginBottom: 12 }} activeOpacity={0.8}>
+                <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="flag-outline" size={24} color={COLORS.primary} />
+                </View>
+                <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>Reports Queue</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => { try { router.push('/dashboard/system/appeals') } catch {} }} style={{ width: '30%', alignItems: 'center', marginBottom: 12 }} activeOpacity={0.8}>
+                <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
+                  <Ionicons name="help-circle-outline" size={24} color={COLORS.primary} />
+                </View>
+                <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>Appeals</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
           {/* Removed separate location button. Location picker is accessible inside Edit Profile next to Address. */}
 
         {/* Suspended account banner */}

@@ -13,6 +13,8 @@ export default function SimpleLineChart({
   maxY = undefined,
   axis = {}, // { yFormatter, xFormatter, xLabels }
   onPointPress = null,
+  smooth = false,
+  tension = 0.4, // 0..1, higher = curvier
 }) {
   if (!Array.isArray(data) || data.length === 0) return <View style={{ width, height }} />
   // Read raw values and clamp them to >= 0 so the chart never goes below the baseline
@@ -42,7 +44,31 @@ export default function SimpleLineChart({
   const yAt = (v) => padding.top + (1 - (v - yMin) / (yMax - yMin || 1)) * innerH
 
   const points = vals.map((v, i) => [xAt(i), yAt(v)])
-  const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(2)},${p[1].toFixed(2)}`).join(' ')
+
+  const toPath = (pts) => {
+    if (pts.length === 0) return ''
+    if (!smooth || pts.length < 3) {
+      return pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(2)},${p[1].toFixed(2)}`).join(' ')
+    }
+    // Catmull-Rom to cubic Bezier conversion
+    const path = []
+    path.push(`M${pts[0][0].toFixed(2)},${pts[0][1].toFixed(2)}`)
+    const s = Math.max(0, Math.min(1, tension))
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] || pts[i]
+      const p1 = pts[i]
+      const p2 = pts[i + 1]
+      const p3 = pts[i + 2] || p2
+      const c1x = p1[0] + (p2[0] - p0[0]) / 6 * s
+      const c1y = p1[1] + (p2[1] - p0[1]) / 6 * s
+      const c2x = p2[0] - (p3[0] - p1[0]) / 6 * s
+      const c2y = p2[1] - (p3[1] - p1[1]) / 6 * s
+      path.push(`C${c1x.toFixed(2)},${c1y.toFixed(2)} ${c2x.toFixed(2)},${c2y.toFixed(2)} ${p2[0].toFixed(2)},${p2[1].toFixed(2)}`)
+    }
+    return path.join(' ')
+  }
+
+  const d = toPath(points)
   let areaPath = ''
   if (area && points.length > 0) {
     // Close the area path at the x coordinate of the last point so the shaded
@@ -98,12 +124,18 @@ export default function SimpleLineChart({
         <Circle key={`pt-${i}`} cx={p[0]} cy={p[1]} r={12} fill="transparent" onPress={() => onPointPress && onPointPress({ index: i, value: vals[i], datum: data[i], x: p[0], y: p[1] })} />
       ))}
 
-      {/* x labels */}
-      {xLabels.map((lab, i) => (
-        <SvgText key={`x-${i}`} x={xLabelAt(i)} y={height - padding.bottom + 16} fontSize={10} fill={axis.xColor || '#6b7280'} textAnchor="middle">
-          {(axis.xFormatter || ((s) => String(s)))(lab)}
-        </SvgText>
-      ))}
+      {/* x labels - align first to left edge and last to right edge so months line up with y-axis baseline */}
+      {xLabels.map((lab, i) => {
+        const isFirst = i === 0
+        const isLast = i === xLabels.length - 1
+        const xPos = isFirst ? padding.left : (isLast ? padding.left + innerW : xLabelAt(i))
+        const anchor = isFirst ? 'start' : (isLast ? 'end' : 'middle')
+        return (
+          <SvgText key={`x-${i}`} x={xPos} y={height - padding.bottom + 16} fontSize={10} fill={axis.xColor || '#6b7280'} textAnchor={anchor}>
+            {(axis.xFormatter || ((s) => String(s)))(lab)}
+          </SvgText>
+        )
+      })}
     </Svg>
   )
 }

@@ -5,10 +5,13 @@ import { useToast } from '../../context/toast'
 import { useAuth } from '@clerk/clerk-expo'
 import { useProfile } from '../../context/profile'
 import { useFocusEffect } from '@react-navigation/native'
+// Cache + defaults to render instantly
+let cachedReports = global.__cached_reports__
+const DEFAULT_REPORTS = []
 
 export default function ReportsQueue() {
-  const [items, setItems] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [items, setItems] = useState(cachedReports || DEFAULT_REPORTS)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
   const [page, setPage] = useState(0)
@@ -23,7 +26,9 @@ export default function ReportsQueue() {
       setLoading(true)
       setError(null)
       const res = await getJSON('/api/admin/reports')
-      setItems(res?.items || [])
+      const rows = res?.items || []
+      setItems(rows)
+      try { global.__cached_reports__ = rows } catch {}
     } catch (e) {
       // Provide clearer error reasons
       if (e?.status === 401) setError('You need to sign in to view reports.')
