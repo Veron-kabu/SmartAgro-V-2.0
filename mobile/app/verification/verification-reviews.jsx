@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, RefreshControl, TextInput, Image, Linking, Platform } from 'react-native'
+import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, RefreshControl, Image, Linking, Platform } from 'react-native'
 import { getJSON } from '../../context/api'
 import { on as onEvent } from '../../utils/eventBus'
 import { router } from 'expo-router'
@@ -18,33 +18,36 @@ function Row({ item }) {
     }
   }
   return (
-  <TouchableOpacity onPress={() => router.push({ pathname: '/verification/verification-reviews/[id]', params: { id: String(item.id) } })} style={{ backgroundColor: '#fff', marginBottom: 10, padding: 12, borderRadius: 12 }}>
+    <TouchableOpacity
+      onPress={() => router.push({ pathname: '/verification/verification-reviews/[id]', params: { id: String(item.id) } })}
+      style={{ backgroundColor: '#FFFFFF', marginBottom: 12, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB' }}
+    >
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         {resolvedThumb ? (
-          <Image source={{ uri: resolvedThumb }} style={{ width: 56, height: 56, backgroundColor: '#e5e7eb', borderRadius: 8, marginRight: 12 }} />
+          <Image source={{ uri: resolvedThumb }} style={{ width: 56, height: 56, backgroundColor: '#F1F5F9', borderRadius: 10, marginRight: 14 }} />
         ) : (
-          <View style={{ width: 56, height: 56, backgroundColor: '#e5e7eb', borderRadius: 8, marginRight: 12 }} />
+          <View style={{ width: 56, height: 56, backgroundColor: '#F1F5F9', borderRadius: 10, marginRight: 14 }} />
         )}
         <View style={{ flex: 1 }}>
-          <Text style={{ fontWeight: '700' }}>#{item.id} · {item.userEmail || '—'}</Text>
-          <Text style={{ color: '#6b7280', fontSize: 12 }}>{new Date(item.createdAt).toLocaleString()}</Text>
+          <Text style={{ fontWeight: '700', color: '#111827' }}>#{item.id} · {item.userEmail || '—'}</Text>
+          <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 2 }}>{new Date(item.createdAt).toLocaleString()}</Text>
         </View>
-        <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: statusColor }}>
-          <Text style={{ color: '#fff', fontSize: 12 }}>{item.status}</Text>
+        <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: statusColor }}>
+          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700', textTransform: 'uppercase' }}>{item.status}</Text>
         </View>
       </View>
       {item.awaitingSecondApproval && (
-        <View style={{ marginTop: 8, backgroundColor: '#FEF3C7', padding: 8, borderRadius: 8 }}>
-          <Text style={{ color: '#92400E', fontSize: 12 }}>Awaiting second approval{item.firstReviewerId ? ` · first by #${item.firstReviewerId}` : ''}</Text>
+        <View style={{ marginTop: 10, backgroundColor: '#FEF3C7', padding: 8, borderRadius: 10, borderWidth: 1, borderColor: '#FDE68A' }}>
+          <Text style={{ color: '#92400E', fontSize: 12, fontWeight: '600' }}>Awaiting second approval{item.firstReviewerId ? ` · first by #${item.firstReviewerId}` : ''}</Text>
         </View>
       )}
-      <View style={{ marginTop: 8, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>
-        {lat != null && lng != null ? (
-          <TouchableOpacity onPress={openMap} style={{ backgroundColor: '#e5e7eb', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999 }}>
-            <Text style={{ fontSize: 12, color: '#111827' }}>Map</Text>
+      {lat != null && lng != null ? (
+        <View style={{ marginTop: 10, flexDirection: 'row', justifyContent: 'flex-end' }}>
+          <TouchableOpacity onPress={openMap} style={{ backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#DBEAFE' }}>
+            <Text style={{ fontSize: 12, color: '#1E3A8A', fontWeight: '600' }}>Map</Text>
           </TouchableOpacity>
-        ) : null}
-      </View>
+        </View>
+      ) : null}
     </TouchableOpacity>
   )
 }
@@ -58,19 +61,22 @@ function GroupRow({ group, status }) {
   const [resolvedThumb] = useResolvedUrls(thumbUrl ? [thumbUrl] : [])
   const count = group.count
   return (
-    <TouchableOpacity onPress={() => router.push({ pathname: '/verification/verification-reviews/group', params: { userId: String(group.userId), status, email: group.userEmail || '' } })} style={{ backgroundColor: '#fff', marginBottom: 10, padding: 12, borderRadius: 12 }}>
+    <TouchableOpacity
+      onPress={() => router.push({ pathname: '/verification/verification-reviews/group', params: { userId: String(group.userId), status, email: group.userEmail || '' } })}
+      style={{ backgroundColor: '#FFFFFF', marginBottom: 12, padding: 14, borderRadius: 14, borderWidth: 1, borderColor: '#E5E7EB' }}
+    >
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         {resolvedThumb ? (
-          <Image source={{ uri: resolvedThumb }} style={{ width: 56, height: 56, backgroundColor: '#e5e7eb', borderRadius: 8, marginRight: 12 }} />
+          <Image source={{ uri: resolvedThumb }} style={{ width: 56, height: 56, backgroundColor: '#F1F5F9', borderRadius: 10, marginRight: 14 }} />
         ) : (
-          <View style={{ width: 56, height: 56, backgroundColor: '#e5e7eb', borderRadius: 8, marginRight: 12 }} />
+          <View style={{ width: 56, height: 56, backgroundColor: '#F1F5F9', borderRadius: 10, marginRight: 14 }} />
         )}
         <View style={{ flex: 1 }}>
-          <Text style={{ fontWeight: '700' }}>{group.userEmail || '—'}</Text>
-          <Text style={{ color: '#6b7280', fontSize: 12 }}>{count} submissions · latest {new Date(group.latestCreatedAt).toLocaleString()}</Text>
+          <Text style={{ fontWeight: '700', color: '#111827' }}>{group.userEmail || '—'}</Text>
+          <Text style={{ color: '#6B7280', fontSize: 12, marginTop: 2 }}>{count} submissions · latest {new Date(group.latestCreatedAt).toLocaleString()}</Text>
         </View>
-        <View style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: statusColor }}>
-          <Text style={{ color: '#fff', fontSize: 12 }}>{status}</Text>
+        <View style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: statusColor }}>
+          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '700', textTransform: 'uppercase' }}>{status}</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -82,17 +88,12 @@ export default function VerificationReviewsList() {
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [status, setStatus] = useState('pending')
-  const [q, setQ] = useState('')
-  const [since, setSince] = useState('')
-  const [until, setUntil] = useState('')
 
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
       if (status) params.set('status', status)
-      if (since && since.trim()) params.set('since', since.trim())
-      if (until && until.trim()) params.set('until', until.trim())
       const qs = params.toString()
       const data = await getJSON(`/api/admin/verifications${qs ? `?${qs}` : ''}`)
       setItems(data?.items || [])
@@ -101,7 +102,7 @@ export default function VerificationReviewsList() {
     } finally {
       setLoading(false)
     }
-  }, [status, since, until])
+  }, [status])
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -120,11 +121,7 @@ export default function VerificationReviewsList() {
     return () => { try { off && off() } catch {} }
   }, [status, fetchData])
 
-  const filtered = useMemo(() => {
-    const term = q.trim().toLowerCase()
-    if (!term) return items
-    return items.filter(it => String(it.id).includes(term) || (it.userEmail || '').toLowerCase().includes(term))
-  }, [items, q])
+  const filtered = items
 
   // Group by userId within the current status view; single stays as-is
   const groupedData = useMemo(() => {
@@ -155,31 +152,19 @@ export default function VerificationReviewsList() {
   }, [filtered])
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#f3f4f6' }}>
-      <View style={{ padding: 12, paddingTop: 16 }}>
-        <Text style={{ fontSize: 20, fontWeight: '700' }}>Verification Reviews</Text>
-        <FlatList
-          data={[ 'pending', 'flagged', 'approved', 'rejected' ]}
-          keyExtractor={(s) => s}
-          renderItem={({ item: s }) => (
+    <View style={{ flex: 1, backgroundColor: '#F3F4F6' }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 18, paddingBottom: 6 }}>
+        <Text style={{ fontSize: 20, fontWeight: '800', color: '#111827' }}>Verification Reviews</Text>
+        <View style={{ flexDirection: 'row', marginTop: 12 }}>
+          {['pending','flagged','approved','rejected'].map(s => (
             <TouchableOpacity
+              key={s}
               onPress={() => setStatus(s)}
-              style={{ paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, backgroundColor: status===s?'#111827':'#e5e7eb', marginRight: 8 }}
+              style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: status===s ? '#111827' : '#FFFFFF', marginRight: 10, borderWidth: 1, borderColor: status===s ? '#111827' : '#E5E7EB' }}
             >
-              <Text style={{ color: status===s?'#fff':'#111827', textTransform: 'capitalize' }}>{s}</Text>
+              <Text style={{ color: status===s ? '#FFFFFF' : '#111827', fontWeight: '600', textTransform: 'capitalize' }}>{s}</Text>
             </TouchableOpacity>
-          )}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ marginTop: 10 }}
-          contentContainerStyle={{ paddingRight: 8 }}
-        />
-        <View style={{ marginTop: 10, backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 }}>
-          <TextInput placeholder="Search by ID or email" value={q} onChangeText={setQ} />
-        </View>
-        <View style={{ marginTop: 8, backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', gap: 8 }}>
-          <TextInput placeholder="Since (ISO)" value={since} onChangeText={setSince} style={{ flex: 1 }} />
-          <TextInput placeholder="Until (ISO)" value={until} onChangeText={setUntil} style={{ flex: 1 }} />
+          ))}
         </View>
       </View>
       {loading ? (
@@ -189,7 +174,7 @@ export default function VerificationReviewsList() {
           data={groupedData}
           keyExtractor={(it, idx) => it.type === 'group' ? `g:${it.userId}:${status}` : `s:${it.item.id}`}
           renderItem={({ item }) => item.type === 'group' ? <GroupRow group={item} status={status} /> : <Row item={item.item} />}
-          contentContainerStyle={{ padding: 12 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24, paddingTop: 8 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         />
       )}

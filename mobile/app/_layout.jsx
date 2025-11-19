@@ -7,7 +7,7 @@ import { FavoritesProvider } from "../context/favorites"
 import { CartProvider, useCart } from "../context/cart"
 import { ChatProvider } from "../context/chat"
 import { ToastProvider, useToast } from "../context/toast"
-import { getJSON } from '../context/api'
+import { getJSON, setAuthTokenGetter } from '../context/api'
 import { validateCartItems } from '../utils/cartValidation'
 import * as SecureStore from "expo-secure-store"
 import { startLocationHeartbeat } from "../utils/location"
@@ -118,6 +118,7 @@ function SplashGate() {
   // Redirect from '/' based on auth state so we don't need a dedicated index route
   return (
     <ToastProvider>
+      <AuthTokenBridge />
       <InitialRedirect />
       <NavHistoryTracker />
       <CallPermissionsPrewarm />
@@ -273,5 +274,24 @@ function ForegroundCartValidator() {
     })
     return () => sub.remove()
   }, [items, isSignedIn, removeItem, updateQuantity, toast])
+  return null
+}
+
+// Bridge Clerk tokens into our fetch layer so protected /api routes work on native
+function AuthTokenBridge() {
+  const { getToken, isLoaded } = useAuth()
+  useEffect(() => {
+    if (!isLoaded) return
+    // Provide a getter so authFetch can attach Authorization header when needed
+    setAuthTokenGetter(async () => {
+      try {
+        // Use a named template if configured in Clerk, else default
+        const token = await getToken({ template: 'mobile' }).catch(() => null)
+        return token || (await getToken())
+      } catch {
+        return null
+      }
+    })
+  }, [getToken, isLoaded])
   return null
 }

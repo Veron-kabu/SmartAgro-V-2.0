@@ -83,15 +83,6 @@ export default function SystemDrawerLayout() {
           ),
         }}
       />
-      <Drawer.Screen
-        name="listings"
-        options={{
-          title: 'Listings',
-          drawerIcon: ({ color, size }) => (
-            <Ionicons name="list-outline" size={size} color={color} />
-          ),
-        }}
-      />
       {/* Removed marketplace-insights and transactions screens (files deleted) */}
       {/* Removed system-health, engagement, admin-tools and clerk-sync screens (files deleted) */}
       <Drawer.Screen

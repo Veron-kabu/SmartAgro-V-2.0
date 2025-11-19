@@ -6,7 +6,7 @@ import { ensureAuth, clerkClient } from '../middleware/auth.js'
 import { handleUserCreated } from './webhooks.js'
 import { requireRole } from '../middleware/role.js'
 import { ENV } from '../config/env.js'
-import { eq, and, or, inArray, desc } from 'drizzle-orm'
+import { eq, and, or, inArray, desc, sql, count } from 'drizzle-orm'
 import { createNotification } from '../utils/notifications.js'
 import { requireNotSuspended } from '../middleware/status.js'
 
@@ -212,6 +212,22 @@ router.get('/users/:id', async (req, res) => {
 })
 
 export default router
+
+// Admin: list users (paginated)
+router.get('/admin/users', ensureAuth(), requireRole(['admin']), async (req, res) => {
+  try {
+    const page = Math.max(1, Number(req.query.page || 1))
+    const limit = Math.min(200, Number(req.query.limit || 100))
+    const offset = (page - 1) * limit
+    const rows = await db.execute(sql`select id, username, email, full_name, role, status, profile_image_url, created_at from ${usersTable} order by id desc limit ${limit} offset ${offset}`)
+    const countRes = await db.select({ c: count() }).from(usersTable)
+    const total = Number(countRes?.[0]?.c || 0)
+    return res.json({ items: rows.rows || [], total, page, limit })
+  } catch (e) {
+    console.error('[ADMIN_USERS_LIST] Failed to list users', { page: req.query.page, limit: req.query.limit }, e)
+    return res.status(500).json({ error: 'List users failed', message: e?.message || 'Unexpected error while listing users' })
+  }
+})
 
 // Admin-only user status endpoints
 router.post('/admin/users/:id/suspend', ensureAuth(), requireRole(['admin']), async (req, res) => {

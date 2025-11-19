@@ -15,25 +15,42 @@ export default function SimpleLineChart({
   onPointPress = null,
 }) {
   if (!Array.isArray(data) || data.length === 0) return <View style={{ width, height }} />
-  const vals = data.map(v => (typeof v === 'number' ? v : v?.y ?? 0))
+  // Read raw values and clamp them to >= 0 so the chart never goes below the baseline
+  const rawVals = data.map(v => (typeof v === 'number' ? v : v?.y ?? 0))
+  const vals = rawVals.map(v => Math.max(0, Number(v || 0)))
+  const xFracArr = data.map(v => (v && typeof v === 'object' && typeof v.xFrac === 'number') ? v.xFrac : null)
   const xLabels = (axis && axis.xLabels) || data.map(d => (d && d.x) || '')
   const computedMax = Math.max(...vals)
-  const computedMin = Math.min(...vals)
+  // Force yMin to 0 to avoid plotting below the baseline
   const yMax = typeof maxY === 'number' ? maxY : Math.ceil((computedMax) * 1.1)
-  const yMin = Math.min(0, computedMin)
+  const yMin = 0
 
   const innerW = width - padding.left - padding.right
   const innerH = height - padding.top - padding.bottom
   const stepX = vals.length > 1 ? innerW / (vals.length - 1) : innerW
 
-  const xAt = (i) => padding.left + (vals.length === 1 ? innerW / 2 : i * stepX)
+  const xAt = (i) => {
+    // If this point provides an explicit fractional x position (0..1), use it.
+    if (xFracArr[i] != null) return padding.left + xFracArr[i] * innerW
+    return padding.left + (vals.length === 1 ? innerW / 2 : i * stepX)
+  }
+
+  // Label positions should be evenly spaced across the inner width regardless of
+  // per-point fractional x positions. This keeps axis ticks evenly distributed
+  // (e.g., Sep, Oct, Nov, Dec) while points can be positioned between ticks.
+  const xLabelAt = (i) => padding.left + (vals.length === 1 ? innerW / 2 : i * stepX)
   const yAt = (v) => padding.top + (1 - (v - yMin) / (yMax - yMin || 1)) * innerH
 
   const points = vals.map((v, i) => [xAt(i), yAt(v)])
   const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(2)},${p[1].toFixed(2)}`).join(' ')
   let areaPath = ''
   if (area && points.length > 0) {
-    areaPath = `${d} L ${padding.left + innerW},${padding.top + innerH} L ${padding.left},${padding.top + innerH} Z`
+    // Close the area path at the x coordinate of the last point so the shaded
+    // area stops where the line stops (does not extend to the full chart width).
+    const firstX = points[0][0]
+    const lastX = points[points.length - 1][0]
+    const baseY = padding.top + innerH
+    areaPath = `${d} L ${lastX.toFixed(2)},${baseY.toFixed(2)} L ${firstX.toFixed(2)},${baseY.toFixed(2)} Z`
   }
 
   const gradId = `grad-${Math.random().toString(36).slice(2,8)}`
@@ -73,7 +90,8 @@ export default function SimpleLineChart({
       <Path d={d} stroke={color} strokeWidth={strokeWidth} fill="none" strokeLinejoin="round" strokeLinecap="round" />
 
   {/* baseline */}
-  <Line x1={padding.left} y1={padding.top + innerH + 0.5} x2={padding.left + innerW} y2={padding.top + innerH + 0.5} stroke="#e5e7eb" strokeWidth={1} />
+  {/* baseline - stop at last plotted x so baseline matches the filled area */}
+  <Line x1={padding.left} y1={padding.top + innerH + 0.5} x2={points.length ? points[points.length - 1][0] : (padding.left + innerW)} y2={padding.top + innerH + 0.5} stroke="#e5e7eb" strokeWidth={1} />
 
       {/* points (transparent circles) to capture presses */}
       {points.map((p, i) => (
@@ -82,7 +100,7 @@ export default function SimpleLineChart({
 
       {/* x labels */}
       {xLabels.map((lab, i) => (
-        <SvgText key={`x-${i}`} x={xAt(i)} y={height - padding.bottom + 16} fontSize={10} fill={axis.xColor || '#6b7280'} textAnchor="middle">
+        <SvgText key={`x-${i}`} x={xLabelAt(i)} y={height - padding.bottom + 16} fontSize={10} fill={axis.xColor || '#6b7280'} textAnchor="middle">
           {(axis.xFormatter || ((s) => String(s)))(lab)}
         </SvgText>
       ))}

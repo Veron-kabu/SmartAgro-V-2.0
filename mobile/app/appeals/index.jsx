@@ -11,6 +11,7 @@ export default function AppealSuspension() {
   const [submitting, setSubmitting] = useState(false)
   const [loading, setLoading] = useState(true)
   const [appeals, setAppeals] = useState([])
+  const [focused, setFocused] = useState(false)
   const { profile } = useProfile()
   const isSuspended = String(profile?.status || '').toLowerCase() === 'suspended'
 
@@ -76,48 +77,75 @@ export default function AppealSuspension() {
   }, [reason, reportId])
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: '#f8fafc' }} contentContainerStyle={{ padding: 16 }}>
-      <Text style={{ fontSize: 20, fontWeight: '800' }}>Appeal account suspension</Text>
-      {isSuspended ? (
-        <Text style={{ color: '#374151', marginTop: 8 }}>Explain briefly why your account should be reinstated. If your suspension relates to a specific report, we will attach this appeal to it.</Text>
-      ) : (
-        <Text style={{ color: '#374151', marginTop: 8 }}>You are not currently suspended. You can still submit an appeal for a recent action against your account.</Text>
-      )}
+    <ScrollView style={{ flex: 1, backgroundColor: '#F3F4F6' }} contentContainerStyle={{ padding: 16 }}>
+      {/* Header */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }} style={{ paddingVertical: 6, paddingRight: 12, paddingLeft: 4 }}>
+          <Text style={{ fontSize: 20 }}>←</Text>
+        </TouchableOpacity>
+        <Text style={{ fontSize: 20, fontWeight: '800', color: '#111827' }}>Appeal suspension</Text>
+      </View>
+
+      {/* Status banner (concise) */}
+      <View style={{ marginTop: 4 }}>
+        {loading ? null : (
+          isSuspended ? (
+            <View style={{ backgroundColor: '#ECFDF5', borderColor: '#A7F3D0', borderWidth: 1, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10 }}>
+              <Text style={{ color: '#065F46', fontWeight: '700' }}>Account suspended</Text>
+              <Text style={{ color: '#065F46', marginTop: 2 }}>Submit a brief appeal.</Text>
+            </View>
+          ) : (
+            <View style={{ backgroundColor: '#EFF6FF', borderColor: '#BFDBFE', borderWidth: 1, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 10 }}>
+              <Text style={{ color: '#1E3A8A', fontWeight: '700' }}>Account active</Text>
+              <Text style={{ color: '#1E3A8A', marginTop: 2 }}>You may appeal a recent action.</Text>
+            </View>
+          )
+        )}
+      </View>
       {loading ? (
         <View style={{ marginTop: 16 }}><ActivityIndicator color={COLORS.primary} /></View>
       ) : hasOpenAppeal ? (
-        <View style={{ marginTop: 12, backgroundColor: '#ECFDF5', borderColor: '#6EE7B7', borderWidth: 1, padding: 10, borderRadius: 8 }}>
-          <Text style={{ color: '#065F46', fontWeight: '700' }}>Appeal already submitted</Text>
-          <Text style={{ color: '#065F46', marginTop: 4 }}>Your appeal is currently open and under review. You will be notified once there is an update.</Text>
+        <View style={{ marginTop: 12, backgroundColor: '#ECFDF5', borderColor: '#6EE7B7', borderWidth: 1, padding: 12, borderRadius: 12 }}>
+          <Text style={{ color: '#065F46', fontWeight: '800' }}>Appeal in review</Text>
           {openAppeal ? (
-            <View style={{ marginTop: 6 }}>
+            <View style={{ marginTop: 4 }}>
               <Text style={{ color: '#065F46' }}>Status: <Text style={{ fontWeight: '800' }}>{String(openAppeal.status || 'open').toUpperCase()}</Text></Text>
-              <Text style={{ color: '#065F46', marginTop: 2 }}>Open since {prettyDate(openAppeal.createdAt)}</Text>
+              <Text style={{ color: '#065F46', marginTop: 2 }}>Since {prettyDate(openAppeal.createdAt)}</Text>
             </View>
           ) : null}
         </View>
       ) : (
         latestAppeal ? (
-          <View style={{ marginTop: 12, backgroundColor: '#F9FAFB', borderColor: '#E5E7EB', borderWidth: 1, padding: 10, borderRadius: 8 }}>
-            <Text style={{ color: '#111827' }}>Latest appeal</Text>
+          <View style={{ marginTop: 12, backgroundColor: '#FFFFFF', borderColor: '#E5E7EB', borderWidth: 1, padding: 12, borderRadius: 12 }}>
+            <Text style={{ color: '#111827', fontWeight: '700' }}>Latest appeal</Text>
             <Text style={{ color: '#111827', marginTop: 4 }}>Status: <Text style={{ fontWeight: '800' }}>{String(latestAppeal.status || '').toUpperCase()}</Text></Text>
-            <Text style={{ color: '#6b7280', marginTop: 2 }}>Submitted on {prettyDate(latestAppeal.createdAt)}</Text>
+            <Text style={{ color: '#6b7280', marginTop: 2 }}>Submitted {prettyDate(latestAppeal.createdAt)}</Text>
             {latestAppeal.status === 'resolved' && latestAppeal.resolvedAt ? (
-              <Text style={{ color: '#6b7280', marginTop: 2 }}>Resolved on {prettyDate(latestAppeal.resolvedAt)}</Text>
+              <Text style={{ color: '#6b7280', marginTop: 2 }}>Resolved {prettyDate(latestAppeal.resolvedAt)}</Text>
             ) : null}
           </View>
         ) : null
       )}
-      <View style={{ marginTop: 12 }}>
-        <Text style={{ fontWeight: '700', marginBottom: 6 }}>Reason</Text>
+
+      {/* Appeal form */}
+      <View style={{ marginTop: 12, backgroundColor: '#FFFFFF', borderRadius: 12, borderColor: '#E5E7EB', borderWidth: 1, padding: 12 }}>
+        <Text style={{ fontWeight: '700', color: '#111827', marginBottom: 8 }}>Reason</Text>
         <TextInput
-          placeholder="Provide details (required)"
+          placeholder="Brief reason for reinstatement (required)"
+          placeholderTextColor="#94A3B8"
           value={reason}
           onChangeText={setReason}
-          style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10, padding: 10, minHeight: 100, textAlignVertical: 'top' }}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          style={{ backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: focused ? COLORS.primary : '#CBD5E1', borderRadius: 12, padding: 12, minHeight: 110, textAlignVertical: 'top', color: '#111827' }}
           multiline
         />
-        <TouchableOpacity onPress={submit} disabled={submitting || !String(reason).trim() || hasOpenAppeal} activeOpacity={0.85} style={{ marginTop: 12, backgroundColor: (submitting || !String(reason).trim() || hasOpenAppeal) ? '#cbd5e1' : COLORS.primary, paddingVertical: 12, borderRadius: 10, alignItems: 'center' }}>
+        <TouchableOpacity
+          onPress={submit}
+          disabled={submitting || !String(reason).trim() || hasOpenAppeal}
+          activeOpacity={0.85}
+          style={{ marginTop: 12, backgroundColor: (submitting || !String(reason).trim() || hasOpenAppeal) ? '#cbd5e1' : COLORS.primary, paddingVertical: 12, borderRadius: 12, alignItems: 'center' }}
+        >
           {submitting ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '800' }}>Submit appeal</Text>}
         </TouchableOpacity>
       </View>

@@ -22,6 +22,7 @@ export default function VerificationDetail() {
   const [rejecting, setRejecting] = useState(false)
   const [approving, setApproving] = useState(false)
   const [reason, setReason] = useState('')
+  const [reasonFocused, setReasonFocused] = useState(false)
   const [imageUrls, setImageUrls] = useState([])
   const [selectedIdx, setSelectedIdx] = useState(null)
   const [viewerIndex, setViewerIndex] = useState(0)
@@ -108,7 +109,8 @@ export default function VerificationDetail() {
 
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#f3f4f6' }} contentContainerStyle={{ padding: 12, paddingBottom: 36 }}>
-      <Text style={{ fontSize: 20, fontWeight: '700' }}>Submission #{rec.id}</Text>
+      {/* Title only (header back button provided by navigation) */}
+      <Text style={{ fontSize: 20, fontWeight: '700', marginBottom:8 }}>Submission #{rec.id}</Text>
       <Text style={{ marginTop: 4, color: '#6b7280' }}>{new Date(rec.createdAt).toLocaleString()}</Text>
       {rec.awaitingSecondApproval && (
         <View style={{ marginTop: 8, backgroundColor: '#FEF3C7', padding: 10, borderRadius: 10 }}>
@@ -159,8 +161,26 @@ export default function VerificationDetail() {
 
       <View style={{ marginTop: 12, backgroundColor: '#fff', borderRadius: 12, padding: 12 }}>
         <Text style={{ fontWeight: '700' }}>Decision</Text>
-        <View style={{ marginTop: 8, backgroundColor: '#f9fafb', borderRadius: 8, padding: 8 }}>
-          <TextInput placeholder="Reason / note" value={reason} onChangeText={setReason} multiline />
+        <View style={{ marginTop: 10 }}>
+          <TextInput
+            placeholder="Reason / note (optional)"
+            placeholderTextColor="#94A3B8"
+            value={reason}
+            onChangeText={setReason}
+            multiline
+            onFocus={() => setReasonFocused(true)}
+            onBlur={() => setReasonFocused(false)}
+            style={{
+              backgroundColor:'#FFFFFF',
+              borderWidth:1.5,
+              borderColor: reasonFocused ? '#2563eb' : '#CBD5E1',
+              borderRadius:10,
+              padding:12,
+              minHeight:100,
+              textAlignVertical:'top',
+              color:'#111827'
+            }}
+          />
         </View>
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
           <TouchableOpacity onPress={onApprove} disabled={approving} style={{ backgroundColor: '#16a34a', padding: 10, borderRadius: 8, flex: 1 }}>
