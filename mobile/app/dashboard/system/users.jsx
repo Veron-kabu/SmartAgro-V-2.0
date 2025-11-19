@@ -13,8 +13,14 @@ const TARGET_MONTHS = [8,9,10,11]
 let cachedAnalyticsUsers = null
 
 export default function Users() {
+  // Safe default so chart renders immediately even before network fetch
+  const DEFAULT_ANALYTICS = {
+    growth: [],
+    totals: { farmers: 0, buyers: 0 },
+    users: [],
+  }
   // Seed analytics data state from cache so chart renders immediately
-  const [data, setData] = useState(cachedAnalyticsUsers)
+  const [data, setData] = useState(() => cachedAnalyticsUsers || DEFAULT_ANALYTICS)
   const [showManage, setShowManage] = useState(false)
   const [filter, setFilter] = useState('all')
   const [fontScale, setFontScale] = useState(0.85)
