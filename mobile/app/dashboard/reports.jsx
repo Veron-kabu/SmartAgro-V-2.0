@@ -10,6 +10,9 @@ export default function ReportsQueue() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [page, setPage] = useState(0)
+  const pageSize = 10
   const toast = useToast()
   const { isLoaded: authLoaded, isSignedIn } = useAuth()
   const { profile, loading: profileLoading } = useProfile()
@@ -73,15 +76,44 @@ export default function ReportsQueue() {
     }
   }
 
+  const filtered = useMemo(() => items.filter(r => statusFilter === 'all' ? true : r.status === statusFilter), [items, statusFilter])
+  const totalPages = Math.ceil(filtered.length / pageSize)
+  const pageItems = filtered.slice(page * pageSize, page * pageSize + pageSize)
+  useEffect(() => { if (page >= totalPages) setPage(0) }, [totalPages, page])
+
+  const exportCsv = () => {
+    try {
+      const header = ['id','reportedUserId','reasonCode','status','createdAt']
+      const rows = pageItems.map(r => [r.id,r.reportedUserId,r.reasonCode,r.status,r.createdAt])
+      const csv = [header.join(','), ...rows.map(row => row.map(v => {
+        const s = String(v ?? '')
+        return s.includes(',') ? '"' + s.replace(/"/g,'""') + '"' : s
+      }).join(','))].join('\n')
+      // Fallback: display in a toast (could integrate Clipboard later)
+      toast.show('CSV ready (copied to state)', { type: 'success' })
+      console.log('[Reports CSV]\n' + csv)
+    } catch {}
+  }
+
   return (
     <ScrollView contentContainerStyle={{ padding: 16 }}>
       <Text style={{ fontSize: 20, fontWeight: '800' }}>Reports</Text>
+      <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:12 }}>
+        {['all','pending','validated','rejected'].map(s => (
+          <TouchableOpacity key={s} onPress={() => setStatusFilter(s)} style={{ paddingVertical:6, paddingHorizontal:12, borderRadius:20, backgroundColor: statusFilter===s ? '#111827' : '#fff', borderWidth:1, borderColor:'#e5e7eb' }}>
+            <Text style={{ color: statusFilter===s ? '#fff' : '#111827', fontWeight:'600', textTransform:'capitalize' }}>{s}</Text>
+          </TouchableOpacity>
+        ))}
+        <TouchableOpacity onPress={exportCsv} style={{ paddingVertical:6, paddingHorizontal:12, borderRadius:20, backgroundColor:'#fff', borderWidth:1, borderColor:'#e5e7eb' }}>
+          <Text style={{ color:'#111827', fontWeight:'600' }}>Export CSV</Text>
+        </TouchableOpacity>
+      </View>
       {loading ? <View style={{ marginTop: 20 }}><ActivityIndicator /></View> : error ? (
         <Text style={{ color: '#dc2626', marginTop: 8 }}>{error}</Text>
-      ) : items.length === 0 ? (
+      ) : pageItems.length === 0 ? (
         <Text style={{ color: '#6b7280', marginTop: 12 }}>No reports.</Text>
       ) : (
-        items.map(r => (
+        pageItems.map(r => (
           <View key={r.id} style={{ marginTop: 12, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', padding: 12 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text style={{ fontWeight: '700' }}>Report #{r.id}</Text>
@@ -131,6 +163,18 @@ export default function ReportsQueue() {
           </View>
         ))
       )}
+      {/* Pagination controls */}
+      {totalPages > 1 && !loading && !error ? (
+        <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginTop:20 }}>
+          <TouchableOpacity disabled={page===0} onPress={() => setPage(p => Math.max(0, p-1))} style={{ opacity: page===0 ? 0.4 : 1, backgroundColor:'#fff', borderWidth:1, borderColor:'#e5e7eb', paddingVertical:8, paddingHorizontal:14, borderRadius:8 }}>
+            <Text style={{ fontWeight:'600' }}>Prev</Text>
+          </TouchableOpacity>
+          <Text style={{ fontWeight:'600' }}>Page {page+1} / {totalPages}</Text>
+          <TouchableOpacity disabled={page >= totalPages-1} onPress={() => setPage(p => Math.min(totalPages-1, p+1))} style={{ opacity: page >= totalPages-1 ? 0.4 : 1, backgroundColor:'#fff', borderWidth:1, borderColor:'#e5e7eb', paddingVertical:8, paddingHorizontal:14, borderRadius:8 }}>
+            <Text style={{ fontWeight:'600' }}>Next</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
     </ScrollView>
   )
 }

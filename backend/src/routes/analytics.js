@@ -5,7 +5,6 @@ import {
   productsTable,
   ordersTable,
   reviewsTable,
-  auditLogsTable,
   appSettingsTable,
   requestMetricsTable,
 } from '../db/schema.js'
@@ -97,11 +96,8 @@ router.get('/analytics/overview', ensureAuth(), requireRole(['admin']), async (r
     // Reviews summary
     const reviews = await db.select({ count: count(), avg: avg(reviewsTable.rating) }).from(reviewsTable)
 
-    // Sessions approximation via audit logs in last 15 mins
-    const now = new Date()
-    const since = new Date(now.getTime() - 15*60*1000)
-    const sessRows = await db.execute(sql`select count(distinct ${auditLogsTable.actorUserId}) as c from ${auditLogsTable} where ${auditLogsTable.createdAt} >= ${since}`)
-    const activeSessions = Number(sessRows.rows?.[0]?.c || 0)
+    // Sessions approximation: audit logs removed, return 0 for active sessions
+    const activeSessions = 0
 
     // Uptime from settings if present
     let uptimePct = 99.9
@@ -165,20 +161,33 @@ router.get('/analytics/marketplace', ensureAuth(), requireRole(['admin']), async
     const { start, end } = parseRange(String(range))
     const totalProducts = await db.select({ c: count() }).from(productsTable)
     const whereRangeOrders = whereRange(ordersTable.createdAt, start, end)
+    // Alias-aware date filter (cannot reuse Drizzle whereRange expression with aliased table 'o')
+    const dateFilterAlias = (() => {
+      if (start && end) return sql`and o.created_at between ${start} and ${end}`
+      if (start) return sql`and o.created_at >= ${start}`
+      if (end) return sql`and o.created_at <= ${end}`
+      return sql``
+    })()
     // Top categories by delivered orders
     const topCats = await db.execute(sql`
       select p.category, count(*)::int as c
       from ${ordersTable} o
       join ${productsTable} p on p.id = o.product_id
-      where o.status = 'delivered' ${whereRangeOrders ? sql`and ${whereRangeOrders}` : sql``}
+      where o.status = 'delivered' ${dateFilterAlias}
       group by p.category order by c desc limit 5
     `)
-    // Top farmers by delivered sales
+    // Top farmers by delivered sales (filter only users with role='farmer')
     const topFarmers = await db.execute(sql`
-      select o.farmer_id as farmerId, count(*)::int as sales
+      select o.farmer_id as farmerId,
+             count(*)::int as sales,
+             u.email as email,
+             u.username as username,
+             u.full_name as full_name
       from ${ordersTable} o
-      where o.status = 'delivered' ${whereRangeOrders ? sql`and ${whereRangeOrders}` : sql``}
-      group by o.farmer_id order by sales desc limit 5
+      join ${usersTable} u on u.id = o.farmer_id
+      where o.status = 'delivered' and u.role = 'farmer' ${dateFilterAlias}
+      group by o.farmer_id, u.email, u.username, u.full_name
+      order by sales desc limit 5
     `)
     const revenueTrend = await db.execute(sql`
       select date_trunc('day', ${ordersTable.createdAt}) as d, sum(${ordersTable.totalAmount})::float as revenue
@@ -262,9 +271,19 @@ router.get('/analytics/anomalies', ensureAuth(), requireRole(['admin']), async (
 router.post('/analytics/flag-anomaly', ensureAuth(), requireRole(['admin']), async (req,res) => {
   try {
     const { title = 'Suspicious activity', body = '', data = {} } = req.body || {}
+    // Resolve acting admin DB user id so notification FK is valid
+    let actorDbId = null
+    try {
+      const urows = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
+      if (urows && urows.length) actorDbId = urows[0].id
+    } catch (e) {}
+    if (!actorDbId) {
+      // If admin user not provisioned in DB, return an informative error
+      return res.status(500).json({ error: 'admin_user_not_provisioned' })
+    }
     const inserted = await db.execute(sql`
       insert into user_notifications (user_id, type, title, body, data)
-      values (0, 'anomaly', ${title}, ${body}, ${JSON.stringify(data)}) returning id, created_at
+      values (${actorDbId}, 'anomaly', ${title}, ${body}, ${JSON.stringify(data)}) returning id, created_at
     `)
     res.json({ ok: true, item: inserted.rows?.[0] })
   } catch (e) {

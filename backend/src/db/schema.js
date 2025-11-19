@@ -329,17 +329,7 @@ export const verificationSubmissionsTable = pgTable("verification_submissions", 
 });
 
 // =======================
-// AUDIT LOGS
-// =======================
-export const auditLogsTable = pgTable("audit_logs", {
-  id: serial("id").primaryKey(),
-  actorUserId: integer("actor_user_id").references(() => usersTable.id),
-  action: varchar("action", { length: 64 }).notNull(),
-  subjectType: varchar("subject_type", { length: 64 }).notNull(),
-  subjectId: varchar("subject_id", { length: 64 }),
-  details: jsonb("details"),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+// AUDIT LOGS removed (table dropped)
 
 // image_hashes table removed
 

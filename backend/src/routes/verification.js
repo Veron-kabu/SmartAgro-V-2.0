@@ -6,10 +6,9 @@ import path from 'path'
 import { S3Client, PutObjectCommand, HeadObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { db } from '../config/db.js'
-import { usersTable, userVerificationTable, verificationSubmissionsTable, uploadTokensTable, auditLogsTable, verificationStatusHistoryTable, userNotificationsTable, verificationAppealsTable } from '../db/schema.js'
+import { usersTable, userVerificationTable, verificationSubmissionsTable, uploadTokensTable, verificationStatusHistoryTable, userNotificationsTable, verificationAppealsTable } from '../db/schema.js'
 import { eq, desc, inArray } from 'drizzle-orm'
 import { takeToken } from '../utils/rateLimit.js'
-import { writeAudit } from '../utils/audit.js'
 import { createNotification, listUserNotifications, markNotificationRead, deleteNotification } from '../utils/notifications.js'
 import { writeStatusHistory } from '../utils/statusHistory.js'
 import { sendEmail, renderStatusEmail } from '../utils/email.js'
@@ -55,8 +54,7 @@ router.post('/verification/upload-token', ensureAuth(), async (req, res) => {
         await db.insert(uploadTokensTable).values({ userId: uRows[0].id, uploadKey: objectKey, contentType, expiresAt: new Date(Date.now() + 10*60*1000) })
       }
     } catch {}
-  // Audit
-  try { await writeAudit(db, { actorUserId: req.auth.userId, action: 'upload_token_issued', subjectType: 's3_object', subjectId: objectKey, details: { contentType } }) } catch {}
+  // Audit removed
   return res.json(body)
   } catch (e) {
     console.error('upload-token error', e)
@@ -143,8 +141,7 @@ router.post('/verification/submission', ensureAuth(), async (req, res) => {
     } else {
       await db.update(userVerificationTable).set({ status: 'pending', updatedAt: now }).where(eq(userVerificationTable.userId, dbUser.id))
     }
-    // Audit
-    try { await writeAudit(db, { actorUserId: req.auth.userId, action: 'verification_submitted', subjectType: 'verification', subjectId: inserted[0].id, details: { imagesCount: enhancedImages.length } }) } catch {}
+    // Audit removed
   // History
   try { await writeStatusHistory(db, { submissionId: inserted[0].id, fromStatus: null, toStatus: status, actorUserId: me.id }) } catch {}
     return res.json({ submissionId: inserted[0].id, status: 'pending' })
@@ -260,59 +257,14 @@ router.get('/admin/verification-image-url', ensureAuth(), requireAdmin, async (r
     const s3 = new S3Client({ region: AWS_S3_REGION, credentials: { accessKeyId: AWS_ACCESS_KEY_ID, secretAccessKey: AWS_SECRET_ACCESS_KEY } })
     const cmd = new GetObjectCommand({ Bucket: AWS_S3_BUCKET, Key: String(key) })
     const url = await getSignedUrl(s3, cmd, { expiresIn: 300 })
-    try { await writeAudit(db, { actorUserId: req.auth.userId, action: 'admin_signed_get', subjectType: 's3_object', subjectId: String(key), details: {} }) } catch {}
+    // Audit removed
     return res.json({ url })
   } catch (e) {
     return res.status(500).json({ error: 'failed' })
   }
 })
 
-// Admin: Audit logs list (lightweight)
-router.get('/admin/audit-logs', ensureAuth(), requireAdmin, async (req, res) => {
-  try {
-    const { limit = 100, since, action } = req.query || {}
-    let rows = await db.select().from(auditLogsTable).orderBy(desc(auditLogsTable.createdAt))
-    if (since) rows = rows.filter(r => new Date(r.createdAt) >= new Date(since))
-    if (action) rows = rows.filter(r => String(r.action) === String(action))
-    const out = rows.slice(0, Math.max(1, Math.min(500, Number(limit))))
-    return res.json({ items: out })
-  } catch (e) {
-    return res.status(500).json({ error: 'failed' })
-  }
-})
-
-// Admin: Audit logs CSV export
-router.get('/admin/audit-logs.csv', ensureAuth(), requireAdmin, async (req, res) => {
-  try {
-    const { limit = 1000, since, action } = req.query || {}
-    let rows = await db.select().from(auditLogsTable).orderBy(desc(auditLogsTable.createdAt))
-    if (since) rows = rows.filter(r => new Date(r.createdAt) >= new Date(since))
-    if (action) rows = rows.filter(r => String(r.action) === String(action))
-    const out = rows.slice(0, Math.max(1, Math.min(5000, Number(limit))))
-    const header = ['createdAt','actorUserId','action','subjectType','subjectId','details']
-    const csv = [header.join(',')]
-    for (const r of out) {
-      const row = [
-        new Date(r.createdAt).toISOString(),
-        r.actorUserId ?? '',
-        r.action ?? '',
-        r.subjectType ?? '',
-        r.subjectId ?? '',
-        JSON.stringify(r.details ?? {}),
-      ]
-      // simple CSV escaping for commas/quotes
-      csv.push(row.map(v => {
-        const s = String(v)
-        return (s.includes(',') || s.includes('"') || s.includes('\n')) ? '"' + s.replace(/"/g, '""') + '"' : s
-      }).join(','))
-    }
-    res.setHeader('Content-Type', 'text/csv')
-    res.setHeader('Content-Disposition', 'attachment; filename="audit-logs.csv"')
-    return res.send(csv.join('\n'))
-  } catch (e) {
-    return res.status(500).json({ error: 'failed' })
-  }
-})
+// Audit log endpoints removed per product decision
 
 // Admin: list submissions
 router.get('/admin/verifications', ensureAuth(), requireAdmin, async (req, res) => {
@@ -457,7 +409,7 @@ router.post('/admin/verifications/:id/approve', ensureAuth(), requireAdmin, asyn
       .values({ userId: rec.userId, status: 'verified', updatedAt: now })
       .onConflictDoUpdate({ target: userVerificationTable.userId, set: { status: 'verified', updatedAt: now } })
     try { await db.update(usersTable).set({ farmVerified: true, updatedAt: now }).where(eq(usersTable.id, rec.userId)) } catch {}
-    try { await writeAudit(db, { actorUserId: req.auth.userId, action: 'verification_approved', subjectType: 'verification', subjectId: rec.id, details: {} }) } catch {}
+    // Audit removed
     try { await writeStatusHistory(db, { submissionId: rec.id, fromStatus: rec.status, toStatus: 'approved', actorUserId: reviewer?.[0]?.id }) } catch {}
     // Notify user (in-app)
     try { await createNotification(db, { userId: rec.userId, type: 'verification_status', title: 'Verification approved', body: 'Your farm verification was approved. You now have verified status.', data: { submissionId: rec.id, status: 'approved' } }) } catch {}
@@ -491,7 +443,7 @@ router.post('/admin/verifications/:id/reject', ensureAuth(), requireAdmin, async
       .insert(userVerificationTable)
       .values({ userId: rec.userId, status: 'rejected', updatedAt: now })
       .onConflictDoUpdate({ target: userVerificationTable.userId, set: { status: 'rejected', updatedAt: now } })
-    try { await writeAudit(db, { actorUserId: req.auth.userId, action: 'verification_rejected', subjectType: 'verification', subjectId: rec.id, details: {} }) } catch {}
+    // Audit removed
     try { await writeStatusHistory(db, { submissionId: rec.id, fromStatus: rec.status, toStatus: 'rejected', actorUserId: reviewer?.[0]?.id, note: reviewer_comment }) } catch {}
     // Notify user (in-app)
   try { await createNotification(db, { userId: rec.userId, type: 'verification_status', title: 'Verification rejected', body: reviewer_comment ? `Reason: ${reviewer_comment}` : 'Your verification was rejected. You can resubmit with clearer photos.', data: { submissionId: rec.id, status: 'rejected' } }) } catch {}
@@ -533,7 +485,7 @@ router.post('/admin/verifications/:id/request-more-info', ensureAuth(), requireA
         .values({ userId: rec.userId, status: 'pending', updatedAt: now })
         .onConflictDoUpdate({ target: userVerificationTable.userId, set: { status: 'pending', updatedAt: now } })
     } catch {}
-    try { await writeAudit(db, { actorUserId: req.auth.userId, action: 'verification_request_more_info', subjectType: 'verification', subjectId: rec.id, details: { reason } }) } catch {}
+    // Audit removed
   try { await writeStatusHistory(db, { submissionId: rec.id, fromStatus: rec.status, toStatus: 'flagged', actorUserId: req.auth.userId, note: reason }) } catch {}
     // Notify user
     try { await createNotification(db, { userId: rec.userId, type: 'verification_status', title: 'More info requested', body: reason ? `Reviewer note: ${reason}` : 'Please provide more information or clearer photos for your verification.', data: { submissionId: rec.id, status: 'flagged' } }) } catch {}
@@ -564,7 +516,7 @@ router.post('/admin/verifications/:id/comment', ensureAuth(), requireAdmin, asyn
     const comments = Array.isArray(rec.adminComments) ? [...rec.adminComments] : []
     comments.push({ text: String(text || ''), visibleToUser: !!visible_to_user, reviewerUserId: req.auth.userId, createdAt: new Date().toISOString() })
     await db.update(verificationSubmissionsTable).set({ adminComments: comments, updatedAt: new Date() }).where(eq(verificationSubmissionsTable.id, rec.id))
-    await writeAudit(db, { actorUserId: req.auth.userId, action: 'verification_comment_added', subjectType: 'verification', subjectId: rec.id, details: { visible_to_user: !!visible_to_user } })
+    // Audit removed
     return res.json({ ok: true, adminComments: comments })
   } catch (e) {
     return res.status(500).json({ error: 'failed' })
@@ -591,7 +543,7 @@ router.post('/verification/:id/appeal', ensureAuth(), async (req, res) => {
     const until = new Date(Date.now() + extendMs)
     await db.update(verificationSubmissionsTable).set({ retentionExtendedUntil: until, updatedAt: new Date() }).where(eq(verificationSubmissionsTable.id, rec.id))
     const appeal = await db.insert(verificationAppealsTable).values({ submissionId: rec.id, userId: me.id, reason: reason || null, status: 'open', priority: 2, retentionExtendedUntil: until }).returning()
-    await writeAudit(db, { actorUserId: req.auth.userId, action: 'verification_appeal_created', subjectType: 'verification', subjectId: rec.id, details: { reason } })
+    // Audit removed
     // Move to 'appeal' status for rejected or flagged cases
     if (rec.status === 'rejected' || rec.status === 'flagged') {
       await db.update(verificationSubmissionsTable).set({ status: 'appeal', updatedAt: new Date() }).where(eq(verificationSubmissionsTable.id, rec.id))
@@ -679,7 +631,7 @@ router.post('/verification/:id/respond-more', ensureAuth(), async (req, res) => 
 
   await db.update(verificationSubmissionsTable).set({ images: mergedImages, status: statusNext, updatedAt: now, adminComments }).where(eq(verificationSubmissionsTable.id, rec.id))
   try { await writeStatusHistory(db, { submissionId: rec.id, fromStatus: rec.status, toStatus: statusNext, actorUserId: me.id, note: 'user provided additional info' }) } catch {}
-  try { await writeAudit(db, { actorUserId: req.auth.userId, action: 'verification_respond_more', subjectType: 'verification', subjectId: rec.id, details: { added: enhanced.length, note: !!userNote } }) } catch {}
+  // Audit removed
     // Keep userVerificationTable as pending
     try {
       await db
@@ -727,7 +679,7 @@ router.post('/admin/verification-appeals/:id/resolve', ensureAuth(), requireAdmi
         await writeStatusHistory(db, { submissionId: rec.id, fromStatus: rec.status, toStatus: 'reinstated', actorUserId: req.auth.userId, note: resolution_note })
       }
     }
-    await writeAudit(db, { actorUserId: req.auth.userId, action: 'verification_appeal_resolved', subjectType: 'appeal', subjectId: appeal.id, details: { reinstate: !!reinstate } })
+    // Audit removed
     return res.json({ ok: true })
   } catch (e) {
     return res.status(500).json({ error: 'failed' })

@@ -83,6 +83,15 @@ export default function SystemDrawerLayout() {
           ),
         }}
       />
+      <Drawer.Screen
+        name="products-transactions"
+        options={{
+          title: 'Products & Transactions',
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="stats-chart-outline" size={size} color={color} />
+          ),
+        }}
+      />
       {/* Removed marketplace-insights and transactions screens (files deleted) */}
       {/* Removed system-health, engagement, admin-tools and clerk-sync screens (files deleted) */}
       <Drawer.Screen
@@ -103,6 +112,16 @@ export default function SystemDrawerLayout() {
           ),
         }}
       />
+      <Drawer.Screen
+        name="appeals"
+        options={{
+          title: 'Appeals',
+          drawerIcon: ({ color, size }) => (
+            <Ionicons name="help-circle-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      {/* Audit Log removed */}
     </Drawer>
   )
 }
