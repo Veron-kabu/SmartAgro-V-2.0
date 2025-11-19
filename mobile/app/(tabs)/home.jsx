@@ -220,39 +220,42 @@ export default function MarketScreen() {
             marginBottom: 12,
             backgroundColor: '#fff7ed',
             borderRadius: 12,
-            padding: 12,
+            paddingVertical: 12,
+            paddingHorizontal: 14,
             borderWidth: 1,
             borderColor: '#fed7aa',
             flexDirection: 'row',
             alignItems: 'center',
-            gap: 10,
+            justifyContent: 'flex-start'
           }}
           activeOpacity={0.8}
         >
-          <Ionicons name="pricetag" size={18} color="#ea580c" />
-          <Ionicons name="storefront-outline" size={18} color="#9a3412" />
+          <Ionicons name="storefront-outline" size={20} color="#9a3412" style={{ marginRight: 10 }} />
+          <Text style={{ color: '#9a3412', fontWeight: '700', fontSize: 14 }}>View Market Prices</Text>
         </TouchableOpacity>
 
-        {/* Farmers Map CTA */}
-        <TouchableOpacity
-          onPress={() => router.push('/farmers-map')}
-          style={{
-            marginHorizontal: 16,
-            marginBottom: 12,
-            backgroundColor: '#ecfeff',
-            borderRadius: 12,
-            padding: 12,
-            borderWidth: 1,
-            borderColor: '#a5f3fc',
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 10,
-          }}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="map" size={18} color="#0891b2" />
-          <Ionicons name="location-outline" size={18} color="#0e7490" />
-        </TouchableOpacity>
+        {/* Farmers Map CTA (hidden for now) */}
+        {false && (
+          <TouchableOpacity
+            onPress={() => router.push('/farmers-map')}
+            style={{
+              marginHorizontal: 16,
+              marginBottom: 12,
+              backgroundColor: '#ecfeff',
+              borderRadius: 12,
+              padding: 12,
+              borderWidth: 1,
+              borderColor: '#a5f3fc',
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 10,
+            }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="map" size={18} color="#0891b2" />
+            <Ionicons name="location-outline" size={18} color="#0e7490" />
+          </TouchableOpacity>
+        )}
 
         {/* Categories */}
         <CategoryFilter
