@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { View, Text, TextInput, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, FlatList, ActivityIndicator, Alert } from 'react-native'
 import { useLocalSearchParams, router } from 'expo-router'
 import { useProfile } from '../context/profile'
 import { COLORS } from '../constants/colors'
@@ -7,6 +7,8 @@ import LeafletMap from '../components/LeafletMap'
 import { geocode, reverseGeocode } from '../utils/geocoding'
 import { patchJSON } from '../context/api'
 import { emit } from '../utils/eventBus'
+import * as ExpoLocation from 'expo-location'
+import { Ionicons } from '@expo/vector-icons'
 
 export default function LocationPickerScreen() {
   const { profile } = useProfile()
@@ -20,6 +22,31 @@ export default function LocationPickerScreen() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [place, setPlace] = useState(null)
+  const [gettingLocation, setGettingLocation] = useState(false)
+
+  const getCurrentLocation = async () => {
+    try {
+      setGettingLocation(true)
+      const { status } = await ExpoLocation.requestForegroundPermissionsAsync()
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Location permission is required to use your current location.')
+        return
+      }
+      
+      const location = await ExpoLocation.getCurrentPositionAsync({ 
+        accuracy: ExpoLocation.Accuracy.High 
+      })
+      
+      setCoords({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      })
+    } catch (_error) {
+      Alert.alert('Error', 'Failed to get your current location. Please try again.')
+    } finally {
+      setGettingLocation(false)
+    }
+  }
 
   // When coords change, reverse geocode name (debounced by in-process throttling)
   useEffect(() => {
@@ -111,7 +138,28 @@ export default function LocationPickerScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
       <View style={{ padding: 12 }}>
-        <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.text, marginBottom: 8 }}>Pick your location</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+          <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.text }}>Pick your location</Text>
+          <TouchableOpacity 
+            onPress={getCurrentLocation} 
+            disabled={gettingLocation}
+            style={{ 
+              flexDirection: 'row', 
+              alignItems: 'center', 
+              gap: 4, 
+              backgroundColor: COLORS.primary, 
+              paddingVertical: 6, 
+              paddingHorizontal: 10, 
+              borderRadius: 6,
+              opacity: gettingLocation ? 0.6 : 1
+            }}
+          >
+            <Ionicons name="locate" size={16} color="#fff" />
+            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 12 }}>
+              {gettingLocation ? 'Getting...' : 'Current'}
+            </Text>
+          </TouchableOpacity>
+        </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <TextInput
             placeholder="Search a place (e.g., Nairobi)"

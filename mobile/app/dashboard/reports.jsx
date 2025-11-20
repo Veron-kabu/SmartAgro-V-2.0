@@ -110,6 +110,11 @@ export default function ReportsQueue() {
           </TouchableOpacity>
         ))}
       </View>
+      <View style={{ marginTop: 8, alignItems: 'flex-end' }}>
+        <TouchableOpacity onPress={exportCsv} style={{ paddingVertical:6, paddingHorizontal:12, borderRadius:10, backgroundColor:'#111827' }}>
+          <Text style={{ color: '#fff', fontWeight: '700' }}>Export CSV</Text>
+        </TouchableOpacity>
+      </View>
       {loading ? <View style={{ marginTop: 20 }}><ActivityIndicator /></View> : error ? (
         <Text style={{ color: '#dc2626', marginTop: 8 }}>{error}</Text>
       ) : pageItems.length === 0 ? (

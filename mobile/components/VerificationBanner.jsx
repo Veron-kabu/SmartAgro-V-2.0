@@ -60,7 +60,7 @@ export default function VerificationBanner({ role = 'farmer', containerStyle, bu
   return (
     <View style={[{ backgroundColor: '#fef3c7', padding: 12 }, containerStyle]}> 
       <Text style={[{ color: '#92400e', fontWeight: '700' }, textStyle]}>Complete verification</Text>
-      <Text style={[{ color: '#92400e', marginTop: 2 }, textStyle]}>Earn trust and unlock full features by confirming you are a real {role}. It takes about 2 minutes.</Text>
+      <Text style={[{ color: '#92400e', marginTop: 2 }, textStyle]}>Earn trust and unlock features by confirming you are a real {role}. It won`t take long.</Text>
       {showProvideMore ? (
         <Text style={[{ color: '#92400e', marginTop: 4, fontStyle: 'italic' }, textStyle]}>
           {reviewerMessage ? reviewerMessage : 'More info requested by reviewer'}

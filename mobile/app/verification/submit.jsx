@@ -5,12 +5,14 @@ import { useLocalSearchParams, useRouter } from 'expo-router'
 import { getUploadToken, uploadToPresignedUrl, directUploadToBackend, submitVerification, enqueueVerification } from '../../utils/verification'
 import { getJSON, postJSON } from '../../context/api'
 import { useToast } from '../../context/toast'
+import { useProfile } from '../../context/profile'
 import { COLORS } from '../../constants/colors'
 
 export default function VerificationSubmit() {
   const { payload } = useLocalSearchParams()
   const router = useRouter()
   const toast = useToast()
+  const { refresh: refreshProfile } = useProfile()
   const captures = useMemo(() => {
     try { return JSON.parse(payload) } catch { return [] }
   }, [payload])
@@ -78,7 +80,19 @@ export default function VerificationSubmit() {
     const device_info = captures[0]?.meta?.device_info || null
     // Optional attestation token could be included if available in future
     const resp = await submitVerification({ images: uploaded, device_info })
-  toast.show(`Submitted — status: ${resp?.status || 'pending'}`, { type: 'success', duration: 1500 })
+      
+      // If auto-approved, refresh profile immediately to update farmVerified status
+      if (resp?.autoApproved || resp?.status === 'approved') {
+        try {
+          await refreshProfile()
+          toast.show('Verified successfully!', { type: 'success', duration: 2000 })
+        } catch {
+          toast.show(`Submitted — status: ${resp?.status || 'pending'}`, { type: 'success', duration: 1500 })
+        }
+      } else {
+        toast.show(`Submitted — status: ${resp?.status || 'pending'}`, { type: 'success', duration: 1500 })
+      }
+      
   // Route groups are omitted from URLs; use '/profile' instead of '/(tabs)/profile'
   router.replace('/profile')
     } catch (e) {

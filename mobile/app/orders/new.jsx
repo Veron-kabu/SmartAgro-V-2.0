@@ -1,4 +1,4 @@
-import { useLocalSearchParams, router } from 'expo-router'
+import { useLocalSearchParams, router, useFocusEffect } from 'expo-router'
 import { useEffect, useState, useCallback } from 'react'
 import { View, Text, ActivityIndicator, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
@@ -23,9 +23,17 @@ export default function NewOrderScreen() {
   const [deliveryAddress, setDeliveryAddress] = useState('')
   const [deliveryObj, setDeliveryObj] = useState(null)
   const [phone, setPhone] = useState('')
-  const [notes, setNotes] = useState('')
-  const { profile } = useProfile()
+  const [shippingCost, setShippingCost] = useState(0)
+  const [loadingShipping, setLoadingShipping] = useState(false)
+  const { profile, refresh: refreshProfile } = useProfile()
   const { show } = useToast()
+  
+  // Refresh profile when screen comes into focus (e.g., after verification)
+  useFocusEffect(
+    useCallback(() => {
+      refreshProfile()
+    }, [refreshProfile])
+  )
 
   const load = useCallback(async () => {
     if (!productId) { setLoading(false); return }
@@ -42,9 +50,28 @@ export default function NewOrderScreen() {
   // Prefill delivery address from profile on first render
   useEffect(() => {
     if (!profile) return
-    setDeliveryAddress(prev => prev || (typeof profile?.location === 'string' ? profile.location : (profile?.placeName || '')))
+    // Build address from normalized fields (latitude/longitude/placeName) or legacy location blob
+    let addressText = ''
+    if (profile.placeName) {
+      addressText = profile.placeName
+    } else if (typeof profile.location === 'string') {
+      addressText = profile.location
+    } else if (profile.location?.name) {
+      addressText = profile.location.name
+    } else if (profile.latitude && profile.longitude) {
+      addressText = `${Number(profile.latitude).toFixed(4)}, ${Number(profile.longitude).toFixed(4)}`
+    }
+    setDeliveryAddress(prev => prev || addressText)
     setPhone(prev => prev || (profile?.phone || ''))
-  }, [profile])
+    // Store structured location if available
+    if (profile.latitude && profile.longitude && !deliveryObj) {
+      setDeliveryObj({
+        text: addressText,
+        coords: { lat: Number(profile.latitude), lng: Number(profile.longitude) },
+        details: profile.addressDetails || null
+      })
+    }
+  }, [profile, deliveryObj])
 
   // Listen for delivery address picked from map
   useEffect(() => {
@@ -56,6 +83,37 @@ export default function NewOrderScreen() {
     on('location:delivery-selected', handler)
     return () => off('location:delivery-selected', handler)
   }, [])
+
+  // Calculate shipping cost when product and delivery location are available
+  useEffect(() => {
+    const calculateShipping = async () => {
+      if (!product || !deliveryObj?.coords) {
+        setShippingCost(0)
+        return
+      }
+      
+      const destLat = deliveryObj.coords.lat
+      const destLng = deliveryObj.coords.lng
+      
+      if (!destLat || !destLng) {
+        setShippingCost(0)
+        return
+      }
+
+      try {
+        setLoadingShipping(true)
+        const response = await getJSON(`/api/shipping/quote?product_id=${product.id}&dest_lat=${destLat}&dest_lng=${destLng}`)
+        setShippingCost(Number(response?.shippingCost || 0))
+      } catch (e) {
+        console.warn('Failed to fetch shipping cost:', e)
+        setShippingCost(0)
+      } finally {
+        setLoadingShipping(false)
+      }
+    }
+
+    calculateShipping()
+  }, [product, deliveryObj])
 
   async function submit() {
     if (!productId) return
@@ -74,7 +132,8 @@ export default function NewOrderScreen() {
         show('Enter a phone number to pay via M-Pesa.', { type: 'warning' })
         return
       }
-      const amount = Number(total)
+      // M-Pesa requires whole numbers (no decimals)
+      const amount = Math.round(Number(total))
       if (!Number.isFinite(amount) || amount <= 0) {
         Alert.alert('Invalid total', 'Could not compute total amount')
         return
@@ -103,13 +162,20 @@ export default function NewOrderScreen() {
       }
       if (!paid) { show('Payment not completed. Order was not created.', { type: 'warning' }); return }
       // Create the order as paid using the confirmed payment session
-      const created = await postJSON('/api/orders/after-payment', {
+      const orderPayload = {
         product_id: productId,
         quantity: qty,
         delivery_address: deliveryObj || (deliveryAddress.trim() ? { text: deliveryAddress.trim() } : null),
-        notes: notes.trim() || undefined,
         checkoutRequestID,
-      })
+      }
+      
+      // Include destination coordinates for shipping calculation if available
+      if (deliveryObj?.coords?.lat && deliveryObj?.coords?.lng) {
+        orderPayload.dest_lat = deliveryObj.coords.lat
+        orderPayload.dest_lng = deliveryObj.coords.lng
+      }
+      
+      const created = await postJSON('/api/orders/after-payment', orderPayload)
       track(ANALYTICS_EVENTS.ORDER_CREATED, { orderId: created.id, productId, quantity: qty })
       if (typeof created.remainingQuantity === 'number') {
         setProduct(prev => prev ? { ...prev, quantityAvailable: created.remainingQuantity, status: created.productStatus || prev.status } : prev)
@@ -146,7 +212,8 @@ export default function NewOrderScreen() {
   const price = Number(product.price || 0)
   const discount = Number(product.discountPercent || 0)
   const effectiveUnit = discount > 0 ? price * (1 - discount / 100) : price
-  const total = qtyNum * effectiveUnit
+  const subtotal = qtyNum * effectiveUnit
+  const total = subtotal + shippingCost
 
   return (
     <ScrollView contentContainerStyle={{ padding: 20 }} style={{ flex:1, backgroundColor: '#f9fafb' }} keyboardShouldPersistTaps="handled">
@@ -198,16 +265,27 @@ export default function NewOrderScreen() {
           placeholder='Phone number for payment & contact'
         />
         {(!phone || phone.trim().length < 7) && <Text style={styles.helper}>Enter a valid phone (min 7 digits)</Text>}
-        <View style={{ height: 16 }} />
-        <Text style={styles.label}>Notes (optional)</Text>
-        <TextInput
-          style={[styles.input, { minHeight: 60, textAlignVertical: 'top' }]}
-          multiline
-          value={notes}
-          onChangeText={setNotes}
-          placeholder='Any extra details'
-        />
         <View style={{ height: 20 }} />
+        
+        {/* Price breakdown */}
+        <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 12, marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+            <Text style={styles.mutedSmall}>Subtotal ({qtyNum} × {formatCurrency(effectiveUnit)})</Text>
+            <Text style={styles.mutedSmall}>{formatCurrency(subtotal)}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+            <Text style={styles.mutedSmall}>
+              Shipping {loadingShipping ? '(calculating...)' : ''}
+            </Text>
+            <Text style={styles.mutedSmall}>{loadingShipping ? '...' : `Ksh ${shippingCost.toFixed(2)}`}</Text>
+          </View>
+          {!deliveryObj?.coords && (
+            <Text style={{ color: COLORS.warning, fontSize: 11, marginBottom: 8 }}>
+              Select location on map to calculate shipping
+            </Text>
+          )}
+        </View>
+        
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={styles.total}>Total: {formatCurrency(total)}</Text>
           <TouchableOpacity disabled={submitting || String(profile?.status||'').toLowerCase()==='suspended'} onPress={submit} style={[styles.button, (submitting || String(profile?.status||'').toLowerCase()==='suspended') && { opacity: 0.6 }]}>

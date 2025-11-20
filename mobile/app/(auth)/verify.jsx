@@ -14,6 +14,9 @@ import {
 import { authStyles } from "../../assets/styles/auth.styles"
 import { Image } from "expo-image"
 import { COLORS } from "../../constants/colors"
+import * as ExpoLocation from "expo-location"
+import { patchJSON } from "../../context/api"
+import { reverseGeocode } from "../../utils/geocoding"
 
 export default function VerifyScreen() {
   const router = useRouter()
@@ -45,6 +48,39 @@ export default function VerifyScreen() {
 
         if (signUpAttempt.status === 'complete') {
           await setActiveFromSignUp({ session: signUpAttempt.createdSessionId })
+          
+          // Capture location after successful sign-up
+          try {
+            const { status } = await ExpoLocation.requestForegroundPermissionsAsync()
+            if (status === 'granted') {
+              const { coords } = await ExpoLocation.getCurrentPositionAsync({ 
+                accuracy: ExpoLocation.Accuracy.Balanced 
+              })
+              const lat = coords.latitude
+              const lng = coords.longitude
+              
+              // Get readable place name via reverse geocoding
+              let place = null
+              try { 
+                place = await reverseGeocode(lat, lng) 
+              } catch (e) {
+                console.warn('Reverse geocoding failed:', e)
+              }
+              
+              // Update user location in backend
+              await patchJSON('/api/location', {
+                lat,
+                lng,
+                place_name: place?.placeName || null,
+                address_details: place?.address || null,
+              })
+              console.log('Location captured after sign-up')
+            }
+          } catch (locErr) {
+            console.warn('Location capture failed (non-fatal):', locErr)
+            // Don't block user flow if location fails
+          }
+          
           router.replace('/home')
         } else {
           Alert.alert('Error', 'Verification failed. Please try again.')

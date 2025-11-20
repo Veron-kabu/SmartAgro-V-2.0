@@ -6,7 +6,6 @@ import { useUser } from '@clerk/clerk-expo'
 import { useLogout } from '../../hooks/useLogout'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Ionicons } from '@expo/vector-icons'
-import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useProfile } from '../../context/profile'
 import { getJSON, postJSON, patchJSON } from '../../context/api'
 import { useDashboardMedia } from '../../hooks/useDashboardMedia'
@@ -16,7 +15,6 @@ import CountBadge from '../../components/CountBadge'
 import { useChat } from '../../context/chat'
 import { subscribeAppEvents } from '../../context/favorites'
 import VerificationBanner from '../../components/VerificationBanner'
-import { useResolvedUrls } from '../../hooks/useResolvedUrls'
 import { useToast } from '../../context/toast'
 import { profileStyles as styles } from '../../assets/styles/(tabs)/profile.styles'
 import { COLORS } from '../../constants/colors'
@@ -29,7 +27,6 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
   const { user } = useUser()
   const { profile, refresh, applyLocalUpdate } = useProfile()
   const [loading, setLoading] = useState(true)
-  const [dashboardData, setDashboardData] = useState(null)
   const [recentProducts, setRecentProducts] = useState([])
   // Removed inline/bottom-sheet listings usage; dedicated screen navigation instead
   const [editOpen, setEditOpen] = useState(false)
@@ -37,7 +34,16 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
   const [editEmail, setEditEmail] = useState(profile?.email || '')
   const [editUsername, setEditUsername] = useState(profile?.username || '')
   const [editPhone, setEditPhone] = useState(profile?.phone || '')
-  const [editAddress, setEditAddress] = useState(typeof profile?.location === 'string' ? profile.location : '')
+  // Build initial address from normalized fields or legacy blob
+  const getInitialAddress = () => {
+    if (!profile) return ''
+    if (profile.placeName) return profile.placeName
+    if (typeof profile.location === 'string') return profile.location
+    if (profile.location?.name) return profile.location.name
+    if (profile.latitude && profile.longitude) return `${Number(profile.latitude).toFixed(4)}, ${Number(profile.longitude).toFixed(4)}`
+    return ''
+  }
+  const [editAddress, setEditAddress] = useState(getInitialAddress())
   const [editFullName, setEditFullName] = useState(profile?.fullName || '')
   const [pickingImage, setPickingImage] = useState(false)
   // media & stats hooks
@@ -168,22 +174,21 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
   const totalBadge = (unreadTotal || 0) + (verifNotifCount || 0)
   // Dashboard listing thumbnail (random from recent products)
   const [listingThumbRaw, setListingThumbRaw] = useState(null)
-  const [listingThumb] = useResolvedUrls(listingThumbRaw ? [listingThumbRaw] : [])
   // Password change state
   const [showPwd, setShowPwd] = useState(false)
   const [currentPwd, setCurrentPwd] = useState('')
   const [newPwd, setNewPwd] = useState('')
   const [confirmPwd, setConfirmPwd] = useState('')
+  // Password visibility toggles
+  const [showCurrentPwd, setShowCurrentPwd] = useState(false)
+  const [showNewPwd, setShowNewPwd] = useState(false)
+  const [showConfirmPwd, setShowConfirmPwd] = useState(false)
   const [greeting, setGreeting] = useState('')
   const toast = useToast()
-  // Collapsible sections state
-  const [openListings, setOpenListings] = useState(true)
+  // Collapsible sections state removed
   // const [openOrders, setOpenOrders] = useState(true) // replaced by single Orders button
   // Collapsible Funds section removed; single Funds button links to Funds hub
   const { signingOut, logout: confirmLogout } = useLogout()
-  const collapseKeys = useRef({
-    listings: 'dashboard:collapse:listings',
-  })
 
   // Banner image error handling guards to prevent endless retry loops
   const bannerRetryRef = useRef(0)
@@ -193,24 +198,19 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
   // Simple currency formatter (later can use Intl if locale / polyfill present)
   // formatCurrency removed with old Funds metrics section
 
-  // Load persisted collapse state
-  useEffect(() => {
-    (async () => {
-      try {
-        const keys = Object.values(collapseKeys.current)
-        const entries = await AsyncStorage.multiGet(keys)
-        const map = Object.fromEntries(entries)
-        if (map[collapseKeys.current.listings]) setOpenListings(map[collapseKeys.current.listings] === '1')
-      } catch (e) {
-        console.log('collapse restore failed', e.message)
-      }
-    })()
-  }, [])
-
-  const persistCollapse = useCallback((key, open) => {
-    const storageKey = collapseKeys.current[key]
-    AsyncStorage.setItem(storageKey, open ? '1' : '0').catch(()=>{})
-  }, [])
+  // Load persisted collapse state (removed - no longer needed)
+  // useEffect(() => {
+  //   (async () => {
+  //     try {
+  //       const keys = Object.values(collapseKeys.current)
+  //       const entries = await AsyncStorage.multiGet(keys)
+  //       const map = Object.fromEntries(entries)
+  //       if (map[collapseKeys.current.listings]) setOpenListings(map[collapseKeys.current.listings] === '1')
+  //     } catch (e) {
+  //       console.log('collapse restore failed', e.message)
+  //     }
+  //   })()
+  // }, [])
 
   const patchProfile = useCallback(async (payload) => {
     const updated = await patchJSON('/api/users/profile', payload)
@@ -365,16 +365,10 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
         : (Array.isArray(productsRes?.items) ? productsRes.items : [])
       const mine = profile?.id ? list.filter(p => p.farmerId === profile.id) : []
       setRecentProducts(mine.slice(0, 5))
-      if ((profile?.role || expectedRole) === 'farmer') {
-        const farmerData = await getJSON(`/api/dashboard/farmer`)
-        setDashboardData(farmerData)
-      } else {
-        setDashboardData(null)
-      }
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
     }
-  }, [profile?.role, expectedRole, profile?.id])
+  }, [profile?.id])
 
   // loadFarmerListings no longer needed (list handled in separate screen)
 
@@ -390,12 +384,6 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
       const ownerId = product?.farmerId
       if (!profile?.id) return
       if (ownerId && ownerId !== profile.id) return
-      // Update count optimistically
-      setDashboardData(prev => {
-        if (!prev) return prev
-        const current = Number(prev.totalProducts || 0)
-        return { ...prev, totalProducts: current + 1 }
-      })
       // Update recent products list (local only)
       if (product) {
         setRecentProducts(prev => {
@@ -454,7 +442,13 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
     setEditUsername(profile?.username || '')
     setEditPhone(profile?.phone || '')
     setEditFullName(profile?.fullName || profile?.username || '')
-    setEditAddress(typeof profile?.location === 'string' ? profile.location : (profile?.placeName || ''))
+    // Build address from normalized fields
+    let addr = ''
+    if (profile?.placeName) addr = profile.placeName
+    else if (typeof profile?.location === 'string') addr = profile.location
+    else if (profile?.location?.name) addr = profile.location.name
+    else if (profile?.latitude && profile?.longitude) addr = `${Number(profile.latitude).toFixed(4)}, ${Number(profile.longitude).toFixed(4)}`
+    setEditAddress(addr)
     // Slight delay before opening modal to reduce flicker when rapid back navigation occurs
     requestAnimationFrame(() => setEditOpen(true))
   }, [profile])
@@ -466,7 +460,13 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
     setEditUsername(profile?.username || '')
     setEditPhone(profile?.phone || '')
     setEditFullName(profile?.fullName || profile?.username || '')
-    setEditAddress(typeof profile?.location === 'string' ? profile.location : (profile?.placeName || ''))
+    // Build address from normalized fields
+    let addr = ''
+    if (profile?.placeName) addr = profile.placeName
+    else if (typeof profile?.location === 'string') addr = profile.location
+    else if (profile?.location?.name) addr = profile.location.name
+    else if (profile?.latitude && profile?.longitude) addr = `${Number(profile.latitude).toFixed(4)}, ${Number(profile.longitude).toFixed(4)}`
+    setEditAddress(addr)
   }, [editOpen, profile])
 
   // Avatar refresh handled by useDashboardMedia hook
@@ -490,7 +490,7 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
         try { if (Array.isArray(ver?.items)) global.__cached_verifications__ = ver.items } catch {}
         try { if (Array.isArray(rep?.items)) global.__cached_reports__ = rep.items } catch {}
         try { if (Array.isArray(appeals?.items)) global.__cached_appeals__ = appeals.items } catch {}
-      } catch (e) {
+      } catch (_e) {
         // ignore prefetch errors
       }
     })()
@@ -959,32 +959,116 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
                 ) : (
                   <View>
                     <Text style={modalStyles.inputLabel}>Current password</Text>
-                    <TextInput
-                      value={currentPwd}
-                      onChangeText={setCurrentPwd}
-                      style={modalStyles.input}
-                      placeholder="Enter current password"
-                      secureTextEntry
-                      returnKeyType="next"
-                    />
+                    <View style={{ position: 'relative', width: '100%', overflow: 'visible' }}>
+                      <TextInput
+                        value={currentPwd}
+                        onChangeText={setCurrentPwd}
+                        style={[modalStyles.input, { paddingRight: 50 }]}
+                        placeholder="Enter current password"
+                        secureTextEntry={!showCurrentPwd}
+                        returnKeyType="next"
+                      />
+                      <View
+                        pointerEvents="box-none"
+                        style={{ 
+                          position: 'absolute', 
+                          right: 0, 
+                          top: 0,
+                          bottom: 0,
+                          justifyContent: 'center', 
+                          alignItems: 'center',
+                          width: 50,
+                          zIndex: 999,
+                          elevation: 999,
+                        }}
+                      >
+                        <TouchableOpacity
+                          onPress={() => setShowCurrentPwd(!showCurrentPwd)}
+                          activeOpacity={0.6}
+                          style={{ padding: 10 }}
+                        >
+                          <Ionicons
+                            name={showCurrentPwd ? "eye" : "eye-off"}
+                            size={22}
+                            color={COLORS.textLight}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                     <Text style={modalStyles.inputLabel}>New password</Text>
-                    <TextInput
-                      value={newPwd}
-                      onChangeText={setNewPwd}
-                      style={[modalStyles.input, showPwd && !passwordValid && modalStyles.inputError]}
-                      placeholder="At least 8 characters"
-                      secureTextEntry
-                      returnKeyType="next"
-                    />
+                    <View style={{ position: 'relative', width: '100%', overflow: 'visible' }}>
+                      <TextInput
+                        value={newPwd}
+                        onChangeText={setNewPwd}
+                        style={[modalStyles.input, { paddingRight: 50 }, showPwd && !passwordValid && modalStyles.inputError]}
+                        placeholder="At least 8 characters"
+                        secureTextEntry={!showNewPwd}
+                        returnKeyType="next"
+                      />
+                      <View
+                        pointerEvents="box-none"
+                        style={{ 
+                          position: 'absolute', 
+                          right: 0, 
+                          top: 0,
+                          bottom: 0,
+                          justifyContent: 'center', 
+                          alignItems: 'center',
+                          width: 50,
+                          zIndex: 999,
+                          elevation: 999,
+                        }}
+                      >
+                        <TouchableOpacity
+                          onPress={() => setShowNewPwd(!showNewPwd)}
+                          activeOpacity={0.6}
+                          style={{ padding: 10 }}
+                        >
+                          <Ionicons
+                            name={showNewPwd ? "eye" : "eye-off"}
+                            size={22}
+                            color={COLORS.textLight}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                     <Text style={modalStyles.inputLabel}>Confirm new password</Text>
-                    <TextInput
-                      value={confirmPwd}
-                      onChangeText={setConfirmPwd}
-                      style={[modalStyles.input, showPwd && !passwordValid && modalStyles.inputError]}
-                      placeholder="Re-enter new password"
-                      secureTextEntry
-                      returnKeyType="done"
-                    />
+                    <View style={{ position: 'relative', width: '100%', overflow: 'visible' }}>
+                      <TextInput
+                        value={confirmPwd}
+                        onChangeText={setConfirmPwd}
+                        style={[modalStyles.input, { paddingRight: 50 }, showPwd && !passwordValid && modalStyles.inputError]}
+                        placeholder="Re-enter new password"
+                        secureTextEntry={!showConfirmPwd}
+                        returnKeyType="done"
+                      />
+                      <View
+                        pointerEvents="box-none"
+                        style={{ 
+                          position: 'absolute', 
+                          right: 0, 
+                          top: 0,
+                          bottom: 0,
+                          justifyContent: 'center', 
+                          alignItems: 'center',
+                          width: 50,
+                          zIndex: 999,
+                          elevation: 999,
+                        }}
+                      >
+                        <TouchableOpacity
+                          onPress={() => setShowConfirmPwd(!showConfirmPwd)}
+                          activeOpacity={0.6}
+                          style={{ padding: 10 }}
+                        >
+                          <Ionicons
+                            name={showConfirmPwd ? "eye" : "eye-off"}
+                            size={22}
+                            color={COLORS.textLight}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                     {showPwd && !passwordValid && (
                       <Text style={modalStyles.errorText}>Passwords must match and be at least 8 characters</Text>
                     )}
@@ -1047,5 +1131,4 @@ async function pickImageFromLibrary({ base64 = true } = {}) {
 }
 
 
-// Simple blurhash constants (can be replaced with generated per-image blurhash later)
-const BLUR_HASH_THUMB = 'L5H2EC=PM+yV0g-mq.wG9c010J}I'
+

@@ -7,6 +7,8 @@ import { useCart } from '../../context/cart'
 import { cartStyles } from '../../assets/styles/(tabs)/cart.styles'
 import { favoritesStyles } from "../../assets/styles/(tabs)/favorites.styles";
 import { Ionicons } from "@expo/vector-icons";
+import { useProfile } from '../../context/profile'
+import { formatCurrency } from '../../utils/orders'
 import EmptyState from "../../components/EmptyState";
 import LoadingSpinner from "../../components/LoadingSpinner";
 import ProductCard from "../../components/ProductCard";
@@ -78,6 +80,78 @@ const CartScreen = () => {
     return cartItems.reduce((sum, it) => sum + effectiveUnit(it) * Number(it.quantity||0), 0)
   }, [cartItems, effectiveUnit])
 
+  // Shipping & address state (copied from new order implementation)
+  const [deliveryAddress, setDeliveryAddress] = useState('')
+  const [deliveryObj, setDeliveryObj] = useState(null)
+  const [shippingCost, setShippingCost] = useState(0)
+  const [loadingShipping, setLoadingShipping] = useState(false)
+  const { profile } = useProfile()
+
+  // Prefill delivery address from profile on first render
+  useEffect(() => {
+    if (!profile) return
+    let addressText = ''
+    if (profile.placeName) {
+      addressText = profile.placeName
+    } else if (typeof profile.location === 'string') {
+      addressText = profile.location
+    } else if (profile.location?.name) {
+      addressText = profile.location.name
+    } else if (profile.latitude && profile.longitude) {
+      addressText = `${Number(profile.latitude).toFixed(4)}, ${Number(profile.longitude).toFixed(4)}`
+    }
+    setDeliveryAddress(prev => prev || addressText)
+    // Store structured location if available
+    if (profile.latitude && profile.longitude && !deliveryObj) {
+      setDeliveryObj({
+        text: addressText,
+        coords: { lat: Number(profile.latitude), lng: Number(profile.longitude) },
+        details: profile.addressDetails || null
+      })
+    }
+  }, [profile, deliveryObj])
+
+  // Listen for delivery address picked from map
+  useEffect(() => {
+    const { on, off } = require('../../utils/eventBus')
+    const handler = (payload) => {
+      if (payload?.address) setDeliveryAddress(payload.address)
+      if (payload) setDeliveryObj({ text: payload.address || '', coords: payload.coords || null, details: payload.details || null })
+    }
+    on('location:delivery-selected', handler)
+    return () => off('location:delivery-selected', handler)
+  }, [])
+
+  // Calculate shipping cost when cart and delivery location are available
+  useEffect(() => {
+    const calculateShipping = async () => {
+      if (!cartItems.length || !deliveryObj?.coords) {
+        setShippingCost(0)
+        return
+      }
+      const destLat = deliveryObj.coords.lat
+      const destLng = deliveryObj.coords.lng
+      if (!destLat || !destLng) {
+        setShippingCost(0)
+        return
+      }
+      try {
+        setLoadingShipping(true)
+        // Use the first product id as representative for shipping quote
+        const prodId = cartItems[0]?.id
+        if (!prodId) { setShippingCost(0); return }
+        const response = await getJSON(`/api/shipping/quote?product_id=${prodId}&dest_lat=${destLat}&dest_lng=${destLng}`)
+        setShippingCost(Number(response?.shippingCost || 0))
+      } catch (e) {
+        console.warn('Failed to fetch shipping cost for cart:', e)
+        setShippingCost(0)
+      } finally {
+        setLoadingShipping(false)
+      }
+    }
+    calculateShipping()
+  }, [cartItems, deliveryObj])
+
   
 
   // performDelete kept available for future swipe-to-delete UX if needed
@@ -93,13 +167,36 @@ const CartScreen = () => {
           <Text style={cartStyles.title}>Cart</Text>
         </View>
 
-        {/* Top checkout button (visible when cart has items) */}
+        {/* Top checkout card (visible when cart has items) - show subtotal/shipping breakdown */}
         {cartItems.length > 0 && (
           <View style={cartStyles.checkoutWrap}>
-            <TouchableOpacity style={cartStyles.checkoutButton} activeOpacity={0.85} onPress={() => router.push('/orders/checkout')}>
-              <Ionicons name="card" size={20} color={COLORS.white} style={cartStyles.checkoutIcon} />
-              <Text style={cartStyles.checkoutText}>{`Checkout • KSH ${discountedCartTotal().toFixed(2)}`}</Text>
-            </TouchableOpacity>
+            <View style={{ backgroundColor: '#fff', borderRadius: 8, padding: 12, borderWidth: 1, borderColor: COLORS.border }}>
+              <Text style={{ fontWeight: '700', marginBottom: 8 }}>Summary</Text>
+              <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 8, marginBottom: 8 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <Text style={{ color: '#6b7280' }}>Subtotal ({cartItems.reduce((s, it) => s + Number(it.quantity||0), 0)} items)</Text>
+                  <Text style={{ color: '#6b7280' }}>{formatCurrency(discountedCartTotal())}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <Text style={{ color: '#6b7280' }}>Shipping {loadingShipping ? '(calculating...)' : ''}</Text>
+                  <Text style={{ color: '#6b7280' }}>{loadingShipping ? '...' : `Ksh ${shippingCost.toFixed(2)}`}</Text>
+                </View>
+                {deliveryAddress ? (
+                  <Text style={{ color: '#374151', fontSize: 12, marginBottom: 8 }}>Deliver to: {deliveryAddress}</Text>
+                ) : (!deliveryObj?.coords ? (
+                  <Text style={{ color: COLORS.warning, fontSize: 11, marginBottom: 8 }}>
+                    Select location on map to calculate shipping
+                  </Text>
+                ) : null)}
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ fontWeight: '700' }}>Total: {formatCurrency(discountedCartTotal() + shippingCost)}</Text>
+                <TouchableOpacity style={[cartStyles.checkoutButton, { paddingHorizontal: 14 }]} activeOpacity={0.85} onPress={() => router.push('/orders/checkout')}>
+                  <Ionicons name="card" size={18} color={COLORS.white} style={{ marginRight: 8 }} />
+                  <Text style={cartStyles.checkoutText}>Checkout</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
           </View>
         )}
 

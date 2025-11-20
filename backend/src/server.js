@@ -26,6 +26,7 @@ import reviewRoutes from './routes/reviews.js'
 import reportRoutes from './routes/reports.js'
 import marketPricesRoutes from './routes/marketPrices.js'
 import mpesaRoutes from './routes/mpesa.js'
+import shippingRoutes from './routes/shipping.js'
 import { syncClerkUsers } from './utils/clerkSync.js'
 import cron from 'cron'
 import { requestMetrics } from './middleware/metrics.js'
@@ -84,6 +85,7 @@ app.use('/api', miscRoutes)
 app.use('/api', webhookRoutes)
 app.use('/api', marketPricesRoutes)
 app.use('/api', mpesaRoutes)
+app.use('/api', shippingRoutes)
 //    Location routes (OSM/Nominatim-based)
 app.use('/api', locationRoutes)
 

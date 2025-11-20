@@ -211,15 +211,30 @@ export default function ProductCard({ product, inCart = false, onBuy = null, onR
 
         <View style={productCardStyles.footer}>
           <View style={productCardStyles.timeContainer}>
-            {Number(product?.discountPercent) > 0 ? (
-              <Text style={productCardStyles.timeText}>
-                <Text style={{ textDecorationLine: 'line-through', color: COLORS.textLight }}>Ksh {Number(product.price).toFixed(2)}</Text>
-                {`  `}
-                <Text style={{ color: COLORS.text, fontWeight: '700' }}>Ksh {(Number(product.price) * (1 - Number(product.discountPercent)/100)).toFixed(2)}</Text>
-              </Text>
-            ) : (
-              <Text style={[productCardStyles.timeText, { color: COLORS.text, fontWeight: '700' }]}>Ksh {Number(product.price).toFixed(2)}</Text>
-            )}
+            {
+              (() => {
+                const base = Number(product?.price || 0)
+                const disc = Number(product?.discountPercent || 0)
+                const effective = disc > 0 ? Math.round((base * (1 - disc / 100)) * 100) / 100 : Math.round(base * 100) / 100
+                // When rendering inside the Cart (`inCart`), show the discounted/effective price as primary
+                if (disc > 0 && inCart) {
+                  return (
+                    <Text style={[productCardStyles.timeText, { color: COLORS.text, fontWeight: '700' }]}>Ksh {effective.toFixed(2)}</Text>
+                  )
+                }
+                // Default behaviour: show both original (struck) and discounted price when a discount exists
+                if (disc > 0) {
+                  return (
+                    <Text style={productCardStyles.timeText}>
+                      <Text style={{ textDecorationLine: 'line-through', color: COLORS.textLight }}>Ksh {base.toFixed(2)}</Text>
+                      {`  `}
+                      <Text style={{ color: COLORS.text, fontWeight: '700' }}>Ksh {effective.toFixed(2)}</Text>
+                    </Text>
+                  )
+                }
+                return <Text style={[productCardStyles.timeText, { color: COLORS.text, fontWeight: '700' }]}>Ksh {base.toFixed(2)}</Text>
+              })()
+            }
           </View>
         </View>
 

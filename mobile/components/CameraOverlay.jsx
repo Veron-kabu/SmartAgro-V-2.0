@@ -11,8 +11,6 @@ export default function CameraOverlay({ step, total = 3 }) {
       {/* code badge removed */}
       <View style={styles.progress}>
         <Text style={styles.progressText}>Photo {displayStep}/{safeTotal}</Text>
-        <Text style={styles.hint}>Show yourself and the farm with this code visible</Text>
-        <Text style={styles.hintSmall}>Take from different angles for authenticity</Text>
       </View>
     </View>
   )

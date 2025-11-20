@@ -4,12 +4,20 @@ import { View, ActivityIndicator, Text } from "react-native"
 import { useProfile } from "../../context/profile"
 import UserDashboard from "../dashboard/UserDashboard"
 import AdminDashboard from "../dashboard/admin"
-// removed unused imports: useEffect, router
+import { useFocusEffect } from "expo-router"
+import { useCallback } from "react"
 import { profileStyles as styles } from "../../assets/styles/(tabs)/profile.styles"
 import { COLORS } from "../../constants/colors"
 
 export default function ProfileTab() {
-  const { profile, loading } = useProfile()
+  const { profile, loading, refresh } = useProfile()
+  
+  // Refresh profile when tab comes into focus (e.g., after verification)
+  useFocusEffect(
+    useCallback(() => {
+      refresh()
+    }, [refresh])
+  )
 
   const isAdmin = profile?.role === 'admin'
   // Admins previously navigated to a separate Admin screen which lives

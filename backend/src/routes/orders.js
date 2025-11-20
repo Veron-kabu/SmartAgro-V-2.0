@@ -9,6 +9,26 @@ import { and, eq, inArray, gte } from 'drizzle-orm'
 
 const router = Router()
 
+// Simple distance calculator (Haversine) in km
+function haversineKm(aLat, aLng, bLat, bLng) {
+  const toRad = d => (d * Math.PI) / 180
+  const R = 6371
+  const dLat = toRad(bLat - aLat)
+  const dLng = toRad(bLng - aLng)
+  const lat1 = toRad(aLat)
+  const lat2 = toRad(bLat)
+  const h = Math.sin(dLat/2)**2 + Math.sin(dLng/2)**2 * Math.cos(lat1) * Math.cos(lat2)
+  const c = 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1-h))
+  return R * c
+}
+
+function computeShippingCostKm(distanceKm) {
+  // Base 50 KSh + 10 KSh per km (rounded to 2dp)
+  if (!Number.isFinite(distanceKm) || distanceKm <= 0) return 50
+  const cost = 50 + 10 * distanceKm
+  return Math.round(cost * 100) / 100
+}
+
 // Unified orders listing endpoint supporting buyer=me or farmer=me
 router.get('/orders', ensureAuth(), async (req,res) => {
   try {
@@ -77,6 +97,8 @@ router.post('/orders', ensureAuth(), requireNotSuspended(), requireRole(['buyer'
   try {
     const buyer = await db.select().from(usersTable).where(eq(usersTable.clerkUserId, req.auth.userId))
     const { product_id, quantity, delivery_address, notes } = req.body
+    const destLat = req.body?.dest_lat ?? req.body?.delivery_lat ?? req.body?.latitude
+    const destLng = req.body?.dest_lng ?? req.body?.delivery_lng ?? req.body?.longitude
     if (!product_id || !quantity || !delivery_address) return res.status(400).json({ error: 'Missing required order fields' })
     const product = await db.select().from(productsTable).where(and(eq(productsTable.id, product_id), eq(productsTable.status, 'active')))
     if (product.length === 0) return res.status(404).json({ error: 'Product not found or not available' })
@@ -101,7 +123,19 @@ router.post('/orders', ensureAuth(), requireNotSuspended(), requireRole(['buyer'
         return res.json({ ...recent[0], remainingQuantity: product[0].quantityAvailable, productStatus: product[0].status })
       }
     } catch {}
-    const total_amount = Number(product[0].price) * quantity
+    const productTotal = Number(product[0].price) * quantity
+    let shippingCost = 0
+    try {
+      const pLat = Number(product[0].latitude)
+      const pLng = Number(product[0].longitude)
+      const dLat = Number(destLat)
+      const dLng = Number(destLng)
+      if (Number.isFinite(pLat) && Number.isFinite(pLng) && Number.isFinite(dLat) && Number.isFinite(dLng)) {
+        const km = haversineKm(pLat, pLng, dLat, dLng)
+        shippingCost = computeShippingCostKm(km)
+      }
+    } catch {}
+    const finalTotal = productTotal + shippingCost
     // Attempt atomic-like update (optimistic concurrency) to decrement stock and set status when depleted
     const originalQty = product[0].quantityAvailable
     const nextQty = originalQty - quantity
@@ -123,7 +157,8 @@ router.post('/orders', ensureAuth(), requireNotSuspended(), requireRole(['buyer'
       productId: product_id,
       quantity,
       unitPrice: product[0].price,
-      totalAmount: total_amount,
+      totalAmount: finalTotal,
+      shippingCost: shippingCost,
       deliveryAddress: delivery_address,
       notes,
     }).returning()
@@ -134,7 +169,7 @@ router.post('/orders', ensureAuth(), requireNotSuspended(), requireRole(['buyer'
       toStatus: inserted[0].status,
       changedByUserId: buyer[0].id,
     })
-    res.json({ ...inserted[0], remainingQuantity: nextQty, productStatus: updateFields.status || product[0].status })
+    res.json({ ...inserted[0], remainingQuantity: nextQty, productStatus: updateFields.status || product[0].status, shippingCost })
   } catch (e) { console.error('Error creating order:', e); res.status(500).json({ error: 'Failed to create order' }) }
 })
 
@@ -146,6 +181,8 @@ router.post('/orders/after-payment', ensureAuth(), requireNotSuspended(), requir
     if (!meArr.length) return res.status(403).json({ error: 'Access denied' })
     const me = meArr[0]
     const { product_id, quantity, delivery_address, notes, checkoutRequestID } = req.body || {}
+    const destLat = req.body?.dest_lat ?? req.body?.delivery_lat ?? req.body?.latitude
+    const destLng = req.body?.dest_lng ?? req.body?.delivery_lng ?? req.body?.longitude
     if (!product_id || !quantity || !delivery_address || !checkoutRequestID) {
       return res.status(400).json({ error: 'Missing required fields (product_id, quantity, delivery_address, checkoutRequestID)' })
     }
@@ -166,7 +203,19 @@ router.post('/orders/after-payment', ensureAuth(), requireNotSuspended(), requir
     const effectiveUnit = discountPercent > 0
       ? Math.round((basePrice * (1 - discountPercent / 100)) * 100) / 100
       : Math.round(basePrice * 100) / 100
-    const totalAmount = Math.round((effectiveUnit * qty) * 100) / 100
+    const productTotal = Math.round((effectiveUnit * qty) * 100) / 100
+    let shippingCost = 0
+    try {
+      const pLat = Number(product.latitude)
+      const pLng = Number(product.longitude)
+      const dLat = Number(destLat)
+      const dLng = Number(destLng)
+      if (Number.isFinite(pLat) && Number.isFinite(pLng) && Number.isFinite(dLat) && Number.isFinite(dLng)) {
+        const km = haversineKm(pLat, pLng, dLat, dLng)
+        shippingCost = computeShippingCostKm(km)
+      }
+    } catch {}
+    const totalAmount = Math.round((productTotal + shippingCost) * 100) / 100
 
     // Verify STK payment success and integrity
     const txArr = await db.select().from(mpesaTransactionsTable).where(eq(mpesaTransactionsTable.checkoutRequestId, String(checkoutRequestID)))
@@ -216,6 +265,7 @@ router.post('/orders/after-payment', ensureAuth(), requireNotSuspended(), requir
       quantity: qty,
   unitPrice: String(effectiveUnit),
   totalAmount: String(totalAmount),
+      shippingCost: String(shippingCost),
       deliveryAddress: delivery_address,
       notes,
       status: 'paid',
@@ -231,7 +281,7 @@ router.post('/orders/after-payment', ensureAuth(), requireNotSuspended(), requir
       await db.insert(orderStatusHistoryTable).values({ orderId: order.id, fromStatus: null, toStatus: 'paid', changedByUserId: me.id })
     } catch {}
 
-    return res.json({ ...order, remainingQuantity: nextQty, productStatus: updateFields.status || product.status })
+    return res.json({ ...order, remainingQuantity: nextQty, productStatus: updateFields.status || product.status, shippingCost })
   } catch (e) {
     console.error('after-payment order error', e)
     return res.status(500).json({ error: 'Failed to create order after payment' })
@@ -246,6 +296,8 @@ router.post('/orders/cart-after-payment', ensureAuth(), requireNotSuspended(), r
     if (!meArr.length) return res.status(403).json({ error: 'Access denied' })
     const me = meArr[0]
     const { items, checkoutRequestID } = req.body || {}
+    const destLat = req.body?.dest_lat ?? req.body?.delivery_lat ?? req.body?.latitude
+    const destLng = req.body?.dest_lng ?? req.body?.delivery_lng ?? req.body?.longitude
     if (!Array.isArray(items) || items.length === 0 || !checkoutRequestID) {
       return res.status(400).json({ error: 'Missing required fields (items[], checkoutRequestID)' })
     }
@@ -275,7 +327,21 @@ router.post('/orders/cart-after-payment', ensureAuth(), requireNotSuspended(), r
       const unit = disc > 0 ? Math.round((base * (1 - disc / 100)) * 100) / 100 : Math.round(base * 100) / 100
       grandTotal += unit * it.quantity
     }
-    grandTotal = Math.round(grandTotal * 100) / 100
+    
+    // Compute shipping once for the entire cart (bulk) using first product's location as origin
+    let cartShipping = 0
+    try {
+      const firstProduct = pmap.get(safeItems[0].product_id)
+      const pLat = Number(firstProduct.latitude)
+      const pLng = Number(firstProduct.longitude)
+      const dLat = Number(destLat)
+      const dLng = Number(destLng)
+      if (Number.isFinite(pLat) && Number.isFinite(pLng) && Number.isFinite(dLat) && Number.isFinite(dLng)) {
+        const km = haversineKm(pLat, pLng, dLat, dLng)
+        cartShipping = computeShippingCostKm(km)
+      }
+    } catch {}
+    grandTotal = Math.round((grandTotal + cartShipping) * 100) / 100
 
     // Verify payment transaction and amount
     const txArr = await db.select().from(mpesaTransactionsTable).where(eq(mpesaTransactionsTable.checkoutRequestId, String(checkoutRequestID)))
@@ -293,13 +359,21 @@ router.post('/orders/cart-after-payment', ensureAuth(), requireNotSuspended(), r
     }
 
     // Create orders one by one with optimistic stock decrement
+    // Split shipping proportionally across items (or assign to first item for simplicity)
+    const itemCount = safeItems.length
+    const shippingPerItem = itemCount > 0 ? Math.round((cartShipping / itemCount) * 100) / 100 : 0
     const created = []
-    for (const it of safeItems) {
+    for (let idx = 0; idx < safeItems.length; idx++) {
+      const it = safeItems[idx]
       const p = pmap.get(it.product_id)
       const base = Number(p.price)
       const disc = Number(p.discountPercent || 0)
       const unit = disc > 0 ? Math.round((base * (1 - disc / 100)) * 100) / 100 : Math.round(base * 100) / 100
-      const total = Math.round((unit * it.quantity) * 100) / 100
+      const productTotal = Math.round((unit * it.quantity) * 100) / 100
+      // Assign proportional shipping to each order
+      const itemShipping = shippingPerItem
+      const total = Math.round((productTotal + itemShipping) * 100) / 100
+      
       // Decrement stock
       const originalQty = p.quantityAvailable
       const nextQty = originalQty - it.quantity
@@ -318,6 +392,7 @@ router.post('/orders/cart-after-payment', ensureAuth(), requireNotSuspended(), r
         quantity: it.quantity,
         unitPrice: String(unit),
         totalAmount: String(total),
+        shippingCost: String(itemShipping),
         deliveryAddress: it.delivery_address,
         notes: it.notes,
         status: 'paid',

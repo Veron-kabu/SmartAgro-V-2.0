@@ -44,46 +44,45 @@ export default function VerificationPreparation() {
 
         <View style={styles.callout}> 
           <Text style={styles.calloutStrong}>Essential</Text>
-          <Text style={styles.calloutText}>
-            Your photo must show you (the farmer) and your farm in the same shot. This is required.
+          <Text style={[styles.calloutText, { marginTop: 8 }]}>
+            Upload a photo showing you and your farm.
+          </Text>
+          <Text style={[styles.calloutText, { marginTop: 8 }]}>
+            Ensure you and your farm are clearly visible from different angles.
+          </Text>
+          <Text style={[styles.calloutText, { marginTop: 8 }]}>
+            Upload a clear image of your national ID.
           </Text>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>What you need to capture</Text>
-          <Text style={styles.item}>• You in the photo, clearly visible</Text>
-          <Text style={styles.item}>• Your farm or produce clearly visible in the same shot</Text>
-          <Text style={styles.helper}>Tip: Take 1–3 photos from different angles for authenticity.</Text>
+        <View style={{ height: 5 }} />
+
+        <View>
+          {status == null ? (
+            <Pressable style={[styles.btn, styles.btnDisabled]} disabled>
+              <Text style={styles.btnText}>Checking status…</Text>
+            </Pressable>
+          ) : status === 'pending' && latestFlagged && latestId ? (
+            <Pressable
+              style={styles.btn}
+              onPress={() => router.push({ pathname: '/verification/respond', params: { id: String(latestId) } })}
+            >
+              <Text style={styles.btnText}>Provide more info</Text>
+            </Pressable>
+          ) : status === 'pending' ? (
+            <Pressable style={[styles.btn, styles.btnDisabled]} disabled>
+              <Text style={styles.btnText}>Wait for approval</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={styles.btn}
+              onPress={() => router.push({ pathname: '/verification/camera' })}
+            >
+              <Text style={styles.btnText}>Start Capture</Text>
+            </Pressable>
+          )}
         </View>
-
-  {/* Instructions only; codes removed */}
       </ScrollView>
-
-      <View style={styles.footer}>
-        {status == null ? (
-          <Pressable style={[styles.btn, styles.btnDisabled]} disabled>
-            <Text style={styles.btnText}>Checking status…</Text>
-          </Pressable>
-        ) : status === 'pending' && latestFlagged && latestId ? (
-          <Pressable
-            style={styles.btn}
-            onPress={() => router.push({ pathname: '/verification/respond', params: { id: String(latestId) } })}
-          >
-            <Text style={styles.btnText}>Provide more info</Text>
-          </Pressable>
-        ) : status === 'pending' ? (
-          <Pressable style={[styles.btn, styles.btnDisabled]} disabled>
-            <Text style={styles.btnText}>Wait for approval</Text>
-          </Pressable>
-        ) : (
-          <Pressable
-            style={styles.btn}
-            onPress={() => router.push({ pathname: '/verification/camera' })}
-          >
-            <Text style={styles.btnText}>Start Capture</Text>
-          </Pressable>
-        )}
-      </View>
     </View>
   )
 }

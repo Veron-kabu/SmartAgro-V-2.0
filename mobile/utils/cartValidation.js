@@ -42,14 +42,18 @@ export async function validateCartItems(items, { updatePrices = false } = {}) {
       qty = fresh.quantityAvailable
       adjustments.push({ id: it.id, type: 'quantity', newQuantity: qty, reason: 'Clamped to stock', code: 'quantity_clamp' })
     }
-    const freshPrice = Number(fresh.price) || 0
+    const basePrice = Number(fresh.price) || 0
+    const disc = Number(fresh.discountPercent || 0)
+    // Compute effective unit price after discount (rounded to 2 decimals)
+    const effectiveFreshPrice = disc > 0 ? Math.round((basePrice * (1 - disc / 100)) * 100) / 100 : Math.round(basePrice * 100) / 100
     let price = it.price
-    if (freshPrice !== it.price) {
-      adjustments.push({ id: it.id, type: 'price', oldPrice: it.price, newPrice: freshPrice, code: 'price_change' })
-      if (updatePrices) price = freshPrice
+    // If the effective fresh price differs from item price, record adjustment
+    if (effectiveFreshPrice !== it.price) {
+      adjustments.push({ id: it.id, type: 'price', oldPrice: it.price, newPrice: effectiveFreshPrice, code: 'price_change' })
+      if (updatePrices) price = effectiveFreshPrice
     }
-    total += (updatePrices ? freshPrice : price) * qty
-    validated.push({ ...it, price: updatePrices ? freshPrice : price, quantity: qty })
+    total += (updatePrices ? effectiveFreshPrice : price) * qty
+    validated.push({ ...it, price: updatePrices ? effectiveFreshPrice : price, quantity: qty })
   }
   return { adjustments, validated, total }
 }

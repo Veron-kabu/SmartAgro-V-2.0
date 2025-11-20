@@ -22,6 +22,9 @@ const SignUpScreen = () => {
   const { isLoaded, signUp } = useSignUp();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
   const [selectedRole, setSelectedRole] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -33,7 +36,7 @@ const SignUpScreen = () => {
   ];
 
   const handleSignUp = async () => {
-    if (!email || !password) return Alert.alert("Error", "Please fill in all fields");
+    if (!email || !password || !firstName || !lastName || !phone) return Alert.alert("Error", "Please fill in all required fields");
     if (!selectedRole) return Alert.alert("Error", "Please select a role");
     if (password.length < 6) return Alert.alert("Error", "Password must be at least 6 characters");
 
@@ -44,12 +47,15 @@ const SignUpScreen = () => {
     try {
       console.log('Creating sign-up for email:', email, 'with role:', selectedRole);
       
-      // Create sign-up with role in unsafeMetadata
+      // Create sign-up with role, full_name, and phone in unsafeMetadata
+      // Clerk free tier doesn't support firstName/lastName as direct fields, so we use unsafeMetadata
       await signUp.create({ 
         emailAddress: email, 
         password,
         unsafeMetadata: {
-          role: selectedRole
+          role: selectedRole,
+          full_name: `${firstName.trim()} ${lastName.trim()}`.trim(),
+          phone: phone.trim()
         }
       });
 
@@ -162,6 +168,43 @@ const SignUpScreen = () => {
           <Text style={authStyles.title}>Create Account</Text>
 
           <View style={authStyles.formContainer}>
+            {/* First Name Input */}
+            <View style={authStyles.inputContainer}>
+              <TextInput
+                style={authStyles.textInput}
+                placeholder="First Name"
+                placeholderTextColor={COLORS.textLight}
+                value={firstName}
+                onChangeText={setFirstName}
+                autoCapitalize="words"
+              />
+            </View>
+
+            {/* Last Name Input */}
+            <View style={authStyles.inputContainer}>
+              <TextInput
+                style={authStyles.textInput}
+                placeholder="Last Name"
+                placeholderTextColor={COLORS.textLight}
+                value={lastName}
+                onChangeText={setLastName}
+                autoCapitalize="words"
+              />
+            </View>
+
+            {/* Phone Input */}
+            <View style={authStyles.inputContainer}>
+              <TextInput
+                style={authStyles.textInput}
+                placeholder="Phone Number"
+                placeholderTextColor={COLORS.textLight}
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="phone-pad"
+                autoCapitalize="none"
+              />
+            </View>
+
             {/* Email Input */}
             <View style={authStyles.inputContainer}>
               <TextInput

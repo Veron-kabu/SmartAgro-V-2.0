@@ -1,4 +1,4 @@
-import { useLocalSearchParams, router } from 'expo-router'
+import { useLocalSearchParams, router, useFocusEffect } from 'expo-router'
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, Alert, Share, Dimensions, Image, StyleSheet, TextInput, Keyboard } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
@@ -44,7 +44,16 @@ export default function ProductDetail() {
   const isAdmin = String(profile?.role || '').toLowerCase() === 'admin'
   const isSuspended = String(profile?.status || '').toLowerCase() === 'suspended'
   const isOwner = profile?.role === 'farmer' && profile?.id === product?.farmerId
+  const isVerified = profile?.farmVerified === true
   const scrollRef = useRef(null)
+  const { refresh: refreshProfile } = useProfile()
+  
+  // Refresh profile when screen comes into focus (e.g., after verification)
+  useFocusEffect(
+    useCallback(() => {
+      refreshProfile()
+    }, [refreshProfile])
+  )
   const imageCount = useMemo(() => (
     Array.isArray(resolvedImages) && resolvedImages.length > 0
       ? resolvedImages.length
@@ -464,18 +473,35 @@ export default function ProductDetail() {
             {(!profile?.id || profile.id !== product.farmerId) && (
               <>
                 <View style={{ flexDirection:'row', gap:12, marginTop:28 }}>
-                  <TouchableOpacity style={[styles.secondaryActionBtn, isSuspended && { opacity: 0.5 }]} onPress={() => router.push(`/orders/new?product=${product.id}`)} disabled={isSuspended} activeOpacity={0.85}>
+                  <TouchableOpacity 
+                    style={[styles.secondaryActionBtn, (isSuspended || !isVerified) && { opacity: 0.5 }]} 
+                    onPress={() => {
+                      if (!isVerified) {
+                        Alert.alert('Verification Required', 'You must be verified to place orders. Please complete the verification process.')
+                        return
+                      }
+                      router.push(`/orders/new?product=${product.id}`)
+                    }} 
+                    disabled={isSuspended} 
+                    activeOpacity={0.85}
+                  >
                     <Text style={styles.secondaryActionBtnText}>Order Now</Text>
                   </TouchableOpacity>
                 </View>
                 <TouchableOpacity
-                  style={[styles.addBtn, product.quantityAvailable <= 0 && styles.addBtnDisabled]}
-                  onPress={inCart ? removeFromCart : addToCart}
+                  style={[styles.addBtn, (product.quantityAvailable <= 0 || !isVerified) && styles.addBtnDisabled]}
+                  onPress={() => {
+                    if (!isVerified) {
+                      Alert.alert('Verification Required', 'You must be verified to add items to cart. Please complete the verification process.')
+                      return
+                    }
+                    if (inCart) removeFromCart(); else addToCart()
+                  }}
                   activeOpacity={0.85}
-                  disabled={product.quantityAvailable <= 0}
+                  disabled={product.quantityAvailable <= 0 || !isVerified}
                 >
                   <Text style={styles.addBtnText}>
-                    {product.quantityAvailable === 0 ? 'Out of stock' : (inCart ? 'Remove from cart' : 'Add to cart')}
+                    {product.quantityAvailable === 0 ? 'Out of stock' : (!isVerified ? 'Verification required' : (inCart ? 'Remove from cart' : 'Add to cart'))}
                   </Text>
                 </TouchableOpacity>
               </>
@@ -605,11 +631,17 @@ export default function ProductDetail() {
                   style={{ marginTop: 8, backgroundColor: COLORS.inputBackground, padding: 10, borderRadius: 8, color: COLORS.text, opacity: isSuspended ? 0.6 : 1, borderWidth: 2, borderColor: COLORS.online }}
                 />
                 <TouchableOpacity
-                  onPress={submitReview}
-                  disabled={submittingReview || myRating < 1 || isSuspended}
-                  style={{ marginTop: 10, backgroundColor: (myRating < 1 || isSuspended) ? COLORS.divider : COLORS.primary, paddingVertical: 10, borderRadius: 6, alignItems: 'center' }}
+                  onPress={() => {
+                    if (!isVerified) {
+                      Alert.alert('Verification Required', 'You must be verified to submit reviews. Please complete the verification process.')
+                      return
+                    }
+                    submitReview()
+                  }}
+                  disabled={submittingReview || myRating < 1 || isSuspended || !isVerified}
+                  style={{ marginTop: 10, backgroundColor: (myRating < 1 || isSuspended || !isVerified) ? COLORS.divider : COLORS.primary, paddingVertical: 10, borderRadius: 6, alignItems: 'center' }}
                 >
-                  <Text style={{ color: COLORS.white, fontWeight: '700' }}>{submittingReview ? 'Submitting…' : 'Submit review'}</Text>
+                  <Text style={{ color: COLORS.white, fontWeight: '700' }}>{submittingReview ? 'Submitting…' : (!isVerified ? 'Verification required' : 'Submit review')}</Text>
                 </TouchableOpacity>
               </View>
             </View>

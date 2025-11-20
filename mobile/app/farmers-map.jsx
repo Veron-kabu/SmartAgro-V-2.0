@@ -14,7 +14,7 @@ export default function FarmersMapScreen() {
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
   const [farmers, setFarmers] = useState([])
-  const [radiusKm, setRadiusKm] = useState(50)
+  const [radiusKm] = useState(50)
   const [initialized, setInitialized] = useState(false)
 
   const fetchFarmers = useCallback(async (opts = {}) => {
@@ -35,6 +35,17 @@ export default function FarmersMapScreen() {
       setRefreshing(false)
     }
   }, [center, radiusKm])
+
+  const locateMe = useCallback(async () => {
+    try {
+      const { status } = await ExpoLocation.requestForegroundPermissionsAsync()
+      if (status !== 'granted') return
+      const { coords } = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.Balanced })
+      setCenter({ latitude: coords.latitude, longitude: coords.longitude })
+      // refetch after center update
+      setTimeout(() => fetchFarmers(), 100)
+    } catch {}
+  }, [fetchFarmers])
 
   // Initialize: prefer stored location, otherwise fall back to GPS, then fetch
   useEffect(() => {
@@ -63,23 +74,11 @@ export default function FarmersMapScreen() {
       }
     })()
     return () => { cancelled = true }
-  }, [])
+  }, [locateMe])
 
   useEffect(() => {
     if (initialized) fetchFarmers()
   }, [initialized, fetchFarmers])
-
-  const locateMe = useCallback(async () => {
-    try {
-      const { status } = await ExpoLocation.requestForegroundPermissionsAsync()
-      if (status !== 'granted') return
-      const { coords } = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.Balanced })
-      setCenter({ latitude: coords.latitude, longitude: coords.longitude })
-      // refetch after center update
-      setTimeout(() => fetchFarmers(), 100)
-    } catch {}
-  }, [fetchFarmers])
-
   const onRefresh = useCallback(() => { setRefreshing(true); fetchFarmers({ silent: true }) }, [fetchFarmers])
 
   const renderItem = ({ item }) => (

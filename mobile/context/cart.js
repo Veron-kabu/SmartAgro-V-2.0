@@ -40,7 +40,10 @@ export function CartProvider({ children }) {
           id: r.product?.id || r.productId,
           _cartId: r.id,
           quantity: r.quantity,
+          // store canonical price and discount so UI (ProductCard) can display discounts
           price: r.product?.price ?? r.unitPrice ?? 0,
+          discountPercent: r.product?.discountPercent ?? 0,
+          unit: r.product?.unit || null,
           title: r.product?.title || null,
           images: r.product?.images || [],
           productSnapshot: r.product || null,
@@ -170,7 +173,12 @@ export function CartProvider({ children }) {
   }
 
   const getTotalPrice = () => {
-    return items.reduce((total, item) => total + item.price * item.quantity, 0)
+    return items.reduce((total, item) => {
+      const base = Number(item.price || 0)
+      const disc = Number(item.discountPercent || 0)
+      const effective = disc > 0 ? Math.round((base * (1 - disc / 100)) * 100) / 100 : Math.round(base * 100) / 100
+      return total + effective * Number(item.quantity || 0)
+    }, 0)
   }
 
   const getTotalItems = () => {

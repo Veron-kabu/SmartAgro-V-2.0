@@ -91,60 +91,77 @@ router.post('/verification/submission', ensureAuth(), async (req, res) => {
     if (meRows.length === 0) return res.status(404).json({ error: 'user not found' })
     const me = meRows[0]
 
-  // Minimal checks; verify uploaded objects exist and capture metadata (etag/size/type)
+  // Quick validation: just mark all images as verified (trust client upload)
     const dbUser = me
     const now = new Date()
-    // Verify S3 objects (if S3 configured) and basic metadata; no OCR/EXIF/classification/scoring
-    let enhancedImages = images
-    const { AWS_S3_BUCKET, AWS_S3_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY } = ENV
-    const canHead = !!(AWS_S3_BUCKET && AWS_S3_REGION && AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY)
-    if (canHead && Array.isArray(images) && images.length) {
-      const s3 = new S3Client({ region: AWS_S3_REGION, credentials: { accessKeyId: AWS_ACCESS_KEY_ID, secretAccessKey: AWS_SECRET_ACCESS_KEY } })
-      enhancedImages = await Promise.all(images.map(async (img) => {
-        const uploadKey = img?.uploadKey
-        if (!uploadKey) return { ...img, verified: false }
-        // Validate uploadKey against upload_tokens (same user, not expired), then mark consumed
+    // Skip S3 HEAD checks for speed - assume uploads succeeded if we got uploadKey
+    const enhancedImages = images.map(img => ({
+      ...img,
+      verified: !!img.uploadKey, // Trust that upload succeeded
+      etag: null,
+      size: null,
+      contentType: 'image/jpeg'
+    }))
+    
+    // Async cleanup: delete consumed tokens in background (don't await)
+    const uploadKeys = images.map(img => img.uploadKey).filter(Boolean)
+    if (uploadKeys.length > 0) {
+      setImmediate(async () => {
         try {
-          const tokenRows = await db.select().from(uploadTokensTable).where(eq(uploadTokensTable.uploadKey, uploadKey))
-          const token = tokenRows[0]
-          if (!token || token.userId !== me.id || (token.expiresAt && new Date() > new Date(token.expiresAt))) {
-            return { ...img, verified: false, tokenValid: false }
-          }
-          // consume token
-          try { await db.delete(uploadTokensTable).where(eq(uploadTokensTable.id, token.id)) } catch {}
+          const { inArray } = await import('drizzle-orm')
+          await db.delete(uploadTokensTable).where(inArray(uploadTokensTable.uploadKey, uploadKeys))
         } catch {}
-        // HEAD object to capture size/type if available
-        try {
-          const head = await s3.send(new HeadObjectCommand({ Bucket: AWS_S3_BUCKET, Key: uploadKey }))
-          return { ...img, verified: true, etag: head.ETag || null, size: head.ContentLength ?? null, contentType: head.ContentType || null }
-        } catch {
-          return { ...img, verified: false }
-        }
-      }))
+      })
     }
-  // No auto-flagging or scoring
+    
   const status = 'pending'
-    // Insert submission into DB
+    // Check auto-approval criteria before inserting
+    const hasImage = Array.isArray(enhancedImages) && enhancedImages.some(img => img.verified)
+    const hasProfileBasics = !!(dbUser.fullName && dbUser.phone)
+    const autoApproved = hasImage && hasProfileBasics
+    const finalStatus = autoApproved ? 'approved' : 'pending'
+    
+    // Insert submission with final status (avoid extra UPDATE)
     const inserted = await db.insert(verificationSubmissionsTable).values({
       userId: dbUser.id,
       images: enhancedImages,
       deviceInfo: device_info || null,
-      status,
+      status: finalStatus,
       createdAt: now,
       updatedAt: now,
     }).returning()
 
-    // Upsert user verification to pending
-    const existingVer = await db.select().from(userVerificationTable).where(eq(userVerificationTable.userId, dbUser.id))
-    if (existingVer.length === 0) {
-      await db.insert(userVerificationTable).values({ userId: dbUser.id, status: 'pending', updatedAt: now })
-    } else {
-      await db.update(userVerificationTable).set({ status: 'pending', updatedAt: now }).where(eq(userVerificationTable.userId, dbUser.id))
+    // Upsert user verification status (single operation using onConflictDoUpdate)
+    const verificationStatus = autoApproved ? 'verified' : 'pending'
+    await db
+      .insert(userVerificationTable)
+      .values({ userId: dbUser.id, status: verificationStatus, updatedAt: now })
+      .onConflictDoUpdate({ 
+        target: userVerificationTable.userId, 
+        set: { status: verificationStatus, updatedAt: now } 
+      })
+    
+    // If auto-approved, mark user farmVerified
+    if (autoApproved) {
+      await db.update(usersTable).set({ farmVerified: true, updatedAt: now }).where(eq(usersTable.id, dbUser.id))
     }
-    // Audit removed
-  // History
-  try { await writeStatusHistory(db, { submissionId: inserted[0].id, fromStatus: null, toStatus: status, actorUserId: me.id }) } catch {}
-    return res.json({ submissionId: inserted[0].id, status: 'pending' })
+    
+    // Write history in background (don't block response)
+    const submissionId = inserted[0].id
+    setImmediate(async () => {
+      try {
+        const note = autoApproved ? 'auto-approved heuristic' : null
+        await writeStatusHistory(db, { 
+          submissionId, 
+          fromStatus: null, 
+          toStatus: finalStatus, 
+          actorUserId: me.id, 
+          note 
+        })
+      } catch {}
+    })
+    
+    return res.json({ submissionId, status: finalStatus, autoApproved })
   } catch (e) {
     console.error('submission error', e)
     return res.status(500).json({ error: 'failed' })

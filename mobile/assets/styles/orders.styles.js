@@ -55,17 +55,17 @@ export const farmerOrdersStyles = StyleSheet.create({
 
 // Checkout Page Styles
 export const checkoutStyles = StyleSheet.create({
-  container: { flex:1, backgroundColor: COLORS.background, padding:24, paddingTop:48 },
+  container: { flex:1, backgroundColor: COLORS.background, padding:34, paddingTop:0 },
   title: { fontSize:22, fontWeight:'700', color: COLORS.text },
-  desc: { fontSize:14, color: COLORS.text, marginTop:8 },
-  meta: { fontSize:12, color: COLORS.textLight, marginTop:8 },
-  adjustTitle: { fontSize:14, fontWeight:'700', color: COLORS.text, marginBottom:6 },
-  adjustLine: { fontSize:12, color: COLORS.text, marginTop:2 },
+  desc: { fontSize:14, color: COLORS.text, marginTop:4 },
+  meta: { fontSize:12, color: COLORS.textLight, marginTop:4 },
+  adjustTitle: { fontSize:14, fontWeight:'700', color: COLORS.text, marginBottom:2 },
+  adjustLine: { fontSize:12, color: COLORS.text, marginTop:0 },
   primaryBtn: { backgroundColor: COLORS.primary, paddingVertical:14, borderRadius:12, alignItems:'center' },
   primaryText: { color: COLORS.white, fontWeight:'700', fontSize:15 },
   secondaryBtn: { backgroundColor: COLORS.text, paddingVertical:14, borderRadius:12, alignItems:'center' },
   secondaryText: { color: COLORS.white, fontWeight:'600', fontSize:13 },
-  bannerWarning: { backgroundColor: COLORS.warning, borderRadius:12, padding:12, marginTop:12, borderWidth:1, borderColor: COLORS.warningBorder },
+  bannerWarning: { backgroundColor: COLORS.warning, borderRadius:12, padding:12, marginTop:4, borderWidth:1, borderColor: COLORS.warningBorder },
   bannerText: { fontSize:12, color: COLORS.warningText, fontWeight:'600' },
   bannerActions: { flexDirection:'row', marginTop:8, justifyContent:'flex-end' },
   bannerBtn: { paddingVertical:6, paddingHorizontal:12, borderRadius:8, backgroundColor: COLORS.card, borderWidth:1, borderColor: COLORS.border, marginLeft:8 },

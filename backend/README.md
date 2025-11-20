@@ -207,3 +207,32 @@ Behavior:
 - In-app notifications are created on approve, reject, and request-more-info.
 - Two-admin rule (when enabled) sets status to awaiting_second_approval on first approval; a second Approve finalizes.
 - Appeals extend media retention and create an admin task (listable under admin appeals endpoints).
+
+Transport / Shipping Pricing
+----------------------------
+Simple distance-based shipping cost is supported when creating orders.
+
+Formula: `shippingCost = 50 + 10 * distanceKm` (minimum 50 KSh).
+
+Provide destination coordinates in order creation body (`dest_lat`, `dest_lng`). Server computes great-circle (Haversine) distance between product location (its latitude/longitude) and destination. The computed `shippingCost` is stored in the new `orders.shipping_cost` column and added into `totalAmount`.
+
+Endpoints:
+- Quote: `GET /api/shipping/quote?product_id=123&dest_lat=-1.23&dest_lng=36.82` -> `{ productId, distanceKm, shippingCost }`
+- Create: `POST /api/orders { product_id, quantity, delivery_address, dest_lat, dest_lng }`
+- After payment: include same `dest_lat`, `dest_lng` so server recomputes cost before validating payment amount.
+
+Migration: run `node ./scripts/apply-orders-shipping-cost.mjs` to add the column on existing deployments.
+
+Auto Verification Heuristic
+---------------------------
+Verification submissions are auto-approved (status `approved`) if both conditions hold:
+1. At least one uploaded image passes S3 HEAD check (`verified: true`).
+2. User profile has `fullName` and `phone` populated.
+
+Effects on auto-approval:
+- `verification_submissions.status` set to `approved`.
+- `user_verification.status` set to `verified`.
+- `users.farm_verified` flag set `true`.
+- Response body includes `autoApproved: true`.
+
+If heuristic fails, submission remains `pending` for manual review.

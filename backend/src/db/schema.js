@@ -94,6 +94,8 @@ export const ordersTable = pgTable("orders", {
   quantity: integer("quantity").notNull(),
   unitPrice: decimal("unit_price", { precision: 10, scale: 2 }).notNull(),
   totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  // New: per-order shipping/transport cost (KSh) added to totalAmount during creation
+  shippingCost: decimal("shipping_cost", { precision: 10, scale: 2 }).default('0'),
   status: varchar("status", { length: 20 }).default("pending"), // pending, accepted, rejected, shipped, delivered, cancelled
   deliveryAddress: jsonb("delivery_address"),
   notes: text("notes"),

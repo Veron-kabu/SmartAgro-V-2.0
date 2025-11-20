@@ -142,7 +142,6 @@ mobile/
 ├── context/
 │   └── chat.js (Chat context provider)
 ├── utils/
-│   └── chatColors.js (Chat styling)
 └── .env.example (Environment template)
 ```
 
