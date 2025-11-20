@@ -753,33 +753,33 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
         {String(profile?.role || '').toLowerCase() === 'admin' && (
           <View style={{ marginHorizontal: 16, marginTop: 12, backgroundColor: '#fff', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#f3f4f6' }}>
             <Text style={{ fontSize: 16, fontWeight: '800', marginBottom: 12 }}>System</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-              <TouchableOpacity onPress={() => { try { router.push('/dashboard/system/users') } catch {} }} style={{ width: '30%', alignItems: 'center', marginBottom: 12 }} activeOpacity={0.8}>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+              <TouchableOpacity onPress={() => { try { router.push('/dashboard/system/users') } catch {} }} style={{ width: '30%', alignItems: 'center', marginBottom: 12, marginRight: '5%' }} activeOpacity={0.8}>
                 <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name="people-outline" size={24} color={COLORS.primary} />
                 </View>
                 <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>Users</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={() => { try { router.push('/dashboard/system/products-transactions') } catch {} }} style={{ width: '30%', alignItems: 'center', marginBottom: 12 }} activeOpacity={0.8}>
+              <TouchableOpacity onPress={() => { try { router.push('/dashboard/system/products-transactions') } catch {} }} style={{ width: '30%', alignItems: 'center', marginBottom: 12, marginRight: '5%' }} activeOpacity={0.8}>
                 <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name="stats-chart-outline" size={24} color={COLORS.primary} />
                 </View>
-                <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>Products & Transactions</Text>
+                <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>Products</Text>
               </TouchableOpacity>
 
               <TouchableOpacity onPress={() => { try { router.push('/dashboard/system/verification-reviews') } catch {} }} style={{ width: '30%', alignItems: 'center', marginBottom: 12 }} activeOpacity={0.8}>
                 <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name="shield-checkmark-outline" size={24} color={COLORS.primary} />
                 </View>
-                <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>Verification Reviews</Text>
+                <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>Verifications</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={() => { try { router.push('/dashboard/system/reports') } catch {} }} style={{ width: '30%', alignItems: 'center', marginBottom: 12 }} activeOpacity={0.8}>
+              <TouchableOpacity onPress={() => { try { router.push('/dashboard/system/reports') } catch {} }} style={{ width: '30%', alignItems: 'center', marginBottom: 12, marginRight: '5%' }} activeOpacity={0.8}>
                 <View style={{ width: 56, height: 56, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center' }}>
                   <Ionicons name="flag-outline" size={24} color={COLORS.primary} />
                 </View>
-                <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>Reports Queue</Text>
+                <Text style={{ marginTop: 8, fontSize: 12, fontWeight: '700', color: '#374151', textAlign: 'center' }}>Reports</Text>
               </TouchableOpacity>
 
               <TouchableOpacity onPress={() => { try { router.push('/dashboard/system/appeals') } catch {} }} style={{ width: '30%', alignItems: 'center', marginBottom: 12 }} activeOpacity={0.8}>

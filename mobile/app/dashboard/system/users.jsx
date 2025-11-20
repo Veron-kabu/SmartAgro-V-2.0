@@ -58,13 +58,6 @@ export default function Users() {
         } catch {}
       })()
     }
-    return () => { alive = false }
-  }, [])
-
-  // keep a local editable copy of users for UI actions (toggle suspend/activate)
-  useEffect(() => {
-    let alive = true
-    // No local mock/sample data — use empty fallback when real data is unavailable
 
     const normalizeStatus = (s) => {
       if (!s && s !== 0) return ''
@@ -300,24 +293,94 @@ export default function Users() {
       <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
         <View>
           <Text style={{ fontSize:22, fontWeight:'800', color:'#111827', marginBottom:4 }}>Users</Text>
-          <Text style={{ color:'#6b7280', marginTop:4 }}>User breakdown</Text>
         </View>
-        <TouchableOpacity
-          onPress={() => setShowManage(v => !v)}
-          style={{ backgroundColor: showManage ? '#111827' : '#fff', borderRadius:20, paddingVertical:6, paddingHorizontal:12, borderWidth:1, borderColor:'#e5e7eb' }}
-        >
-          <Text style={{ color: showManage ? '#fff' : '#111827', fontWeight:'600' }}>{showManage ? 'Hide' : 'Manage Users'}</Text>
-        </TouchableOpacity>
       </View>
+    </View>
+  )
 
-      {showManage && (
-        <View style={{ marginTop:12 }}>
-          <View style={{ backgroundColor:'#fff', borderRadius:8, padding:12 }}>
-            <View style={{ marginBottom:8 }}>
-              <View>
-                <Text style={{ fontSize:18, fontWeight:'700', color:'#111827' }}>Manage Users</Text>
-                <Text style={{ color:'#6b7280', marginTop:4 }}>View, filter, and manage all registered users.</Text>
+  const sections = [
+    {
+      title: 'New Users Growth',
+      render: () => (
+        <View style={{ paddingHorizontal:0, paddingBottom:6 }}>
+          <View style={{ backgroundColor:'#fff', borderRadius:8, padding:12, elevation:1, marginHorizontal:0, alignItems:'center' }}>
+            <SimpleLineChart
+              data={chartDataForSimple}
+              width={chartWidth}
+              height={180}
+              color={'#4f46e5'}
+              area
+              strokeWidth={2}
+              ticks={6}
+              maxY={6}
+              axis={{ xLabels: ['Sep','Oct','Nov','Dec'] }}
+            />
+          </View>
+        </View>
+      )
+    },
+    {
+      title: 'User Roles',
+      render: () => (
+        <View style={{ paddingHorizontal:0, paddingVertical:6 }}>
+          <View style={{ backgroundColor:'#fff', borderRadius:8, padding:16, alignItems:'center', marginHorizontal:0 }}>
+            { (distro[0] + distro[1]) > 0 ? (
+              <>
+                <PieChart
+                  data={[
+                    { value: Number(distro[0] || 0), color: '#4f46e5' },
+                    { value: Number(distro[1] || 0), color: '#93c5fd' },
+                  ]}
+                  donut
+                  innerRadius={36}
+                  radius={60}
+                  showText={false}
+                />
+                <View style={{ flexDirection:'row', alignItems:'center', gap:12, marginTop:12 }}>
+                  <View style={{ flexDirection:'row', alignItems:'center', marginRight:16 }}>
+                    <View style={{ width:10, height:10, borderRadius:5, backgroundColor:'#4f46e5', marginRight:8 }} />
+                    <Text style={{ color:'#6b7280' }}>Farmers: {distro[0]}</Text>
+                  </View>
+                  <View style={{ flexDirection:'row', alignItems:'center' }}>
+                    <View style={{ width:10, height:10, borderRadius:5, backgroundColor:'#93c5fd', marginRight:8 }} />
+                    <Text style={{ color:'#6b7280' }}>Buyers: {distro[1]}</Text>
+                  </View>
+                </View>
+              </>
+            ) : (
+              <View style={{ padding:24, alignItems:'center' }}>
+                <Text style={{ color:'#6b7280' }}>No role distribution data available.</Text>
               </View>
+            )}
+          </View>
+        </View>
+      )
+    },
+    {
+      title: 'Manage Users',
+      render: () => (
+        <View style={{ paddingHorizontal:0, paddingBottom:16 }}>
+          <TouchableOpacity
+            onPress={() => setShowManage(v => !v)}
+            style={{
+              backgroundColor: showManage ? '#0b1220' : '#111827',
+              borderRadius:20,
+              paddingVertical:6,
+              paddingHorizontal:10,
+              borderWidth:0,
+              alignSelf:'flex-start',
+              minWidth:96,
+              alignItems:'center',
+              justifyContent:'center'
+            }}
+          >
+            <Text style={{ color: '#fff', fontWeight:'700', fontSize:18 }}>{showManage ? 'Hide' : 'Manage Users'}</Text>
+          </TouchableOpacity>
+
+        {showManage && (
+          <View>
+            <View style={{ backgroundColor:'#fff', borderRadius:8, padding:12 }}>
+              <View>
 
               {usersError ? (
                 <View style={{ backgroundColor:'#FEF2F2', borderColor:'#FECACA', borderWidth:1, padding:8, borderRadius:6, marginTop:8 }}>
@@ -404,72 +467,11 @@ export default function Users() {
           </View>
         </View>
       )}
-    </View>
-  )
-
-  const sections = [
-    {
-      title: 'New Users Growth',
-      render: () => (
-        <View style={{ paddingHorizontal:0, paddingBottom:6 }}>
-          <Text style={{ fontSize:18, fontWeight:'700', color:'#111827', marginBottom:6, paddingHorizontal:12 }}>New Users Growth</Text>
-          <Text style={{ color:'#6b7280', marginBottom:8, paddingHorizontal:12 }}>A wave-style line graph showing new user sign-ups per period.</Text>
-          <View style={{ backgroundColor:'#fff', borderRadius:8, padding:12, elevation:1, marginHorizontal:0, alignItems:'center' }}>
-            <SimpleLineChart
-              data={chartDataForSimple}
-              width={chartWidth}
-              height={180}
-              color={'#4f46e5'}
-              area
-              strokeWidth={2}
-              ticks={6}
-              maxY={6}
-              axis={{ xLabels: ['Sep','Oct','Nov','Dec'] }}
-            />
-          </View>
-        </View>
-      )
-    },
-    {
-      title: 'User Roles',
-      render: () => (
-        <View style={{ paddingHorizontal:0, paddingVertical:6 }}>
-          <Text style={{ fontSize:18, fontWeight:'700', color:'#111827', marginBottom:8, paddingHorizontal:12 }}>User Roles</Text>
-          <Text style={{ color:'#6b7280', marginBottom:12, paddingHorizontal:12 }}>Distribution of users by role.</Text>
-          <View style={{ backgroundColor:'#fff', borderRadius:8, padding:16, alignItems:'center', marginHorizontal:0 }}>
-            { (distro[0] + distro[1]) > 0 ? (
-              <>
-                <PieChart
-                  data={[
-                    { value: Number(distro[0] || 0), color: '#4f46e5' },
-                    { value: Number(distro[1] || 0), color: '#93c5fd' },
-                  ]}
-                  donut
-                  innerRadius={36}
-                  radius={60}
-                  showText={false}
-                />
-                <View style={{ flexDirection:'row', alignItems:'center', gap:12, marginTop:12 }}>
-                  <View style={{ flexDirection:'row', alignItems:'center', marginRight:16 }}>
-                    <View style={{ width:10, height:10, borderRadius:5, backgroundColor:'#4f46e5', marginRight:8 }} />
-                    <Text style={{ color:'#6b7280' }}>Farmers: {distro[0]}</Text>
-                  </View>
-                  <View style={{ flexDirection:'row', alignItems:'center' }}>
-                    <View style={{ width:10, height:10, borderRadius:5, backgroundColor:'#93c5fd', marginRight:8 }} />
-                    <Text style={{ color:'#6b7280' }}>Buyers: {distro[1]}</Text>
-                  </View>
-                </View>
-              </>
-            ) : (
-              <View style={{ padding:24, alignItems:'center' }}>
-                <Text style={{ color:'#6b7280' }}>No role distribution data available.</Text>
-              </View>
-            )}
-          </View>
         </View>
       )
     },
   ]
+  
 
   return (
     <StickySections

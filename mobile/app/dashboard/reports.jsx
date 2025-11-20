@@ -109,9 +109,6 @@ export default function ReportsQueue() {
             <Text style={{ color: statusFilter===s ? '#fff' : '#111827', fontWeight:'600', textTransform:'capitalize' }}>{s}</Text>
           </TouchableOpacity>
         ))}
-        <TouchableOpacity onPress={exportCsv} style={{ paddingVertical:6, paddingHorizontal:12, borderRadius:20, backgroundColor:'#fff', borderWidth:1, borderColor:'#e5e7eb' }}>
-          <Text style={{ color:'#111827', fontWeight:'600' }}>Export CSV</Text>
-        </TouchableOpacity>
       </View>
       {loading ? <View style={{ marginTop: 20 }}><ActivityIndicator /></View> : error ? (
         <Text style={{ color: '#dc2626', marginTop: 8 }}>{error}</Text>
