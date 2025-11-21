@@ -64,6 +64,12 @@ export function verifyClerkWebhook(req, res, next) {
 		const svixSignature = req.headers["svix-signature"]; // required
 
 		if (!svixId || !svixTimestamp || !svixSignature) {
+			if (process.env.CLERK_WEBHOOK_DEBUG === 'true') {
+				console.warn('[verifyClerkWebhook] Missing Svix headers, request headers:', req.headers)
+				// attempt to show raw body for troubleshooting (may be Buffer)
+				const rawPreview = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : (typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {}))
+				console.warn('[verifyClerkWebhook] Raw body preview:', rawPreview.slice(0, 200))
+			}
 			return res.status(400).json({ error: "Missing Svix headers" });
 		}
 
@@ -85,7 +91,12 @@ export function verifyClerkWebhook(req, res, next) {
 		req.clerkEvent = evt;
 		next();
 	} catch (err) {
-		console.error("Clerk webhook verification error:", err);
+		console.error("Clerk webhook verification error:", err?.message || err);
+		if (process.env.CLERK_WEBHOOK_DEBUG === 'true') {
+			console.warn('[verifyClerkWebhook] headers:', req.headers)
+			const rawPreview = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : (typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {}))
+			console.warn('[verifyClerkWebhook] raw body preview:', rawPreview.slice(0, 1000))
+		}
 		return res.status(400).json({ error: "Webhook verification failed" });
 	}
 }

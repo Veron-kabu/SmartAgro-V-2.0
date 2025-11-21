@@ -2,7 +2,7 @@ import express from 'express'
 import fs from 'fs'
 import path from 'path'
 import { db } from '../config/db.js'
-import { mpesaTransactionsTable, mpesaB2cPaymentsTable, mpesaCallbackLogsTable, ordersTable, usersTable, productsTable } from '../db/schema.js'
+import { mpesaTransactionsTable, mpesaB2cPaymentsTable, ordersTable, usersTable, productsTable } from '../db/schema.js'
 import { stkPush, stkQuery, b2cPayment, transactionStatus, accountBalance, reversal, registerC2B } from '../utils/daraja.js'
 import { and, eq, like, desc, gte, lte, sql } from 'drizzle-orm'
 import { requireUser, getAuth } from '../middleware/auth.js'
@@ -164,15 +164,6 @@ router.post('/mpesa/register-c2b', requireUser, requireAdmin, async (_req, res) 
 router.post('/mpesa/callbacks/stk', async (req, res) => {
   try {
     const body = req.body || {}
-    // Optional: append raw payload to JSONL file for quick offline inspection (toggle via env)
-    try {
-      if (process.env.MPESA_STK_JSONL === 'true') {
-        const filePath = path.resolve(process.cwd(), 'data', 'stkpushresponse.jsonl')
-        fs.mkdirSync(path.dirname(filePath), { recursive: true })
-        fs.appendFile(filePath, JSON.stringify(body) + '\n', () => {})
-      }
-    } catch {}
-    await db.insert(mpesaCallbackLogsTable).values({ type: 'stk', body })
 
     const cb = body?.Body?.stkCallback
     const merchantRequestId = cb?.MerchantRequestID
@@ -347,7 +338,6 @@ router.post('/mpesa/callbacks/stk', async (req, res) => {
 router.post('/mpesa/callbacks/result', async (req, res) => {
   try {
     const body = req.body || {}
-    await db.insert(mpesaCallbackLogsTable).values({ type: 'result', body })
     // Attempt to map B2C result to a payout row
     const result = body?.Result
     const conversationId = result?.ConversationID || result?.OriginatorConversationID
@@ -400,7 +390,6 @@ router.post('/mpesa/callbacks/result', async (req, res) => {
 router.post('/mpesa/callbacks/timeout', async (req, res) => {
   try {
     const body = req.body || {}
-    await db.insert(mpesaCallbackLogsTable).values({ type: 'timeout', body })
     // If timeout for B2C, attempt to map and mark as timeout
     const result = body?.Result
     const conversationId = result?.ConversationID || result?.OriginatorConversationID
@@ -419,7 +408,6 @@ router.post('/mpesa/callbacks/timeout', async (req, res) => {
 router.post('/mpesa/c2b/confirmation', async (req, res) => {
   try {
     const body = req.body || {}
-    await db.insert(mpesaCallbackLogsTable).values({ type: 'c2b_confirmation', body })
     res.status(200).json({ ResultCode: 0, ResultDesc: 'Confirmation Received Successfully' })
   } catch {
     res.status(200).json({ ResultCode: 0, ResultDesc: 'Confirmation Received Successfully' })
@@ -429,7 +417,6 @@ router.post('/mpesa/c2b/confirmation', async (req, res) => {
 router.post('/mpesa/c2b/validation', async (req, res) => {
   try {
     const body = req.body || {}
-    await db.insert(mpesaCallbackLogsTable).values({ type: 'c2b_validation', body })
     res.status(200).json({ ResultCode: 0, ResultDesc: 'Validation Successful' })
   } catch {
     res.status(200).json({ ResultCode: 0, ResultDesc: 'Validation Successful' })
@@ -513,75 +500,6 @@ router.get('/admin/mpesa/payouts', requireUser, requireAdmin, async (req, res) =
   }
 })
 
-// List callback logs
-router.get('/admin/mpesa/callback-logs', requireUser, requireAdmin, async (req, res) => {
-  try {
-    const { type, dateFrom, dateTo, limit = '20', offset = '0' } = req.query
-    const lim = Math.max(1, Math.min(200, parseInt(String(limit)) || 20))
-    const off = Math.max(0, parseInt(String(offset)) || 0)
-    const conds = []
-    if (type) conds.push(eq(mpesaCallbackLogsTable.type, String(type)))
-    if (dateFrom) {
-      const d = new Date(String(dateFrom))
-      if (!isNaN(d.getTime())) conds.push(gte(mpesaCallbackLogsTable.receivedAt, d))
-    }
-    if (dateTo) {
-      const d = new Date(String(dateTo))
-      if (!isNaN(d.getTime())) conds.push(lte(mpesaCallbackLogsTable.receivedAt, d))
-    }
-    const whereExpr = conds.length ? and(...conds) : undefined
-    const items = await db
-      .select()
-      .from(mpesaCallbackLogsTable)
-      .where(whereExpr)
-      .orderBy(desc(mpesaCallbackLogsTable.receivedAt))
-      .limit(lim)
-      .offset(off)
-    const totalRows = await db
-      .select({ count: sql`count(*)` })
-      .from(mpesaCallbackLogsTable)
-      .where(whereExpr)
-    const total = Number(totalRows?.[0]?.count || 0)
-    return res.json({ total, limit: lim, offset: off, items })
-  } catch (e) {
-    return bad(res, 500, e.message)
-  }
-})
-
-// Export callback logs as JSON file (default: only raw body for type=stk)
-router.get('/admin/mpesa/callback-logs/export.json', requireUser, requireAdmin, async (req, res) => {
-  try {
-    const { type = 'stk', dateFrom, dateTo, raw = 'true', limit = '10000', offset = '0' } = req.query
-    const lim = Math.max(1, Math.min(50000, parseInt(String(limit)) || 10000))
-    const off = Math.max(0, parseInt(String(offset)) || 0)
-    const conds = []
-    if (type) conds.push(eq(mpesaCallbackLogsTable.type, String(type)))
-    if (dateFrom) {
-      const d = new Date(String(dateFrom))
-      if (!isNaN(d.getTime())) conds.push(gte(mpesaCallbackLogsTable.receivedAt, d))
-    }
-    if (dateTo) {
-      const d = new Date(String(dateTo))
-      if (!isNaN(d.getTime())) conds.push(lte(mpesaCallbackLogsTable.receivedAt, d))
-    }
-    const whereExpr = conds.length ? and(...conds) : undefined
-    const rows = await db
-      .select()
-      .from(mpesaCallbackLogsTable)
-      .where(whereExpr)
-      .orderBy(desc(mpesaCallbackLogsTable.receivedAt))
-      .limit(lim)
-      .offset(off)
-
-    const onlyRaw = String(raw).toLowerCase() === 'true'
-    const payload = onlyRaw ? rows.map(r => r.body) : rows
-    const filename = type === 'stk' ? 'stkpushresponse.json' : `mpesa-callback-logs-${type}.json`
-    res.setHeader('Content-Type', 'application/json; charset=utf-8')
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
-    return res.status(200).send(JSON.stringify(payload, null, 2))
-  } catch (e) {
-    return bad(res, 500, e.message)
-  }
-})
+// Note: mpesa_callback_logs table removed — callbacks are tracked on `mpesa_transactions` and other tables.
 
 export default router

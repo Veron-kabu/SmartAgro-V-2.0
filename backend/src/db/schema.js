@@ -454,11 +454,4 @@ export const mpesaB2cPaymentsTable = pgTable("mpesa_b2c_payments", {
   status: varchar("status", { length: 20 }).default('pending'), // pending | success | failed | timeout
   createdAt: timestamp("created_at").defaultNow(),
 })
-
-export const mpesaCallbackLogsTable = pgTable("mpesa_callback_logs", {
-  id: serial("id").primaryKey(),
-  type: varchar("type", { length: 32 }).notNull(), // stk | result | timeout | c2b_confirmation | c2b_validation
-  body: jsonb("body").notNull(),
-  relatedId: integer("related_id"), // optional reference id in other tables
-  receivedAt: timestamp("received_at").defaultNow(),
-})
+// NOTE: mpesa_callback_logs table removed — callback payloads are stored on mpesa_transactions / mpesa_b2c_payments where applicable.

@@ -7,3 +7,4 @@
 {"Body":{"stkCallback":{"MerchantRequestID":"2243-4d52-a80d-0355c870e32511342","CheckoutRequestID":"ws_CO_07112025160914621745437063","ResultCode":1032,"ResultDesc":"Request Cancelled by user."}}}
 {"Body":{"stkCallback":{"MerchantRequestID":"1a3e-41dc-a45f-b1ef9fa9667218979","CheckoutRequestID":"ws_CO_07112025161757014745437063","ResultCode":1032,"ResultDesc":"Request Cancelled by user."}}}
 {"Body":{"stkCallback":{"MerchantRequestID":"be7b-4951-8c4a-937fa077d20913859","CheckoutRequestID":"ws_CO_07112025194206717745437063","ResultCode":1032,"ResultDesc":"Request Cancelled by user."}}}
+{"Body":{"stkCallback":{"MerchantRequestID":"905d-491d-8c6f-58d092138c1816134","CheckoutRequestID":"ws_CO_22112025005901609745437063","ResultCode":1032,"ResultDesc":"Request Cancelled by user."}}}

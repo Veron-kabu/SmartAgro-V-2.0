@@ -35,11 +35,4 @@ CREATE TABLE IF NOT EXISTS mpesa_b2c_payments (
   status VARCHAR(20) DEFAULT 'pending',
   created_at TIMESTAMP DEFAULT NOW()
 );
-
-CREATE TABLE IF NOT EXISTS mpesa_callback_logs (
-  id SERIAL PRIMARY KEY,
-  type VARCHAR(32) NOT NULL,
-  body JSONB NOT NULL,
-  related_id INTEGER,
-  received_at TIMESTAMP DEFAULT NOW()
-);
+-- mpesa_callback_logs table removed: callbacks are tracked on mpesa_transactions and mpesa_b2c_payments

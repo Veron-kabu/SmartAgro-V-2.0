@@ -9,6 +9,23 @@ const DEBUG = process.env.CLERK_WEBHOOK_DEBUG === 'true'
 
 const router = Router()
 
+// Development-only debug endpoint: logs headers + raw body to help diagnose
+// whether proxies/ngrok are forwarding Svix headers and the raw payload unchanged.
+if (process.env.NODE_ENV !== 'production') {
+  router.post('/webhooks/clerk-debug', express.raw({ type: 'application/json' }), (req, res) => {
+    try {
+      console.log('[webhooks:debug] Incoming request to /api/webhooks/clerk-debug')
+      console.log('[webhooks:debug] headers:', req.headers)
+      const raw = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : (typeof req.body === 'string' ? req.body : JSON.stringify(req.body || {}))
+      console.log('[webhooks:debug] raw body preview:', raw.slice(0, 2000))
+      return res.status(200).json({ ok: true })
+    } catch (e) {
+      console.error('[webhooks:debug] error:', e?.message || e)
+      return res.status(500).json({ error: 'debug failure' })
+    }
+  })
+}
+
 // Clerk event handlers (scoped here to keep server.js slim)
 export async function handleUserCreated(userData, opts = {}) {
   // Normalize both Clerk webhook (snake_case) and Clerk SDK (camelCase) shapes
