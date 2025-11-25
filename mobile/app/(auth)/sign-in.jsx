@@ -194,7 +194,7 @@ export default function SignInScreen() {
               activeOpacity={0.8}
             >
               <Text style={[authStyles.buttonText, { color: COLORS.primary }]}>
-                Sign in with Email Code
+                Forgot password?
               </Text>
             </TouchableOpacity>
 

@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback } from 'react'
-import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native'
+import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Dimensions, StatusBar } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
+import { Ionicons } from '@expo/vector-icons'
+import { VictoryPie, VictoryLabel } from 'victory-native'
 import { getJSON } from '../../context/api'
 import { earningsStyles as styles } from '../../assets/styles/dashboard.styles'
 // import { router } from 'expo-router'
-import SimplePieChart from '../../components/charts/SimplePieChart'
 import { COLORS } from '../../constants/colors'
 
 // Simple in-memory cache (resets on app reload)
@@ -14,11 +16,9 @@ export default function EarningsScreen() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [summary, setSummary] = useState(null)
-  // Listing metrics (for pie charts) and totals for summary card
-  const [listingCharts, setListingCharts] = useState([])
   // const [totals, setTotals] = useState({ delivered: 0, paid: 0, revenue: 0 })
   const [recentPaid, setRecentPaid] = useState([])
-  const [expanded, setExpanded] = useState(new Set())
+  const [selectedSlice, setSelectedSlice] = useState(null)
 
   const fetchEarnings = useCallback(async (force=false) => {
     try {
@@ -41,17 +41,6 @@ export default function EarningsScreen() {
   }, [])
 
   useEffect(() => { fetchEarnings() }, [fetchEarnings])
-
-  // Build listing pie charts when summary changes (use delivered vs paid vs available units)
-  useEffect(() => {
-    if (!summary) { setListingCharts([]); return }
-    const charts = (summary.listings || []).map(l => ({
-      title: l.title,
-      total: Number(l.revenue || 0),
-      data: [ Number(l.deliveredQuantity||0), Number(l.paidQuantity||0), Number(l.availableQuantity||0) ]
-    }))
-    setListingCharts(charts)
-  }, [summary])
 
   // Fetch transactions (orders for this farmer) for recent paid list
   useEffect(() => {
@@ -92,108 +81,222 @@ export default function EarningsScreen() {
 
   // const listings = summary?.listings || []
   const totalDeliveredUnits = (summary?.listings || []).reduce((acc, l) => acc + Number(l?.deliveredQuantity || 0), 0)
+  const screenWidth = Dimensions.get('window').width || 360
+  // Use most of the horizontal space and ensure a sensible minimum
+  const pieWidth = Math.max(340, screenWidth - 64)
+  const pieData = (summary?.listings || []).map(l => ({ x: l.title || 'Item', y: Number(l.revenue || 0) }))
+  const pieTotal = pieData.reduce((s, it) => s + (Number(it.y) || 0), 0)
+  const pieColors = ["#10b981", "#EF4444", "#F59E0B", "#60A5FA", "#FB7185", "#34D399", "#8B5CF6", "#F472B6"]
+  const pieRadius = Math.min(pieWidth, 320) / 2
+  // Move labels slightly inward so percentages sit closer to the pie center
+  const labelRadius = Math.max(20, Math.floor(pieRadius - 90))
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>Earnings Overview</Text>
-        <TouchableOpacity onPress={() => fetchEarnings(true)} style={styles.refreshBtn}><Text style={styles.refreshText}>↻</Text></TouchableOpacity>
-      </View>
-      {/* Hero summary */}
-      <View style={styles.heroCard}>
-        <Text style={styles.metricLabel}>Total Revenue (paid)</Text>
-        <Text style={styles.heroValue}>{formatCurrency(summary?.totalRevenue)}</Text>
-        <View style={styles.heroRow}>
-          <View style={styles.heroItem}>
-            <Text style={styles.heroLabel}>Delivered units</Text>
-            <Text style={styles.heroMetric}>{totalDeliveredUnits}</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
+      <StatusBar backgroundColor={String(COLORS.background)} barStyle="dark-content" />
+      <ScrollView style={{ flex: 1, backgroundColor: 'transparent' }} contentContainerStyle={{ paddingBottom: 40 }}>
+        {/* Hero summary wrapper: green background with white inner card */}
+        <View style={{ backgroundColor: '#10b981', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <TouchableOpacity onPress={() => {}} style={{ padding: 4 }}>
+            <Ionicons name="menu" size={20} color="#fff" />
+          </TouchableOpacity>
+          <Text style={[{ fontSize: 18, fontWeight: '800', color: '#fff', textAlign: 'center', flex: 1 }]}>Earnings</Text>
+          <TouchableOpacity onPress={() => {}} style={{ padding: 4 }}>
+            <Ionicons name="notifications-outline" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+        <View style={[styles.heroCard, { backgroundColor: '#fff', borderColor: 'rgba(0,0,0,0.04)', padding: 14, elevation: 2, shadowOpacity: 0.04, shadowRadius: 4 }] }>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <Text style={{ color: '#6b7280', fontSize: 12, fontWeight: '700' }}>Total Revenue</Text>
+              <Text style={{ color: '#111827', fontSize: 28, fontWeight: '900', marginTop: 6 }}>{formatCurrency(summary?.totalRevenue)}</Text>
+              <View style={{ marginTop: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <View style={{ width:8, height:8, borderRadius:4, backgroundColor: '#10b981', marginRight:8 }} />
+                  <Text style={{ color: '#10b981', fontSize: 12 }}>Paid</Text>
+                </View>
+              </View>
+            </View>
+            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#ECFDF5', alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="wallet" size={20} color="#10b981" />
+            </View>
+          </View>
+
+          <View style={{ height: 1, backgroundColor: 'rgba(0,0,0,0.04)', marginVertical: 12 }} />
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={{ color: '#6b7280', fontSize: 11, fontWeight: '700' }}>Delivered Units</Text>
+              <Text style={{ color: '#111827', fontSize: 18, fontWeight: '900', marginTop: 6 }}>{totalDeliveredUnits}</Text>
+            </View>
+            <View style={{ width: 1, height: 40, backgroundColor: 'rgba(0,0,0,0.04)', marginHorizontal: 12 }} />
+            <View style={{ flex: 1, alignItems: 'center' }}>
+              <Text style={{ color: '#6b7280', fontSize: 11, fontWeight: '700' }}>Products</Text>
+              <Text style={{ color: '#111827', fontSize: 18, fontWeight: '900', marginTop: 6 }}>{(summary?.listings || []).length}</Text>
+            </View>
           </View>
         </View>
-      </View>
+        </View>
 
-      {/* Listings Performance with pie charts */}
-      <Text style={styles.sectionHeading}>Listings Performance</Text>
-      {listingCharts.length === 0 ? (
+        {/* Main content container with page background */}
+        <View style={{ backgroundColor: COLORS.background, padding: 16 }}>
+
+        {/* Revenue Distribution */}
+        <Text style={styles.sectionHeading}>Revenue Distribution</Text>
+        <View style={{ backgroundColor: COLORS.card, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16, alignItems: 'center' }}>
+        {(!pieData || pieData.length === 0 || pieData.every(d => d.y === 0)) ? (
+          <Text style={styles.muted}>No revenue distribution data</Text>
+        ) : (
+          <>
+          <VictoryPie
+            width={pieWidth}
+            height={320}
+            data={pieData}
+            colorScale={pieColors}
+            innerRadius={0}
+            labelRadius={labelRadius}
+            events={[{
+              target: 'data',
+              eventHandlers: {
+                onPressIn: (evt, props) => {
+                  try { setSelectedSlice(props.index) } catch {};
+                  return []
+                },
+                onPressOut: () => {
+                  try { setSelectedSlice(null) } catch {};
+                  return []
+                }
+              }
+            }]}
+            style={{
+              labels: {
+                fontSize: 14,
+                fontWeight: '700',
+                fill: ({ index }) => (selectedSlice === index ? '#ffffff' : pieColors[index % pieColors.length]),
+                stroke: ({ index }) => (selectedSlice === index ? undefined : '#ffffff'),
+                strokeWidth: ({ index }) => (selectedSlice === index ? 0 : 1)
+              },
+              data: {
+                stroke: ({ index }) => (index === selectedSlice ? '#ffffff' : undefined),
+                strokeWidth: ({ index }) => (index === selectedSlice ? 3 : 0),
+              }
+            }}
+            labels={({ datum, index }) => {
+              if (pieTotal <= 0) return ''
+              const pct = Math.round((Number(datum.y) / pieTotal) * 100)
+              // hide labels for tiny slices (<3%) unless selected
+              if (pct < 3 && selectedSlice !== index) return ''
+              if (selectedSlice !== null && index === selectedSlice) return formatCurrency(datum.y)
+              return `${pct}%`
+            }}
+            labelComponent={<VictoryLabel />}
+          />
+          {/* Legend: product color swatch + name + percentage (or absolute when selected) */}
+          <View style={{ width: pieWidth, marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center' }}>
+            {pieData.map((d, i) => {
+              const color = pieColors[i % pieColors.length]
+              const percent = pieTotal > 0 ? Math.round((Number(d.y) / pieTotal) * 100) : 0
+              const isSel = selectedSlice === i
+              return (
+                <TouchableOpacity key={i} onPress={() => setSelectedSlice(isSel ? null : i)} activeOpacity={0.85} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 6, margin: 4, backgroundColor: isSel ? '#f3f4f6' : 'transparent', borderRadius: 8 }}>
+                  <View style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: color, marginRight: 8 }} />
+                  <View style={{ maxWidth: 140 }}>
+                    <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: '700', color: COLORS.text }}>{d.x}</Text>
+                    <Text style={{ fontSize: 12, color: COLORS.textLight }}>{isSel ? formatCurrency(d.y) : `${percent}%`}</Text>
+                  </View>
+                </TouchableOpacity>
+              )
+            })}
+          </View>
+          </>
+        )}
+        </View>
+
+
+
+        {/* Listings Performance */}
+        <Text style={styles.sectionHeading}>Listings Performance</Text>
+      {(summary?.listings || []).length === 0 ? (
         <Text style={styles.muted}>No data yet</Text>
       ) : (
-        listingCharts.map((c, idx) => {
-          const isOpen = expanded.has(idx)
-          const delivered = c.data[0] || 0
-          const pending = c.data[1] || 0
-          const notPurchased = c.data[2] || 0
+        (summary.listings || []).map((listing, idx) => {
+          const delivered = Number(listing.deliveredQuantity || 0)
+          const paid = Number(listing.paidQuantity || 0)
+          const available = listing.availableQuantity == null ? '-' : String(listing.availableQuantity)
+          const revenue = Number(listing.revenue || 0)
+          const isActive = (listing?.status && String(listing.status).toLowerCase() === 'active') || listing?.active === true || listing?.isActive === true
+          const iconBg = idx % 3 === 0 ? '#FFF1F2' : idx % 3 === 1 ? '#ECFDF5' : '#EFF6FF'
           return (
-            <TouchableOpacity
+            <View
               key={idx}
-              activeOpacity={0.8}
-              onPress={() => {
-                const next = new Set(expanded)
-                if (next.has(idx)) next.delete(idx); else next.add(idx)
-                setExpanded(next)
-              }}
               style={{ backgroundColor: COLORS.card, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, padding: 12, marginBottom: 12 }}
             >
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <View style={{ flex: 1, paddingRight: 12 }}>
-                  <Text style={{ fontSize: 15, fontWeight: '800', color: COLORS.text }} numberOfLines={1}>{c.title}</Text>
-                  <Text style={{ fontSize: 22, fontWeight: '900', color: COLORS.text, marginTop: 6 }}>{formatCurrency(c.total)}</Text>
-                </View>
-                <Text style={{ color: COLORS.textLight, fontSize: 20 }}>{isOpen ? '▾' : '▸'}</Text>
-              </View>
-              {isOpen && (
-                <View style={{ marginTop: 10 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <SimplePieChart width={140} height={140} stroke={'none'} data={c.data} colors={[ '#10b981', '#f59e0b', '#9ca3af' ]} />
-                    <View style={{ flex: 1, paddingLeft: 12 }}>
-                      <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: 6 }}>
-                        <LegendDot color="#10b981" label="Delivered" />
-                        <Text style={{ color: COLORS.text, fontWeight: '800' }}>{delivered}</Text>
-                      </View>
-                      <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom: 6 }}>
-                        <LegendDot color="#f59e0b" label="Pending" />
-                        <Text style={{ color: COLORS.text, fontWeight: '800' }}>{pending}</Text>
-                      </View>
-                      <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
-                        <LegendDot color="#9ca3af" label="Not purchased" />
-                        <Text style={{ color: COLORS.text, fontWeight: '800' }}>{notPurchased}</Text>
-                      </View>
-                    </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                  <View style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: iconBg, alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                    <Ionicons name="leaf" size={20} color={COLORS.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 15, fontWeight: '800', color: COLORS.text }} numberOfLines={1}>{listing.title}</Text>
+                    <Text style={{ fontSize: 12, color: COLORS.textLight, marginTop: 6 }}>Revenue: {formatCurrency(revenue)}</Text>
                   </View>
                 </View>
-              )}
-            </TouchableOpacity>
+                <View style={{ marginLeft: 8 }}>
+                  <View style={{ backgroundColor: isActive ? '#DCFCE7' : '#F3F4F6', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }}>
+                    <Text style={{ color: isActive ? '#047857' : '#6B7280', fontWeight: '700', fontSize: 12 }}>{isActive ? 'Active' : 'Inactive'}</Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', marginTop: 12 }}>
+                <View style={{ flex: 1, alignItems: 'center', backgroundColor: '#F8FAFC', borderRadius: 10, paddingVertical: 12, marginRight: 8 }}>
+                  <Text style={{ color: COLORS.textLight, fontWeight: '700' }}>Delivered</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '900', color: COLORS.text, marginTop: 6 }}>{delivered}</Text>
+                </View>
+                <View style={{ flex: 1, alignItems: 'center', backgroundColor: (paid && paid > 0) ? '#ECFDF5' : '#FFFBEB', borderRadius: 10, paddingVertical: 12, marginRight: 8 }}>
+                  <Text style={{ color: COLORS.textLight, fontWeight: '700' }}>Paid</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '900', color: (paid && paid > 0) ? '#047857' : '#B45309', marginTop: 6 }}>{paid}</Text>
+                </View>
+                <View style={{ flex: 1, alignItems: 'center', backgroundColor: '#EFF6FF', borderRadius: 10, paddingVertical: 12 }}>
+                  <Text style={{ color: COLORS.textLight, fontWeight: '700' }}>Available</Text>
+                  <Text style={{ fontSize: 18, fontWeight: '900', color: '#1D4ED8', marginTop: 6 }}>{available}</Text>
+                </View>
+              </View>
+            </View>
           )
         })
       )}
 
-      <Text style={[styles.sectionHeading,{ marginTop: 8 }]}>Transactions</Text>
+      <Text style={[styles.sectionHeading, { marginTop: 8 }]}>Recent Transactions</Text>
       <View style={{ backgroundColor: COLORS.card, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, padding: 12 }}>
-        <Text style={{ fontSize: 24, fontWeight: '900', color: COLORS.text }}>{formatCurrency(summary?.totalRevenue)}</Text>
         {recentPaid.length === 0 ? (
           <Text style={[styles.muted,{ marginTop: 6 }]}>No paid transactions yet</Text>
         ) : (
-          <View style={{ marginTop: 10 }}>
+          <View style={{ marginTop: 4 }}>
             {recentPaid.map((o, i) => (
-              <View key={o.id || i} style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical: 8, borderTopWidth: i===0?0:1, borderColor: COLORS.border }}>
-                <View style={{ flex: 1, paddingRight: 12 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: COLORS.text }} numberOfLines={1}>{o?.buyer?.fullName || 'Buyer'}</Text>
-                  <Text style={{ fontSize: 11, color: COLORS.textLight }} numberOfLines={1}>{o?.product?.title || 'Product'}</Text>
+              <View key={o.id || i} style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingVertical: 12, borderTopWidth: i===0?0:1, borderColor: COLORS.border }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#ECFDF5', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                    <Ionicons name="person" size={20} color={COLORS.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: COLORS.text }} numberOfLines={1}>{o?.buyer?.fullName || 'Buyer'}</Text>
+                    <Text style={{ fontSize: 11, color: COLORS.textLight }} numberOfLines={1}>{o?.product?.title || ''}</Text>
+                  </View>
                 </View>
-                <Text style={{ fontSize: 14, fontWeight: '900', color: COLORS.text }}>{formatCurrency(o.totalAmount)}</Text>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ fontSize: 14, fontWeight: '900', color: COLORS.text }}>{formatCurrency(o.totalAmount)}</Text>
+                  <Ionicons name="checkmark-circle" size={18} color="#10b981" style={{ marginTop: 6 }} />
+                </View>
               </View>
             ))}
           </View>
         )}
       </View>
-      <View style={{ height: 60 }} />
-    </ScrollView>
-  )
-}
-
-function LegendDot({ color, label }) {
-  return (
-    <View style={{ flexDirection:'row', alignItems:'center', gap: 6 }}>
-      <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: color }} />
-      <Text style={{ color: COLORS.text, fontWeight: '700' }}>{label}</Text>
-    </View>
+        <View style={{ height: 60 }} />
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   )
 }

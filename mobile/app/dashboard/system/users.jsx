@@ -1,9 +1,8 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react'
-import { View, Text, TouchableOpacity, ScrollView, Alert, Dimensions } from 'react-native'
-import { PieChart } from 'react-native-gifted-charts'
+import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native'
 import { getJSON, postJSON } from '../../../context/api'
 import StickySections from '../../../components/analytics/StickySections'
-import SimpleLineChart from '../../../components/charts/SimpleLineChart'
+import { VictoryLine, VictoryChart, VictoryAxis, VictoryTheme, VictoryArea, VictoryPie } from 'victory-native'
 
 // Stable constants for chart labeling
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -27,6 +26,7 @@ export default function Users() {
   const [usersLocal, setUsersLocal] = useState(null)
   const [usersError, setUsersError] = useState('')
   const [activeMenuId, setActiveMenuId] = useState(null)
+  const [chartWidth, setChartWidth] = useState(0)
   const COLW = useMemo(() => ({ name: 220, role: 120, joined: 110, status: 100, actions: 80 }), [])
   const widthScale = useMemo(() => Math.max(0.8, Math.min(1.6, fontScale)), [fontScale])
   const tableBaseWidth = useMemo(() => COLW.name + COLW.role + COLW.joined + COLW.status + COLW.actions, [COLW])
@@ -184,9 +184,8 @@ export default function Users() {
 
   const distro = [Number(data?.totals?.farmers ?? 0), Number(data?.totals?.buyers ?? 0)]
 
-  // Prepare growth series aggregated by month for Sep->Dec so the chart shows that window.
-  // Aggregate counts into Sep-Dec buckets (sum across years); fallback to zeros if no data
-  const monthlyAgg = useMemo(() => {
+  // Prepare growth data for display
+  const expandedChartData = useMemo(() => {
     const growthRaw = Array.isArray(data?.growth) ? data.growth : []
     const buckets = { 8:0, 9:0, 10:0, 11:0 }
     if (growthRaw.length) {
@@ -199,94 +198,11 @@ export default function Users() {
         } catch { continue }
       }
     }
-    // Force the first month (Sep) to 0 so the chart starts at the x/y intersection
-    buckets[8] = 0
-    // Ensure we return values in Sep,Oct,Nov,Dec order and cap to max 7 for visual scale
-    return TARGET_MONTHS.map(m => Math.max(0, Math.min(7, Math.round(buckets[m] || 0))))
+    return TARGET_MONTHS.map(m => ({ 
+      value: Math.round(buckets[m] || 0), 
+      label: MONTH_NAMES[m] 
+    }))
   }, [data])
-
-  // Build chart data (Sep..Dec). To avoid bezier undershoot, create a gentle rise and plateau:
-  // - ensure Sep (index 0) is 0
-  // - find peak and extend it across later months to form a plateau
-  const chartData = useMemo(() => {
-    const base = monthlyAgg.slice(0, 4)
-    if (!base || base.length !== 4) return []
-    // Ensure Sep starts at 0
-    base[0] = 0
-    // Find peak (first occurrence of max)
-    const maxVal = Math.max(...base)
-    const peakIndex = base.indexOf(maxVal)
-    // If peak exists, extend plateau from peakIndex to end
-    if (peakIndex >= 0 && maxVal > 0) {
-      for (let i = peakIndex; i < base.length; i++) base[i] = maxVal
-    }
-    return base.map((v, i) => ({ value: v, label: MONTH_NAMES[TARGET_MONTHS[i]] }))
-  }, [monthlyAgg])
-
-  // Build an expanded 5-point series for a smooth wave-like curve matching the reference image.
-  // We create two Sep anchors (one near 0, one small rise), then Oct/Nov/Dec plateau at peak.
-  const expandedChartData = useMemo(() => {
-    if (!Array.isArray(chartData) || chartData.length < 4) {
-      // fallback: map whatever we have
-      return (Array.isArray(chartData) ? chartData : []).map(d => ({ value: Number(d?.value || 0), label: d?.label }))
-    }
-
-    const o = Number(chartData[1]?.value || 0)
-    const n = Number(chartData[2]?.value || 0)
-    const d = Number(chartData[3]?.value || 0)
-
-    // Determine visual peak (cap to 6 to match design)
-    let peak = Math.max(o, n, d)
-    peak = Math.min(6, Math.max(0, Math.round(peak)))
-
-    // Small rise in the second Sep point: proportional to Oct but at least 1 when there's growth
-    const small = peak > 0 ? Math.max(1, Math.round(o * 0.18)) : 0
-
-    // If no peak (all zeros), just return the original 4 points mapped
-    if (peak === 0) return chartData.map(d => ({ value: Number(d.value || 0), label: d.label }))
-
-    const labels = [chartData[0].label || 'Sep', chartData[0].label || 'Sep', chartData[1].label || 'Oct', chartData[2].label || 'Nov', chartData[3].label || 'Dec']
-
-    return [
-      { value: 0, label: labels[0] },
-      { value: Math.min(peak, small), label: labels[1] },
-      { value: peak, label: labels[2] },
-      { value: peak, label: labels[3] },
-      { value: peak, label: labels[4] },
-    ]
-  }, [chartData])
-
-  const chartVals = useMemo(() => {
-    if (Array.isArray(expandedChartData) && expandedChartData.length) {
-      // If we have the 5-point expanded series (Sep, Sep, Oct, Nov, Dec), merge the two Sep anchors
-      if (expandedChartData.length === 5) {
-        // Force September to start at 0 (first signup on Sep 20) and keep Oct/Nov/Dec values
-        return [0, Number(expandedChartData[2].value || 0), Number(expandedChartData[3].value || 0), Number(expandedChartData[4].value || 0)]
-      }
-      // If there are only 4 points (already Sep..Dec), ensure Sep is zero
-      if (expandedChartData.length === 4) {
-        const vals = expandedChartData.map(d => Number(d.value || 0))
-        vals[0] = 0
-        return vals
-      }
-      return expandedChartData.map((d, i) => Number((i === 0 ? 0 : d.value) || 0))
-    }
-    return [0, 1, 4, 4]
-  }, [expandedChartData])
-
-  const screenW = Dimensions.get('window').width
-  const chartWidth = Math.max(280, Math.min(360, Math.round(screenW - 48)))
-
-  // Build the data array for SimpleLineChart. To stop the line between Nov and Dec,
-  // keep four logical points (Sep, Oct, Nov, Dec) but position the Dec point with an
-  // xFrac (fraction across the inner width) slightly less than 1 so it lands between
-  // Nov and Dec labels.
-  const chartDataForSimple = useMemo(() => {
-    if (!Array.isArray(chartVals) || chartVals.length < 4) return chartVals
-    // last point (Dec) will be placed at ~85% of the inner width (between Nov and Dec)
-    const last = chartVals[3]
-    return [ chartVals[0], chartVals[1], chartVals[2], { y: last, xFrac: 0.85 } ]
-  }, [chartVals])
 
   const header = (
     <View style={{ paddingTop:16, paddingBottom:8, paddingHorizontal:0 }}>
@@ -303,18 +219,58 @@ export default function Users() {
       title: 'New Users Growth',
       render: () => (
         <View style={{ paddingHorizontal:0, paddingBottom:6 }}>
-          <View style={{ backgroundColor:'#fff', borderRadius:8, padding:12, elevation:1, marginHorizontal:0, alignItems:'center' }}>
-            <SimpleLineChart
-              data={chartDataForSimple}
-              width={chartWidth}
-              height={180}
-              color={'#4f46e5'}
-              area
-              strokeWidth={2}
-              ticks={6}
-              maxY={6}
-              axis={{ xLabels: ['Sep','Oct','Nov','Dec'] }}
-            />
+          <View style={{ backgroundColor:'#fff', borderRadius:8, padding:12, elevation:1, marginHorizontal:0 }} onLayout={(e)=> setChartWidth(e?.nativeEvent?.layout?.width || 0)}>
+            <Text style={{ fontSize:14, fontWeight:'700', marginBottom:12, color:'#111827' }}>User Signups (Sep - Dec)</Text>
+            {chartWidth <= 0 ? (
+              <Text style={{ color:'#6b7280' }}>Loading chart…</Text>
+            ) : expandedChartData && expandedChartData.length > 0 ? (
+              <View style={{ alignItems:'center' }}>
+                <VictoryChart
+                  width={Math.max(0, chartWidth - 24)}
+                  height={200}
+                  padding={{ top: 20, bottom: 40, left: 50, right: 20 }}
+                  theme={VictoryTheme.material}
+                >
+                  <VictoryAxis
+                    tickValues={expandedChartData.map((_, i) => i + 1)}
+                    tickFormat={(t) => expandedChartData[t - 1]?.label || ''}
+                    style={{
+                      tickLabels: { fontSize: 11, fill: '#6b7280' },
+                      grid: { stroke: 'transparent' }
+                    }}
+                  />
+                  <VictoryAxis
+                    dependentAxis
+                    tickFormat={(v) => Math.round(v)}
+                    style={{
+                      grid: { stroke: '#f3f4f6' },
+                      tickLabels: { fontSize: 11, fill: '#6b7280' }
+                    }}
+                  />
+                  <VictoryArea
+                    data={expandedChartData.map((d, i) => ({ x: i + 1, y: d.value }))}
+                    style={{
+                      data: {
+                        fill: '#4f46e5',
+                        fillOpacity: 0.2,
+                        stroke: '#4f46e5',
+                        strokeWidth: 2
+                      }
+                    }}
+                    interpolation="monotoneX"
+                  />
+                  <VictoryLine
+                    data={expandedChartData.map((d, i) => ({ x: i + 1, y: d.value }))}
+                    style={{
+                      data: { stroke: '#4f46e5', strokeWidth: 2 }
+                    }}
+                    interpolation="monotoneX"
+                  />
+                </VictoryChart>
+              </View>
+            ) : (
+              <Text style={{ color:'#6b7280' }}>No growth data available</Text>
+            )}
           </View>
         </View>
       )
@@ -323,27 +279,40 @@ export default function Users() {
       title: 'User Roles',
       render: () => (
         <View style={{ paddingHorizontal:0, paddingVertical:6 }}>
-          <View style={{ backgroundColor:'#fff', borderRadius:8, padding:16, alignItems:'center', marginHorizontal:0 }}>
+          <View style={{ backgroundColor:'#fff', borderRadius:8, padding:16, marginHorizontal:0 }}>
             { (distro[0] + distro[1]) > 0 ? (
               <>
-                <PieChart
-                  data={[
-                    { value: Number(distro[0] || 0), color: '#4f46e5' },
-                    { value: Number(distro[1] || 0), color: '#93c5fd' },
-                  ]}
-                  donut
-                  innerRadius={36}
-                  radius={60}
-                  showText={false}
-                />
-                <View style={{ flexDirection:'row', alignItems:'center', gap:12, marginTop:12 }}>
-                  <View style={{ flexDirection:'row', alignItems:'center', marginRight:16 }}>
-                    <View style={{ width:10, height:10, borderRadius:5, backgroundColor:'#4f46e5', marginRight:8 }} />
-                    <Text style={{ color:'#6b7280' }}>Farmers: {distro[0]}</Text>
+                <View style={{ alignItems:'center' }}>
+                  <VictoryPie
+                    data={[
+                      { x: 'Farmers', y: distro[0] },
+                      { x: 'Buyers', y: distro[1] }
+                    ]}
+                    width={200}
+                    height={200}
+                    innerRadius={60}
+                    colorScale={['#4f46e5', '#93c5fd']}
+                    labels={() => null}
+                  />
+                </View>
+                <View style={{ marginTop: 16 }}>
+                  <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+                    <View style={{ flexDirection:'row', alignItems:'center' }}>
+                      <View style={{ width:12, height:12, borderRadius:6, backgroundColor:'#4f46e5', marginRight:8 }} />
+                      <Text style={{ color:'#374151', fontWeight:'600' }}>Farmers</Text>
+                    </View>
+                    <Text style={{ color:'#111827', fontWeight:'700', fontSize:16 }}>{distro[0]}</Text>
                   </View>
-                  <View style={{ flexDirection:'row', alignItems:'center' }}>
-                    <View style={{ width:10, height:10, borderRadius:5, backgroundColor:'#93c5fd', marginRight:8 }} />
-                    <Text style={{ color:'#6b7280' }}>Buyers: {distro[1]}</Text>
+                  <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+                    <View style={{ flexDirection:'row', alignItems:'center' }}>
+                      <View style={{ width:12, height:12, borderRadius:6, backgroundColor:'#93c5fd', marginRight:8 }} />
+                      <Text style={{ color:'#374151', fontWeight:'600' }}>Buyers</Text>
+                    </View>
+                    <Text style={{ color:'#111827', fontWeight:'700', fontSize:16 }}>{distro[1]}</Text>
+                  </View>
+                  <View style={{ marginTop:8, paddingTop:12, borderTopWidth:1, borderTopColor:'#f3f4f6', flexDirection:'row', justifyContent:'space-between' }}>
+                    <Text style={{ color:'#6b7280', fontWeight:'600' }}>Total Users</Text>
+                    <Text style={{ color:'#4f46e5', fontWeight:'800', fontSize:18 }}>{distro[0] + distro[1]}</Text>
                   </View>
                 </View>
               </>

@@ -294,7 +294,7 @@ export default function MyListings() {
 	return (
 		<View style={styles.container}>
 			<View style={styles.header}>
-				<TouchableOpacity onPress={() => router.back()}><Text style={styles.back}>{'<'} Back</Text></TouchableOpacity>
+				<View style={{ width: 56 }} />
 				<Text style={styles.headerTitle}>My Listings</Text>
 				<View style={styles.headerActions}>
 					<TouchableOpacity onPress={toggleSelectionMode} style={styles.headerBtn} activeOpacity={0.7}>

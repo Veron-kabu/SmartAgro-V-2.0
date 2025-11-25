@@ -414,25 +414,28 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
       setListingThumbRaw(null)
       return
     }
-    let next = listingThumbRaw
-    // Try a few times to avoid picking the same image when we have options
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const idx = Math.floor(Math.random() * withImages.length)
-      const candidate = withImages[idx].images[0]
-      if (candidate && candidate !== listingThumbRaw) {
-        next = candidate
-        break
+    // Use functional updater to read the latest value and avoid creating
+    // a dependency on `listingThumbRaw` which would make this callback
+    // change every time the thumb updates (causing an effect loop).
+    setListingThumbRaw(prev => {
+      let next = prev
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const idx = Math.floor(Math.random() * withImages.length)
+        const candidate = withImages[idx].images[0]
+        if (candidate && candidate !== prev) {
+          next = candidate
+          break
+        }
+        if (attempt === 4) next = candidate
       }
-      // If we only have one option or keep hitting the same, accept it on the last try
-      if (attempt === 4) next = candidate
-    }
-    setListingThumbRaw(next || null)
-  }, [recentProducts, listingThumbRaw])
+      return next || null
+    })
+  }, [recentProducts])
 
   // When recentProducts change, (re)seed the random listing image
   useEffect(() => {
     pickRandomListingThumb()
-  }, [recentProducts, pickRandomListingThumb])
+  }, [pickRandomListingThumb])
 
   // (Removed inline avatar/banner/stats effects in favor of hooks)
 

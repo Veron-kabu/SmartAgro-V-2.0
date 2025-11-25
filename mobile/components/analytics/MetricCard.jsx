@@ -1,7 +1,7 @@
 import { View, Text } from 'react-native'
 import { COLORS } from '../../constants/colors'
 
-export default function MetricCard({ title, value, trend = 0, chart = null, hint }) {
+export default function MetricCard({ title, value, trend = 0, hint }) {
   const trendColor = trend > 0 ? '#16a34a' : trend < 0 ? '#ef4444' : '#6b7280'
   const trendSign = trend > 0 ? '+' : ''
   return (
@@ -13,7 +13,6 @@ export default function MetricCard({ title, value, trend = 0, chart = null, hint
           <Text style={{ color: trendColor, fontSize: 12, fontWeight: '700' }}>{trendSign}{trend}%</Text>
         </View>
       </View>
-      {chart ? <View style={{ marginTop: 8 }}>{chart}</View> : null}
       {hint ? <Text style={{ marginTop: 6, fontSize: 11, color: '#6b7280' }}>{hint}</Text> : null}
     </View>
   )

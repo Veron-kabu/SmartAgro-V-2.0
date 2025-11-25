@@ -179,8 +179,9 @@ router.get('/analytics/marketplace', ensureAuth(), requireRole(['admin']), async
     `)
     // Top farmers by delivered sales (filter only users with role='farmer')
     const topFarmers = await db.execute(sql`
-      select o.farmer_id as farmerId,
+      select o.farmer_id as "farmerId",
              count(*)::int as sales,
+             sum(o.total_amount::numeric)::float as revenue,
              u.email as email,
              u.username as username,
              u.full_name as full_name
