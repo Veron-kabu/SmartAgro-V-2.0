@@ -21,6 +21,7 @@ export default function EditProduct() {
   const [discount, setDiscount] = useState('')
   const [active, setActive] = useState(true)
   const [description, setDescription] = useState('')
+  const [keyFeaturesText, setKeyFeaturesText] = useState('')
   const [orig, setOrig] = useState(null)
   const [dirty, setDirty] = useState(false)
   // Images state (support up to 5)
@@ -43,6 +44,7 @@ export default function EditProduct() {
       setDiscount(String(p.discountPercent || 0))
       setActive(p.status === 'active')
   setDescription(typeof p.description === 'string' ? p.description : '')
+    setKeyFeaturesText(Array.isArray(p.keyFeatures) ? p.keyFeatures.join('\n') : (Array.isArray(p.features) ? p.features.join('\n') : ''))
   // Load all existing images (max 5)
   setImages(Array.isArray(p.images) ? p.images.slice(0,5) : [])
       setImagesAdded([]); setImagesRemoved([])
@@ -127,7 +129,11 @@ export default function EditProduct() {
     if (!canSave) return
     setSaving(true)
     const optimisticPrev = { ...orig }
-  const optimisticNext = { ...orig, price: Number(price), quantityAvailable: Number(quantity), discountPercent: Number(discount), status: active ? 'active' : 'inactive', images, description: description.trim() || null }
+    // prepare features array for optimistic UI and payload
+    const featuresArr = (typeof keyFeaturesText === 'string')
+      ? keyFeaturesText.split('\n').map(s => s.trim()).filter(Boolean)
+      : []
+  const optimisticNext = { ...orig, price: Number(price), quantityAvailable: Number(quantity), discountPercent: Number(discount), status: active ? 'active' : 'inactive', images, description: description.trim() || null, keyFeatures: featuresArr }
     setOrig(optimisticNext) // optimistic UI
     try {
       const body = {
@@ -137,12 +143,16 @@ export default function EditProduct() {
         status: active ? 'active' : 'inactive',
         description: description.trim()
       }
+      // send key_features as array of non-empty trimmed lines
+      if (featuresArr.length > 0) body.key_features = featuresArr
       if (imagesAdded.length > 0) body.images_add = imagesAdded
       if (imagesRemoved.length > 0) body.images_remove = imagesRemoved
       const updated = await patchJSON(`/api/products/${numericId}`, body)
       track(ANALYTICS_EVENTS.PRODUCT_UPDATED, { productId: numericId })
       setOrig(updated)
       setImages(Array.isArray(updated?.images) ? updated.images : images)
+      // reflect returned keyFeatures if backend returns it
+      setKeyFeaturesText(Array.isArray(updated?.keyFeatures) ? updated.keyFeatures.join('\n') : (featuresArr.join('\n') || ''))
       setImagesAdded([]); setImagesRemoved([])
       setDirty(false)
       Alert.alert('Saved', 'Product updated')
@@ -192,6 +202,17 @@ export default function EditProduct() {
             numberOfLines={4}
             textAlignVertical='top'
             maxLength={1000}
+          />
+          <Text style={styles.label}>Key Features (one per line)</Text>
+          <TextInput
+            value={keyFeaturesText}
+            onChangeText={(v)=>{ setKeyFeaturesText(v); markDirty() }}
+            style={[styles.input, styles.multilineInput]}
+            placeholder='List important features, one per line (optional)'
+            multiline
+            numberOfLines={4}
+            textAlignVertical='top'
+            maxLength={2000}
           />
           <Text style={styles.charCount}>{description.length}/1000</Text>
 

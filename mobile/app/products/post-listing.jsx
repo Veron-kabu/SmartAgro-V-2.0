@@ -19,6 +19,7 @@ export default function PostListing() {
   const toast = useToast()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [keyFeaturesText, setKeyFeaturesText] = useState('')
   const [price, setPrice] = useState('')
   const [unit, setUnit] = useState('kg')
   const [quantity, setQuantity] = useState('')
@@ -233,6 +234,9 @@ export default function PostListing() {
         is_organic: false,
         discount_percent: discountPercent === '' ? 0 : Math.min(Math.max(Number(discountPercent)||0,0),90),
       }
+      // include key features as array of trimmed non-empty lines
+      const featuresArr = (typeof keyFeaturesText === 'string') ? keyFeaturesText.split('\n').map(s => s.trim()).filter(Boolean) : []
+      if (featuresArr.length > 0) payload.key_features = featuresArr
   const created = await postJSON('/api/products', payload)
   setPosted({ ...payload, id: created?.id, image: payload.images?.[0] })
   // Broadcast creation so Home, My Listings, and Profile can update instantly
@@ -310,6 +314,9 @@ export default function PostListing() {
 
       <Text style={styles.label}>Description</Text>
       <TextInput style={[styles.input, styles.multiline]} value={description} onChangeText={setDescription} placeholder="Describe your product" multiline numberOfLines={4} textAlignVertical="top" />
+
+      <Text style={styles.label}>Key Features (one per line)</Text>
+      <TextInput style={[styles.input, styles.multiline]} value={keyFeaturesText} onChangeText={setKeyFeaturesText} placeholder="List key features, one per line (optional)" multiline numberOfLines={4} textAlignVertical="top" />
 
       <Text style={styles.label}>Price</Text>
   <TextInput style={[styles.input, errors.price && styles.inputError]} value={price} onChangeText={(v)=>{ setPrice(v); if(errors.price) setErrors(e=>({...e, price: undefined})) }} placeholder="Enter price in Ksh" keyboardType="decimal-pad" />

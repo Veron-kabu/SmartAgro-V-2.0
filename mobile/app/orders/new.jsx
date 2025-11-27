@@ -1,5 +1,6 @@
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useLayoutEffect } from 'react'
+import { useNavigation } from '@react-navigation/native'
 import { View, Text, ActivityIndicator, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { getJSON, postJSON, patchJSON } from '../../context/api'
@@ -14,12 +15,15 @@ import { initiateStkPush, getStkStatus } from '../../utils/mpesa'
 import { COLORS } from '../../constants/colors'
 
 export default function NewOrderScreen() {
-  const { product: productParam } = useLocalSearchParams()
+  const params = useLocalSearchParams()
+  const productParam = params.product
+  const qtyParam = params.qty
   const productId = productParam ? Number(productParam) : null
   const [product, setProduct] = useState(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [quantity, setQuantity] = useState('1')
+  const [quantity, setQuantity] = useState(qtyParam ? String(qtyParam) : '1')
+  const navigation = useNavigation()
   const [deliveryAddress, setDeliveryAddress] = useState('')
   const [deliveryObj, setDeliveryObj] = useState(null)
   const [phone, setPhone] = useState('')
@@ -46,6 +50,11 @@ export default function NewOrderScreen() {
   }, [productId])
 
   useEffect(() => { load() }, [load])
+
+  // Hide native header and use an in-page header for consistent UI
+  useLayoutEffect(() => {
+    try { navigation.setOptions({ headerShown: false }) } catch (_e) {}
+  }, [navigation])
 
   // Prefill delivery address from profile on first render
   useEffect(() => {
@@ -216,17 +225,21 @@ export default function NewOrderScreen() {
   const total = subtotal + shippingCost
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 20 }} style={{ flex:1, backgroundColor: '#f9fafb' }} keyboardShouldPersistTaps="handled">
+    <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }} style={{ flex:1, backgroundColor: COLORS.background }} keyboardShouldPersistTaps="handled">
+      {/* Header removed as requested */}
       {String(profile?.status || '').toLowerCase() === 'suspended' && (
         <View style={{ backgroundColor: '#FEE2E2', borderColor: '#FCA5A5', borderWidth: 1, padding: 12, borderRadius: 8, marginBottom: 12 }}>
           <Text style={{ color: '#B91C1C', fontWeight: '700' }}>Account suspended</Text>
           <Text style={{ color: '#7F1D1D', marginTop: 4, fontSize: 12 }}>You cannot place orders until your account is reactivated.</Text>
         </View>
       )}
-      <View style={styles.card}>
-        <Text style={styles.title}>New Order</Text>
-        <Text style={styles.label}>Product</Text>
-        <Text style={styles.value}>{product.title}</Text>
+      <View style={{ padding: 0, backgroundColor: 'transparent' }}>
+        <View style={{ height: 44, justifyContent: 'center', alignItems: 'center', position: 'relative', marginBottom: 6 }}>
+          <TouchableOpacity onPress={() => router.back()} style={{ position: 'absolute', left: 0, padding: 6 }}>
+            <Ionicons name="arrow-back" size={22} color={COLORS.primary} />
+          </TouchableOpacity>
+          <Text style={[styles.title, { textAlign: 'center', marginLeft: 0 }]}>{product?.title ? product.title : 'New Order'}</Text>
+          </View>
         <Text style={styles.mutedSmall}>
           Price: {discount > 0 ? `${formatCurrency(effectiveUnit)} (was ${formatCurrency(price)})` : formatCurrency(price)} / {product.unit}
         </Text>

@@ -149,6 +149,7 @@ router.post('/products', ensureAuth(), requireNotSuspended(), requireRole(['farm
       return res.status(400).json({ error: 'Invalid category', allowed: Array.from(ALLOWED_CATEGORIES) })
     }
   const { description, minimum_order, harvest_date, expiry_date, images, is_organic, discount_percent } = req.body
+    const key_features = req.body.key_features || req.body.keyFeatures || null
     // Accept up to 5 images; sanitize to absolute HTTP(S) URLs
     const safeImages = Array.isArray(images) && images.length > 0
       ? images
@@ -179,6 +180,9 @@ router.post('/products', ensureAuth(), requireNotSuspended(), requireRole(['farm
         address: (address_details && typeof address_details === 'object') ? address_details : null,
       },
   images: safeImages,
+      keyFeatures: Array.isArray(key_features) && key_features.length > 0
+        ? key_features.filter(f => typeof f === 'string').slice(0, 50)
+        : [],
       isOrganic: is_organic,
   discountPercent: typeof discount_percent === 'number' ? Math.min(Math.max(discount_percent, 0), 90) : 0,
       imageBlurhashes: [],
@@ -230,6 +234,7 @@ router.patch('/products/:id', ensureAuth(), requireNotSuspended({ allowAdminBypa
       return res.status(403).json({ error: 'Forbidden (not owner)' })
     }
   const { discount_percent, price, quantity_available, status, images_add, images_remove, description } = req.body || {}
+    const key_features = req.body.key_features || req.body.keyFeatures
     const updates = { updatedAt: new Date() }
     // Optional location update (normalized)
     const rawLoc = req.body.location || null
@@ -286,6 +291,16 @@ router.patch('/products/:id', ensureAuth(), requireNotSuspended({ allowAdminBypa
         }
       } else {
         return res.status(400).json({ error: 'Invalid description' })
+      }
+    }
+    // Key features (optional) – accept array of strings or null to clear
+    if (Object.prototype.hasOwnProperty.call(req.body, 'key_features') || Object.prototype.hasOwnProperty.call(req.body, 'keyFeatures')) {
+      if (key_features === null) {
+        updates.keyFeatures = []
+      } else if (Array.isArray(key_features)) {
+        updates.keyFeatures = key_features.filter(f => typeof f === 'string').slice(0, 50)
+      } else {
+        return res.status(400).json({ error: 'Invalid key_features' })
       }
     }
     // Images mutation logic

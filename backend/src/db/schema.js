@@ -72,6 +72,7 @@ export const productsTable = pgTable("products", {
   // Deprecated: legacy blob used before OSM/Nominatim refactor. Keep for backward-compat
   location: jsonb("location"),
   images: jsonb("images").default([]),
+  keyFeatures: jsonb("key_features").default([]),
   thumbnails: jsonb("thumbnails").default([]),
   imageBlurhashes: jsonb("image_blurhashes").default([]),
   isOrganic: boolean("is_organic").default(false),

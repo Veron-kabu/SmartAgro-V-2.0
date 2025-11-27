@@ -8,12 +8,17 @@ export default function StarRating({ value = 0, max = 5, size = 20, color = '#f5
   for (let i = 1; i <= max; i++) {
     // Determine full / half / empty for this star index
     let iconName = 'star-border'
+    // Default outline color (muted)
     let iconColor = '#d1d5db'
     if (v >= i) {
       iconName = 'star'
       iconColor = color
     } else if (v >= i - 0.5) {
       iconName = 'star-half'
+      iconColor = color
+    } else if (editable) {
+      // When editable, show the outline in the active color so the pressed state
+      // and the outline match visually.
       iconColor = color
     }
     const starIcon = (

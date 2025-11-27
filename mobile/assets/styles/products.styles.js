@@ -11,7 +11,7 @@ export const productDetailStyles = StyleSheet.create({
     position: 'relative', 
     width: '100%', 
     height: 300, 
-    backgroundColor: COLORS.border,
+    backgroundColor: COLORS.background,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden'
@@ -19,7 +19,8 @@ export const productDetailStyles = StyleSheet.create({
   heroImage: { 
     width: '100%', 
     height: '100%',
-    alignSelf: 'stretch'
+    alignSelf: 'stretch',
+    backgroundColor: 'transparent'
   },
   dotsWrap: { 
     position: 'absolute', 
@@ -106,20 +107,26 @@ export const productDetailStyles = StyleSheet.create({
   },
   sheet: { 
     marginTop: 0, 
-    backgroundColor: COLORS.card, 
+    backgroundColor: COLORS.background, 
     borderTopLeftRadius: 0, 
     borderTopRightRadius: 0, 
     padding: 24, 
     minHeight: 340 
   },
   title: { 
-    fontSize: 20, 
+    fontSize: 24, 
     fontWeight: '700', 
     color: COLORS.text, 
     marginBottom: 6 
   },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 8
+  },
   price: { 
-    fontSize: 20, 
+    fontSize: 24, 
     fontWeight: '700', 
     color: COLORS.text 
   },
@@ -207,10 +214,9 @@ export const productDetailStyles = StyleSheet.create({
     color: COLORS.text 
   },
   addBtn: { 
-    marginTop: 18, 
     backgroundColor: COLORS.primary, 
     paddingVertical: 14, 
-    borderRadius: 32, 
+    borderRadius: 28, 
     alignItems: 'center' 
   },
   addBtnDisabled: { 

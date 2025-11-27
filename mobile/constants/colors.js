@@ -359,49 +359,48 @@ const roseGoldTheme = {
 };
 
 const SmartAgroTheme = {
-  // Neutral, soft UI with reserved accents
-  primary: "#111827", // dark slate for headings/primary accents
-  background: "#F6F7F9", // very light gray page background
-  text: "#0F1724", // nearly-black for strong headings
-  border: "#E6E9EE", // soft border
+  primary: "#2E7D32",
+  background: "#E8F5E9",
+  text: "#000000",
+  border: "#C8E6C9",
   white: "#FFFFFF",
-  textLight: "#6B7280", // muted body text
-  card: "#FFFFFF", // card surface
-  shadow: "rgba(16,24,40,0.06)",
+  textLight: "#333333",
+  card: "#FFFFFF",
+  shadow: "#000000",
   // Profile and dashboard specific colors
   error: "#DC2626",
   errorLight: "#FEF2F2",
   warning: "#F59E0B",
   warningText: "#111827",
   // New colors for modern chat interface
-  online: "#10B981",
-  offline: "#9CA3AF",
-  divider: "#E6E9EE",
-  messagePreview: "#9CA3AF",
-  timestamp: "#9CA3AF",
-  unreadBadge: "#EF4444",
+  online: "#4CAF50",
+  offline: "#9E9E9E",
+  divider: "#E0E0E0",
+  messagePreview: "#757575",
+  timestamp: "#9E9E9E",
+  unreadBadge: "#FF5722",
   // Chat interface specific colors
-  chatBubbleUser: "#111827",
-  chatBubbleOther: "#F3F4F6",
+  chatBubbleUser: "#2E7D32",
+  chatBubbleOther: "#F0F0F0",
   chatBubbleText: "#FFFFFF",
-  chatBubbleTextOther: "#111827",
-  inputBackground: "#F3F4F6",
-  inputBorder: "#E6E9EE",
-  sendButton: "#111827",
-  messageTime: "#9CA3AF",
+  chatBubbleTextOther: "#000000",
+  inputBackground: "#F8F8F8",
+  inputBorder: "#E0E0E0",
+  sendButton: "#2E7D32",
+  messageTime: "#999999",
   chatHeaderBg: "#FFFFFF",
   // WhatsApp-style dark chat colors
   chatDarkBg: "#1C1C1C",
   chatPatternBg: "#242424",
   receivedBubble: "#2A2A2A",
-  sentBubble: "#111827",
-  receivedText: "#E6E9EE",
+  sentBubble: "#2E7D32",
+  receivedText: "#C8E6C9",
   sentText: "#FFFFFF",
-  chatTimestamp: "#10B981",
+  chatTimestamp: "#66BB6A",
   messageInputBg: "#2A2A2A",
-  messageInputText: "#E6E9EE",
-  messageInputPlaceholder: "#9CA3AF",
-  sendButtonBg: "#111827",
+  messageInputText: "#C8E6C9",
+  messageInputPlaceholder: "#66BB6A",
+  sendButtonBg: "#2E7D32",
 };
 // Badge colors for market price changes
 SmartAgroTheme.badgeUpBg = '#d1fae5'

@@ -1,5 +1,6 @@
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router'
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef, useLayoutEffect } from 'react'
+import { useNavigation } from '@react-navigation/native'
 import { View, Text, TouchableOpacity, ScrollView, Alert, Share, Dimensions, Image, StyleSheet, TextInput, Keyboard } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { getJSON, postJSON, deleteJSON } from '../../context/api'
@@ -10,7 +11,6 @@ import Shimmer from '../../components/Shimmer'
 import { useCart } from '../../context/cart'
 import { track } from '../../utils/analytics'
 import { ANALYTICS_EVENTS } from '../../constants/analyticsEvents'
-// Removed unused BackButton import (not used in this view)
 import { productDetailStyles as styles } from '../../assets/styles/products.styles'
 import { COLORS } from '../../constants/colors'
 import StarRating from '../../components/StarRating'
@@ -41,6 +41,7 @@ export default function ProductDetail() {
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [submittingReview, setSubmittingReview] = useState(false)
   const { profile } = useProfile()
+  const navigation = useNavigation()
   const isAdmin = String(profile?.role || '').toLowerCase() === 'admin'
   const isSuspended = String(profile?.status || '').toLowerCase() === 'suspended'
   const isOwner = profile?.role === 'farmer' && profile?.id === product?.farmerId
@@ -153,6 +154,11 @@ export default function ProductDetail() {
   track(ANALYTICS_EVENTS.PRODUCT_SHARED, { productId: product.id })
     } catch { /* ignore */ }
   }
+
+  // Hide native header and use an in-page header for easier control
+  useLayoutEffect(() => {
+    try { navigation.setOptions({ headerShown: false }) } catch (_e) {}
+  }, [navigation])
 
   const submitReview = async () => {
     Keyboard.dismiss()
@@ -354,6 +360,23 @@ export default function ProductDetail() {
     return 'Unknown'
   }
 
+  // Local header styles for the in-page header
+  const localHeaderStyles = StyleSheet.create({
+    header: {
+      height: 31,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 10,
+      backgroundColor: COLORS.background,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: COLORS.border,
+    },
+    leftBtn: { padding: 6 },
+    title: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginLeft: 38 },
+    rightActions: { flexDirection: 'row', alignItems: 'center' },
+  })
+
   return (
     <View style={styles.container}>
       {loading && (
@@ -361,7 +384,26 @@ export default function ProductDetail() {
           <Shimmer style={{ flex:1 }} />
         </View>
       )}
-  <ScrollView contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
+
+      {/* In-page header: back, centered title, actions */}
+      <View style={localHeaderStyles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={localHeaderStyles.leftBtn}>
+          <Ionicons name="arrow-back" size={20} color={COLORS.primary} />
+        </TouchableOpacity>
+        <Text style={localHeaderStyles.title}>Product</Text>
+        <View style={localHeaderStyles.rightActions}>
+          {!isOwner && (
+            <TouchableOpacity onPress={toggleFavorite} disabled={checkingFav} style={{ padding: 6, marginRight: 8 }}>
+              <Ionicons name={(favorited || isFavorited(numericId)) ? 'heart' : 'heart-outline'} size={20} color={(favorited || isFavorited(numericId)) ? COLORS.primary : COLORS.text} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={shareProduct} style={{ padding: 6 }}>
+            <Ionicons name="share-social-outline" size={20} color={COLORS.text} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
         <View style={styles.heroWrap}>
           {headerCarousel()}
           {imageCount > 1 && (
@@ -371,19 +413,7 @@ export default function ProductDetail() {
               ))}
             </View>
           )}
-          <View style={styles.topButtons}>
-            <View style={styles.navBtn} />
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              {!isOwner && (
-                <TouchableOpacity style={[styles.circleBtn, (favorited || isFavorited(numericId)) && styles.circleBtnActive]} onPress={toggleFavorite} disabled={checkingFav}>
-                  <Ionicons name={(favorited || isFavorited(numericId)) ? 'heart' : 'heart-outline'} size={18} color={(favorited || isFavorited(numericId)) ? COLORS.white : COLORS.text} />
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity style={styles.circleBtn} onPress={shareProduct}>
-                <Ionicons name="share-social-outline" size={18} color={COLORS.text} />
-              </TouchableOpacity>
-            </View>
-          </View>
+          <View style={styles.topButtons} />
           {product?.discountPercent > 0 && (
             <View style={[styles.discountBadge, { backgroundColor: COLORS.warningText }]}><Text style={styles.discountBadgeText}>-{product.discountPercent}%</Text></View>
           )}
@@ -391,6 +421,45 @@ export default function ProductDetail() {
             <View style={[styles.discountBadgeSecondary]}><Text style={styles.discountBadgeSecondaryText}>ORGANIC</Text></View>
           )}
         </View>
+        {/* Thumbnail strip below hero image (use resolvedImages or fall back to product.images) */}
+        {(() => {
+          const thumbs = (resolvedImages && resolvedImages.length > 0)
+            ? resolvedImages
+            : (Array.isArray(product?.images) ? product.images : [])
+          if (!Array.isArray(thumbs) || thumbs.length === 0) return null
+          return (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6 }}
+            >
+              {thumbs.map((url, idx) => {
+                // support objects with { url } as well as raw string urls
+                const uri = (url && typeof url === 'object' && url.url) ? url.url : (typeof url === 'string' ? url : undefined)
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    onPress={() => {
+                      setCarouselIndex(idx)
+                      try { scrollRef.current?.scrollTo({ x: idx * screenWidth, animated: true }) } catch {}
+                    }}
+                    style={{ marginRight: 8 }}
+                  >
+                    {uri ? (
+                      <Image
+                        source={{ uri }}
+                        style={{ width: 68, height: 68, borderRadius: 8, borderWidth: carouselIndex === idx ? 2 : 1, borderColor: carouselIndex === idx ? COLORS.primary : COLORS.border }}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={{ width: 68, height: 68, borderRadius: 8, backgroundColor: COLORS.divider }} />
+                    )}
+                  </TouchableOpacity>
+                )
+              })}
+            </ScrollView>
+          )
+        })()}
 
         {error ? (
           <View style={{ padding: 16, alignItems:'center' }}>
@@ -399,31 +468,21 @@ export default function ProductDetail() {
           </View>
         ) : !product ? null : (
           <View style={styles.sheet}>
-            <View style={{ flexDirection:'row', alignItems:'center', flexWrap:'wrap', gap:8 }}>
-              {(() => {
-                const status = (product.status || '').toLowerCase()
-                const qty = Number(product.quantityAvailable||0)
-                let label = 'Active'
-                let bg = COLORS.inputBackground; let fg = COLORS.text
-                if (status && status !== 'active') {
-                  if (status === 'sold') { label='Sold'; bg=COLORS.errorLight; fg=COLORS.error }
-                  else if (status === 'expired') { label='Expired'; bg=COLORS.divider; fg=COLORS.text }
-                  else if (status === 'inactive') { label='Inactive'; bg=COLORS.errorLight; fg=COLORS.warning }
-                  else { label = status }
-                }
-                if (qty === 0) { label='Out of Stock'; bg=COLORS.errorLight; fg=COLORS.error }
-                // Only show a badge when the status is not the default 'Active'
-                if (String(label).toLowerCase() === 'active') return null
-                return <Text style={{ backgroundColor:bg, color:fg, fontSize:10, fontWeight:'700', paddingHorizontal:10, paddingVertical:4, borderRadius:12 }}>{label}</Text>
-              })()}
+            {/* Title */}
+            <Text style={styles.title}>{product.title}</Text>
+
+            {/* Price row: price left, unit (e.g. "per bag") aligned right */}
+            <View style={{ flexDirection:'row', alignItems:'flex-end', justifyContent:'space-between', marginTop: 4 }}>
+              <View style={{ flexDirection:'row', alignItems:'flex-end', gap:8 }}>
+                {product.discountPercent > 0 && (
+                  <Text style={styles.origPrice}>Ksh{Number(product.price).toFixed(2)}</Text>
+                )}
+                <Text style={styles.price}>Ksh{product.discountPercent > 0 ? (Number(product.price) * (1 - product.discountPercent/100)).toFixed(2) : Number(product.price).toFixed(2)}</Text>
+              </View>
+              <Text style={[styles.unit, { textAlign: 'right' }]}>{product.unit ? `per ${product.unit}` : ''}</Text>
             </View>
-            <View style={{ flexDirection:'row', alignItems:'flex-end', gap:8 }}>
-              {product.discountPercent > 0 && (
-                <Text style={styles.origPrice}>Ksh{Number(product.price).toFixed(2)}</Text>
-              )}
-              <Text style={styles.price}>Ksh{product.discountPercent > 0 ? (Number(product.price) * (1 - product.discountPercent/100)).toFixed(2) : Number(product.price).toFixed(2)} <Text style={styles.unit}>/ {product.unit || 'unit'}</Text></Text>
-            </View>
-            {/* Product rating summary (strictly this product) */}
+
+            {/* Rating */}
             <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               {(() => {
                 const count = Array.isArray(reviews) ? reviews.length : 0
@@ -431,81 +490,112 @@ export default function ProductDetail() {
                 return (
                   <>
                     <StarRating value={avg} max={5} size={16} />
-                    <Text style={{ color: COLORS.text, fontSize: 12 }}>
-                      {avg.toFixed(1)} ({count} review{count===1?'':'s'})
-                    </Text>
+                    <Text style={{ color: COLORS.textLight, fontSize: 12 }}>{avg.toFixed(1)} ({count} review{count===1?'':'s'})</Text>
                   </>
                 )
               })()}
             </View>
-            {typeof product.description === 'string' && product.description.trim().length > 0 && (
-              <Text style={styles.desc}>{product.description}</Text>
-            )}
-            <View style={styles.metaRow}>
-              <Text style={styles.metaLabel}>Available:</Text>
-              <Text style={styles.metaValue}>{product.quantityAvailable}</Text>
+
+            {/* Availability */}
+            <View style={{ flexDirection:'row', alignItems:'center', gap:12, marginTop: 8 }}>
+              <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
+                <Ionicons name="cart" size={16} color={COLORS.primary} />
+                <Text style={{ color: COLORS.text, fontWeight:'700' }}>{product.quantityAvailable} in stock</Text>
+              </View>
             </View>
-            {product.minimumOrder && (
-              <View style={styles.metaRow}>
-                <Text style={styles.metaLabel}>Minimum order:</Text>
-                <Text style={styles.metaValue}>{product.minimumOrder}</Text>
-              </View>
-            )}
+
+            {/* Location (moved above Key Features) */}
             {product.location && (
-              <View style={styles.metaRow}>
-                <Text style={styles.metaLabel}>Location:</Text>
-                <Text style={styles.metaValue}>{formatLocation(product.location)}</Text>
+              <View style={{ marginTop: 12, flexDirection:'row', alignItems:'center', gap:6 }}>
+                <Ionicons name="location" size={14} color={COLORS.textLight} />
+                <Text style={{ color: COLORS.textLight }}>{formatLocation(product.location)}</Text>
               </View>
             )}
 
-            {(!profile?.id || profile.id !== product.farmerId) && (
-              <View style={styles.qtyRow}>
-                <Text style={styles.qtyLabel}>Qty</Text>
-                <View style={styles.qtyControls}>
-                  <TouchableOpacity onPress={dec} style={styles.qtyBtn}><Text style={styles.qtyBtnText}>-</Text></TouchableOpacity>
-                  <Text style={styles.qtyValue}>{qty}</Text>
-                  <TouchableOpacity onPress={inc} style={styles.qtyBtn}><Text style={styles.qtyBtnText}>+</Text></TouchableOpacity>
+            {/* Key Features */}
+            {(() => {
+              // Prefer explicit features, fallback to extracting first bullet-like lines from description
+              const features = Array.isArray(product?.features) && product.features.length > 0
+                ? product.features
+                : (Array.isArray(product?.keyFeatures) && product.keyFeatures.length > 0 ? product.keyFeatures : null)
+              let derived = features
+              if (!derived && typeof product.description === 'string') {
+                const lines = product.description.split('\n').map(l => l.trim()).filter(Boolean)
+                if (lines.length > 1) derived = lines.slice(0, 5)
+              }
+              if (!derived) return null
+              return (
+                  <View style={{ marginTop: 16 }}>
+                    <Text style={styles.sectionTitle}>Key Features</Text>
+                    <View style={{ gap: 10 }}>
+                    {derived.map((f, i) => (
+                      <View key={i} style={{ flexDirection:'row', alignItems:'flex-start', gap:10 }}>
+                        <Ionicons name="checkmark-circle" size={18} color={COLORS.primary} style={{ marginTop: 2 }} />
+                        <Text style={{ color: COLORS.textLight, flex: 1 }}>{f}</Text>
+                      </View>
+                    ))}
+                  </View>
                 </View>
-                <Text style={styles.extPrice}>Ksh{((product?.discountPercent>0 ? (Number(product.price)*(1-Number(product.discountPercent)/100)) : Number(product.price)) * qty).toFixed(2)}</Text>
+              )
+            })()}
+
+            {/* Description */}
+            {typeof product.description === 'string' && product.description.trim().length > 0 && (
+              <View style={{ marginTop: 16 }}>
+                <Text style={styles.sectionTitle}>Description</Text>
+                <Text style={styles.desc}>{product.description}</Text>
               </View>
             )}
 
-            {(!profile?.id || profile.id !== product.farmerId) && (
-              <>
-                <View style={{ flexDirection:'row', gap:12, marginTop:28 }}>
-                  <TouchableOpacity 
-                    style={[styles.secondaryActionBtn, (isSuspended || !isVerified) && { opacity: 0.5 }]} 
-                    onPress={() => {
-                      if (!isVerified) {
-                        Alert.alert('Verification Required', 'You must be verified to place orders. Please complete the verification process.')
-                        return
-                      }
-                      router.push(`/orders/new?product=${product.id}`)
-                    }} 
-                    disabled={isSuspended} 
-                    activeOpacity={0.85}
-                  >
-                    <Text style={styles.secondaryActionBtnText}>Order Now</Text>
+            {/* Quantity controls + action buttons (below description) */}
+            <View style={{ marginTop: 16 }}>
+              <View style={styles.qtyRow}>
+                <Text style={styles.qtyLabel}>Quantity</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 8 }}>
+                  <TouchableOpacity onPress={dec} style={styles.qtyBtn} accessibilityLabel="Decrease quantity">
+                    <Text style={styles.qtyBtnText}>−</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.qtyValue}>{qty}</Text>
+                  <TouchableOpacity onPress={inc} style={styles.qtyBtn} accessibilityLabel="Increase quantity">
+                    <Text style={styles.qtyBtnText}>+</Text>
                   </TouchableOpacity>
                 </View>
+                <Text style={{ marginLeft: 12, color: COLORS.textLight }}>Minimum order: {product.minimumOrder || 1}</Text>
+              </View>
+
+              <View style={{ flexDirection: 'row', marginTop: 12, gap: 12 }}>
                 <TouchableOpacity
-                  style={[styles.addBtn, (product.quantityAvailable <= 0 || !isVerified) && styles.addBtnDisabled]}
-                  onPress={() => {
-                    if (!isVerified) {
-                      Alert.alert('Verification Required', 'You must be verified to add items to cart. Please complete the verification process.')
-                      return
-                    }
-                    if (inCart) removeFromCart(); else addToCart()
-                  }}
-                  activeOpacity={0.85}
-                  disabled={product.quantityAvailable <= 0 || !isVerified}
+                  onPress={() => { if (inCart) { removeFromCart() } else { addToCart() } }}
+                  disabled={product.quantityAvailable <= 0}
+                  style={[styles.secondaryActionBtn, { flex: 1 }, (product.quantityAvailable <= 0) && { opacity: 0.6 }]}
                 >
-                  <Text style={styles.addBtnText}>
-                    {product.quantityAvailable === 0 ? 'Out of stock' : (!isVerified ? 'Verification required' : (inCart ? 'Remove from cart' : 'Add to cart'))}
-                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name={inCart ? 'trash' : 'cart'} size={16} color={COLORS.text} style={{ marginRight: 8 }} />
+                    <Text style={styles.secondaryActionBtnText}>{inCart ? 'Remove from cart' : 'Add to cart'}</Text>
+                  </View>
                 </TouchableOpacity>
-              </>
-            )}
+
+                <TouchableOpacity
+                  onPress={async () => {
+                    try {
+                      // Navigate to new order page with product id and qty
+                      router.push({ pathname: '/orders/new', params: { product: String(product.id), qty: String(qty) } })
+                    } catch (_e) {
+                      // Fallback: add to cart then go to cart
+                      await addToCart()
+                      try { router.push('/cart') } catch {}
+                    }
+                  }}
+                  disabled={product.quantityAvailable <= 0}
+                  style={[styles.addBtn, { flex: 1 }, (product.quantityAvailable <= 0) && { opacity: 0.6 }]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="cart" size={16} color={styles.addBtnText?.color || COLORS.white} style={{ marginRight: 8 }} />
+                    <Text style={styles.addBtnText}>Order Now</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
+            </View>
 
             {/* Reviews Section */}
             <View style={{ marginTop: 28 }}>
