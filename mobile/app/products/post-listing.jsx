@@ -248,7 +248,7 @@ export default function PostListing() {
     } finally {
       setSubmitting(false)
     }
-  }, [validate, profile, title, description, price, unit, quantity, location, discountPercent, category, uploadImagesIfNeeded, toast, locationObj])
+  }, [validate, profile, title, description, price, unit, quantity, location, discountPercent, category, uploadImagesIfNeeded, toast, locationObj, keyFeaturesText])
 
   if (posted) {
     return (

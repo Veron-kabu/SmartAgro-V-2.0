@@ -9,7 +9,6 @@ import { Ionicons } from '@expo/vector-icons'
 import { useProfile } from '../../context/profile'
 import { getJSON, postJSON, patchJSON } from '../../context/api'
 import { useDashboardMedia } from '../../hooks/useDashboardMedia'
-// useDashboardStats removed
 import { router, useFocusEffect } from 'expo-router'
 import CountBadge from '../../components/CountBadge'
 import { useChat } from '../../context/chat'
