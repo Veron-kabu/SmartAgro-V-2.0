@@ -172,8 +172,8 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
     }, [refreshVerifCount])
   )
   const totalBadge = (unreadTotal || 0) + (verifNotifCount || 0)
-  // Dashboard listing thumbnail (random from recent products)
-  const [listingThumbRaw, setListingThumbRaw] = useState(null)
+  // Dashboard listing thumbnail (random from recent products) — only setter used elsewhere
+  const [, setListingThumbRaw] = useState(null)
   // Password change state
   const [showPwd, setShowPwd] = useState(false)
   const [currentPwd, setCurrentPwd] = useState('')
@@ -379,8 +379,8 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
   // Real-time: when a product is created by this farmer, bump Available count and recent products
   useEffect(() => {
     const unsub = subscribeAppEvents(evt => {
-      if (evt.type !== 'product:created') return
-  const { product } = evt.payload || {}
+      if (evt.type !== 'product:created' && evt.type !== 'product:updated') return
+      const { product } = evt.payload || {}
       const ownerId = product?.farmerId
       if (!profile?.id) return
       if (ownerId && ownerId !== profile.id) return
@@ -388,7 +388,7 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
       if (product) {
         setRecentProducts(prev => {
           const exists = prev.some(p => p.id === product.id)
-          const next = exists ? prev : [product, ...prev].slice(0, 5)
+          const next = exists ? prev.map(p => p.id === product.id ? { ...p, ...product } : p) : [product, ...prev].slice(0, 5)
           return next
         })
         // Optionally refresh the listing thumbnail
@@ -587,13 +587,13 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
 
   // logout logic moved to shared hook useLogout
 
-  if (loading) {
-    return (
-      <View style={styles.center}>
-        <Text>Loading {expectedRole} dashboard…</Text>
-      </View>
-    )
-  }
+//  if (loading) {
+//    return (
+//      <View style={styles.center}>
+//        <Text>Loading {expectedRole} dashboard…</Text>
+//      </View>
+//    )
+//  }
 
   // Allow 'admin' to view any expectedRole dashboard variant without denial.
   // If you later implement impersonation logic, surface a small banner.

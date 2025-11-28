@@ -7,7 +7,7 @@ import { getJSON, postJSON, deleteJSON } from '../../context/api'
 import { useFavorites } from '../../context/favorites'
 import { useResolvedUrls } from '../../hooks/useResolvedUrls'
 import BlurhashImage from '../../components/BlurhashImage'
-import Shimmer from '../../components/Shimmer'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import { useCart } from '../../context/cart'
 import { track } from '../../utils/analytics'
 import { ANALYTICS_EVENTS } from '../../constants/analyticsEvents'
@@ -376,14 +376,10 @@ export default function ProductDetail() {
     title: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginLeft: 38 },
     rightActions: { flexDirection: 'row', alignItems: 'center' },
   })
+  if (loading) return <LoadingSpinner message="Loading product..." />
 
   return (
     <View style={styles.container}>
-      {loading && (
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
-          <Shimmer style={{ flex:1 }} />
-        </View>
-      )}
 
       {/* In-page header: back, centered title, actions */}
       <View style={localHeaderStyles.header}>
@@ -527,10 +523,10 @@ export default function ProductDetail() {
               return (
                   <View style={{ marginTop: 16 }}>
                     <Text style={styles.sectionTitle}>Key Features</Text>
-                    <View style={{ gap: 10 }}>
+                    <View style={{ gap: 2 }}>
                     {derived.map((f, i) => (
                       <View key={i} style={{ flexDirection:'row', alignItems:'flex-start', gap:10 }}>
-                        <Ionicons name="checkmark-circle" size={18} color={COLORS.primary} style={{ marginTop: 2 }} />
+                        <Ionicons name="checkmark-circle" size={15} color={COLORS.primary} />
                         <Text style={{ color: COLORS.textLight, flex: 1 }}>{f}</Text>
                       </View>
                     ))}
@@ -560,7 +556,7 @@ export default function ProductDetail() {
                     <Text style={styles.qtyBtnText}>+</Text>
                   </TouchableOpacity>
                 </View>
-                <Text style={{ marginLeft: 12, color: COLORS.textLight }}>Minimum order: {product.minimumOrder || 1}</Text>
+                {/* Minimum order display removed per request */}
               </View>
 
               <View style={{ flexDirection: 'row', marginTop: 12, gap: 12 }}>
@@ -729,9 +725,13 @@ export default function ProductDetail() {
                     submitReview()
                   }}
                   disabled={submittingReview || myRating < 1 || isSuspended || !isVerified}
-                  style={{ marginTop: 10, backgroundColor: (myRating < 1 || isSuspended || !isVerified) ? COLORS.divider : COLORS.primary, paddingVertical: 10, borderRadius: 6, alignItems: 'center' }}
+                  style={[
+                    styles.addBtn,
+                    { marginTop: 10, alignSelf: 'center', width: '48%' },
+                    (submittingReview || myRating < 1 || isSuspended || !isVerified) && { opacity: 0.6 }
+                  ]}
                 >
-                  <Text style={{ color: COLORS.white, fontWeight: '700' }}>{submittingReview ? 'Submitting…' : (!isVerified ? 'Verification required' : 'Submit review')}</Text>
+                  <Text style={styles.addBtnText}>{submittingReview ? 'Submitting…' : (!isVerified ? 'Verification required' : 'Submit review')}</Text>
                 </TouchableOpacity>
               </View>
             </View>

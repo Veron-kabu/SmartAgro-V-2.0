@@ -38,7 +38,8 @@ export default function MyListings() {
 		setError('')
 		try {
 			const cursorParam = reset || !nextCursor ? '' : `&cursor=${encodeURIComponent(nextCursor)}`
-			const res = await getJSON(`/api/products?limit=50${cursorParam}`)
+			// Fetch seller's own products so we include inactive listings (backend supports status filtering)
+			const res = await getJSON(`/api/users/${profile.id}/products?limit=50${cursorParam}`)
 			const payloadItems = Array.isArray(res) ? res : (Array.isArray(res.items) ? res.items : [])
 			const fetchedNextCursor = res?.nextCursor || null
 			// Filter to farmer owned
@@ -66,21 +67,32 @@ export default function MyListings() {
 	// Insert newly created product instantly if it belongs to current farmer
 	useEffect(() => {
 		const unsub = subscribeAppEvents(evt => {
-			if (evt.type !== 'product:created') return
-			const { productId, product } = evt.payload || {}
-			const id = productId || product?.id
-			if (!id) return
-			// Only handle if owned by this farmer
-			const ownerId = product?.farmerId
-			if (profile?.id && ownerId && ownerId !== profile.id) return
-			if (product && (!ownerId || ownerId === profile?.id)) {
-				setItems(prev => {
-					if (prev.some(p => p.id === id)) return prev
-					return [product, ...prev]
-				})
-			} else if (id) {
-				// If no snapshot, fallback to loading latest page and filtering (simple and robust)
-				load({ reset: true })
+			if (evt.type === 'product:created') {
+				const { productId, product } = evt.payload || {}
+				const id = productId || product?.id
+				if (!id) return
+				// Only handle if owned by this farmer
+				const ownerId = product?.farmerId
+				if (profile?.id && ownerId && ownerId !== profile.id) return
+				if (product && (!ownerId || ownerId === profile?.id)) {
+					setItems(prev => {
+						if (prev.some(p => p.id === id)) return prev
+						return [product, ...prev]
+					})
+				} else if (id) {
+					load({ reset: true })
+				}
+			} else if (evt.type === 'product:updated') {
+				const { productId, product } = evt.payload || {}
+				const id = productId || product?.id
+				if (!id) return
+				// If we have the updated product, patch it in place; otherwise refresh listing page
+				if (product) {
+					setItems(prev => prev.map(p => p.id === id ? { ...p, ...product } : p))
+				} else {
+					// no snapshot -> refetch to be safe
+					load({ reset: true })
+				}
 			}
 		})
 		return () => { unsub && unsub() }

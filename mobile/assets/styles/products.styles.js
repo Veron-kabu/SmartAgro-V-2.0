@@ -110,7 +110,8 @@ export const productDetailStyles = StyleSheet.create({
     backgroundColor: COLORS.background, 
     borderTopLeftRadius: 0, 
     borderTopRightRadius: 0, 
-    padding: 24, 
+    paddingVertical: 24,
+    paddingHorizontal: 16,
     minHeight: 340 
   },
   title: { 
@@ -140,12 +141,13 @@ export const productDetailStyles = StyleSheet.create({
   unit: { 
     fontSize: 12, 
     fontWeight: '600', 
-    color: COLORS.textLight 
+    color: COLORS.textLight,
+    marginBottom: 10
   },
   desc: { 
     fontSize: 13, 
     color: COLORS.textLight, 
-    marginTop: 10, 
+    marginTop: -5, 
     lineHeight: 18 
   },
   metaRow: { 
@@ -269,7 +271,7 @@ export const productEditStyles = StyleSheet.create({
     flexDirection:'row', 
     alignItems:'center', 
     justifyContent:'space-between', 
-    marginBottom:12 
+    marginBottom:2 
   },
   back:{ 
     color: COLORS.text, 
@@ -315,8 +317,11 @@ export const productEditStyles = StyleSheet.create({
     marginTop:28, 
     backgroundColor: COLORS.primary, 
     paddingVertical:14, 
+    paddingHorizontal:32,
+    minWidth:160,
     borderRadius:28, 
-    alignItems:'center' 
+    alignItems:'center',
+    alignSelf:'center'
   },
   saveText:{ 
     color: COLORS.white, 

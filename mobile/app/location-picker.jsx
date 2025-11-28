@@ -136,7 +136,7 @@ export default function LocationPickerScreen() {
   )
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+    <View style={{ flex: 1, backgroundColor: COLORS.background }}>
       <View style={{ padding: 12 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
           <Text style={{ fontSize: 18, fontWeight: '700', color: COLORS.text }}>Pick your location</Text>

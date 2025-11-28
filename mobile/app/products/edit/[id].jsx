@@ -1,13 +1,17 @@
 import { useLocalSearchParams } from 'expo-router'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useLayoutEffect } from 'react'
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Switch, Image } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
+import { COLORS } from '../../../constants/colors'
 import { getJSON, patchJSON, postJSON } from '../../../context/api'
+import { useNavigation } from '@react-navigation/native'
 import { useProfile } from '../../../context/profile'
 import { useResolvedUrls } from '../../../hooks/useResolvedUrls'
 import * as ImagePicker from 'expo-image-picker'
 import { track } from '../../../utils/analytics'
 import { ANALYTICS_EVENTS } from '../../../constants/analyticsEvents'
 import { productEditStyles as styles } from '../../../assets/styles/products.styles'
+import { emitAppEvent } from '../../../context/favorites'
 
 export default function EditProduct() {
   const { id } = useLocalSearchParams()
@@ -32,6 +36,12 @@ export default function EditProduct() {
 
   // Resolve image URLs (handles private S3 URLs) for display
   const resolvedImages = useResolvedUrls(images)
+  const navigation = useNavigation()
+
+  // Hide native header and rely on the screen's in-page header row
+  useLayoutEffect(() => {
+    try { navigation.setOptions({ headerShown: false }) } catch (_e) {}
+  }, [navigation])
 
   const load = useCallback(async () => {
     if (!numericId) return
@@ -150,6 +160,7 @@ export default function EditProduct() {
       const updated = await patchJSON(`/api/products/${numericId}`, body)
       track(ANALYTICS_EVENTS.PRODUCT_UPDATED, { productId: numericId })
       setOrig(updated)
+      try { emitAppEvent('product:updated', { productId: numericId, product: updated }) } catch {}
       setImages(Array.isArray(updated?.images) ? updated.images : images)
       // reflect returned keyFeatures if backend returns it
       setKeyFeaturesText(Array.isArray(updated?.keyFeatures) ? updated.keyFeatures.join('\n') : (featuresArr.join('\n') || ''))
@@ -166,9 +177,12 @@ export default function EditProduct() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding:16 }}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>Edit Product</Text>
-        <View style={{ width:60 }} />
+      <View style={styles.headerRow} marginTop={-10}>
+        <TouchableOpacity onPress={() => { try { navigation.goBack() } catch { } }} style={{ width:48, alignItems: 'flex-start' }}>
+          <Ionicons name="chevron-back" size={24} color={COLORS.text} />
+        </TouchableOpacity>
+        <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>Edit Product</Text>
+        <View style={{ width:48 }} />
       </View>
       {String(profile?.status || '').toLowerCase() === 'suspended' && (
         <View style={{ backgroundColor: '#FEE2E2', borderColor: '#FCA5A5', borderWidth: 1, padding: 12, borderRadius: 8, marginTop: 8, marginBottom: 8 }}>

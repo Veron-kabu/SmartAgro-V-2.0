@@ -1,9 +1,11 @@
 import { View, Text, TouchableOpacity, Alert } from "react-native";
+import { useEffect, useState } from 'react'
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { COLORS } from "../constants/colors";
 import { productCardStyles } from "../assets/styles/(tabs)/home.styles";
 import BlurhashImage from "./BlurhashImage";
+import StarRating from './StarRating'
 import { useResolvedUrls } from "../hooks/useResolvedUrls";
 import { getJSON } from "../context/api";
 import { useProfile } from "../context/profile";
@@ -117,6 +119,38 @@ export default function ProductCard({ product, inCart = false, onBuy = null, onR
   // Location text helper removed as location is no longer displayed on the card
 
   const statusInfo = getStatusInfo();
+
+  // rating info (try multiple fields, fallback to reviews array)
+  let avgRating = 0
+  if (Number.isFinite(Number(product?.avgRating))) avgRating = Number(product.avgRating)
+  else if (Number.isFinite(Number(product?.ratingAvg))) avgRating = Number(product.ratingAvg)
+  else if (Number.isFinite(Number(product?.rating))) avgRating = Number(product.rating)
+  else if (Array.isArray(product?.reviews) && product.reviews.length > 0) {
+    const sum = product.reviews.reduce((s, r) => s + Number(r.rating || 0), 0)
+    avgRating = sum / product.reviews.length
+  }
+
+  // If avgRating is not available from product props, lazily fetch product reviews summary once and cache locally
+  const [remoteAvg, setRemoteAvg] = useState(null)
+
+  useEffect(() => {
+    let mounted = true
+    if (avgRating > 0 || !product?.id) return
+    // Try to fetch reviews for this product and compute average (lightweight cached fetch)
+    ;(async () => {
+      try {
+        const resp = await getJSON(`/api/products/${product.id}/reviews`)
+        const items = Array.isArray(resp?.items) ? resp.items : resp || []
+        if (!mounted) return
+        if (items.length === 0) { setRemoteAvg(0); return }
+        const sum = items.reduce((s, r) => s + Number(r.rating || 0), 0)
+        setRemoteAvg(sum / items.length)
+      } catch {
+        // ignore network errors
+      }
+    })()
+    return () => { mounted = false }
+  }, [product?.id, avgRating])
 
   return (
     <TouchableOpacity
@@ -367,19 +401,26 @@ export default function ProductCard({ product, inCart = false, onBuy = null, onR
                     <Text style={{ fontSize: 10, color: COLORS.primary, fontWeight: '600' }}>Edit</Text>
                   </TouchableOpacity>
                 )}
-              </View>
 
-              <TouchableOpacity
-                style={{
-                  backgroundColor: COLORS.primary,
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  borderRadius: 12,
-                }}
-                onPress={goToView}
-              >
-                <Text style={{ fontSize: 10, color: COLORS.white, fontWeight: '600' }}>View</Text>
-              </TouchableOpacity>
+                {/* Star rating for quick glance (count removed) */}
+                <View style={{ marginRight: 8, alignItems: 'center' }}>
+                  <StarRating value={(remoteAvg ?? avgRating) || 0} max={5} size={14} />
+                </View>
+
+                {/* View button removed for now per request
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: COLORS.primary,
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    borderRadius: 12,
+                  }}
+                  onPress={goToView}
+                >
+                  <Text style={{ fontSize: 10, color: COLORS.white, fontWeight: '600' }}>View</Text>
+                </TouchableOpacity>
+                */}
+              </View>
             </>
           )}
         </View>

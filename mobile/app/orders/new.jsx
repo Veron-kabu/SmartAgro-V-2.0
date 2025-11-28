@@ -9,7 +9,7 @@ import { ANALYTICS_EVENTS } from '../../constants/analyticsEvents'
 import { formatCurrency } from '../../utils/orders'
 import { emitAppEvent } from '../../context/favorites'
 import { useToast } from '../../context/toast'
-import { newOrderStyles as styles } from '../../assets/styles/orders.styles'
+import { newOrderStyles as styles, checkoutStyles } from '../../assets/styles/orders.styles'
 import { useProfile } from '../../context/profile'
 import { initiateStkPush, getStkStatus } from '../../utils/mpesa'
 import { COLORS } from '../../constants/colors'
@@ -240,10 +240,7 @@ export default function NewOrderScreen() {
           </TouchableOpacity>
           <Text style={[styles.title, { textAlign: 'center', marginLeft: 0 }]}>{product?.title ? product.title : 'New Order'}</Text>
           </View>
-        <Text style={styles.mutedSmall}>
-          Price: {discount > 0 ? `${formatCurrency(effectiveUnit)} (was ${formatCurrency(price)})` : formatCurrency(price)} / {product.unit}
-        </Text>
-        <Text style={styles.mutedSmall}>In Stock: {product.quantityAvailable}  {product.minimumOrder && product.minimumOrder > 1 ? ` • Min: ${product.minimumOrder}` : ''}</Text>
+        {/* Price, In Stock, and minimum order removed as requested */}
         <View style={{ height: 16 }} />
         <Text style={styles.label}>Quantity</Text>
         <TextInput
@@ -253,7 +250,7 @@ export default function NewOrderScreen() {
           onChangeText={setQuantity}
           placeholder='Quantity'
         />
-  <Text style={styles.helper}>{product.minimumOrder ? `Minimum order: ${product.minimumOrder}` : ''}</Text>
+  {/* Minimum order helper removed */}
         <View style={{ height: 16 }} />
         <Text style={styles.label}>Delivery Address</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -280,29 +277,31 @@ export default function NewOrderScreen() {
         {(!phone || phone.trim().length < 7) && <Text style={styles.helper}>Enter a valid phone (min 7 digits)</Text>}
         <View style={{ height: 20 }} />
         
-        {/* Price breakdown */}
+        {/* Price breakdown (matches order-summary) */}
         <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 12, marginBottom: 12 }}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-            <Text style={styles.mutedSmall}>Subtotal ({qtyNum} × {formatCurrency(effectiveUnit)})</Text>
-            <Text style={styles.mutedSmall}>{formatCurrency(subtotal)}</Text>
+            <Text style={styles.mutedSmall}>Subtotal</Text>
+            <Text style={styles.mutedSmall}>{`Ksh ${subtotal.toFixed(2)}`}</Text>
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
-            <Text style={styles.mutedSmall}>
-              Shipping {loadingShipping ? '(calculating...)' : ''}
-            </Text>
+            <Text style={styles.mutedSmall}>Shipping Fee</Text>
             <Text style={styles.mutedSmall}>{loadingShipping ? '...' : `Ksh ${shippingCost.toFixed(2)}`}</Text>
           </View>
+          {/* Tax removed per request */}
           {!deliveryObj?.coords && (
             <Text style={{ color: COLORS.warning, fontSize: 11, marginBottom: 8 }}>
               Select location on map to calculate shipping
             </Text>
           )}
         </View>
-        
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={styles.total}>Total: {formatCurrency(total)}</Text>
-          <TouchableOpacity disabled={submitting || String(profile?.status||'').toLowerCase()==='suspended'} onPress={submit} style={[styles.button, (submitting || String(profile?.status||'').toLowerCase()==='suspended') && { opacity: 0.6 }]}>
-            <Text style={styles.buttonText}>{submitting ? 'Placing...' : 'Place Order'}</Text>
+
+        <View style={{ borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 12, marginBottom: 12 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <Text style={[styles.total, { fontSize: 18 }]}>Total</Text>
+            <Text style={[styles.total, { fontSize: 20 }]}>{`Ksh ${total.toFixed(2)}`}</Text>
+          </View>
+          <TouchableOpacity disabled={submitting || String(profile?.status||'').toLowerCase()==='suspended'} onPress={submit} style={[checkoutStyles.primaryBtn, (submitting || String(profile?.status||'').toLowerCase()==='suspended') && { opacity: 0.6 }]}>
+            <Text style={checkoutStyles.primaryText}>{submitting ? 'Placing...' : 'Place Order'}</Text>
           </TouchableOpacity>
         </View>
       </View>

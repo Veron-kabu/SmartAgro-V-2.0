@@ -114,6 +114,16 @@ const FavoritesScreen = () => {
         const { productId, remaining, status } = evt.payload || {}
         if (!productId) return
         setFavoriteProducts(prev => prev.map(f => f.id === productId ? { ...f, quantityAvailable: remaining, status: status || f.status } : f))
+      } else if (evt.type === 'product:updated') {
+        const { productId, product } = evt.payload || {}
+        const id = productId || product?.id
+        if (!id) return
+        if (product) {
+          setFavoriteProducts(prev => prev.map(it => it.id === id ? { ...it, ...product, id: product.id || id } : it))
+        } else {
+          // hydrate full product data if no snapshot provided
+          hydrateProduct(id)
+        }
       }
     })
     return () => { mounted = false; unsub && unsub() }

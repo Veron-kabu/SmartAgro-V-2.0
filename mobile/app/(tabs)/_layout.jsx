@@ -20,12 +20,10 @@ export default function TabsLayout() {
           tabBarActiveTintColor: "#16a34a",
           tabBarInactiveTintColor: "#6b7280",
           tabBarStyle: {
-            backgroundColor: "#fff",
+            backgroundColor: "#E8F5E9",
             borderTopWidth: 1,
             borderTopColor: "#16a34a",
-            paddingBottom: 5,
-            paddingTop: 5,
-            height: 60,
+            height: 50,
           },
           headerShown: false,
         }}
@@ -44,7 +42,6 @@ export default function TabsLayout() {
             tabBarIcon: ({ color, size }) => <Ionicons name="search" size={size} color={color} />,
           }}
         />
-        {/** Messages tab removed; access messages via Profile -> Messages button */}
         <Tabs.Screen
           name="favourites"
           options={{

@@ -10,7 +10,7 @@ import { LinearGradient } from 'expo-linear-gradient'
  *  - duration: animation loop duration ms (default 1200)
  *  - widthFactor: internal gradient width percentage (default 60)
  */
-export default function Shimmer({ style, colors = ['rgba(255,255,255,0)','rgba(255,255,255,0.55)','rgba(255,255,255,0)'], duration = 1200, widthFactor = 0.6 }) {
+export default function Shimmer({ style, colors = ['rgba(255,255,255,0)','rgba(255, 255, 255, 0.55)','rgba(255,255,255,0)'], duration = 1200, widthFactor = 0.6 }) {
   const [anim] = useState(() => new Animated.Value(-1))
 
   useEffect(() => {

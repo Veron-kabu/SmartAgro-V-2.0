@@ -17,6 +17,7 @@ export const profileStyles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 40,
+    backgroundColor: COLORS.background,
   },
   loadingText: {
     fontSize: 16,

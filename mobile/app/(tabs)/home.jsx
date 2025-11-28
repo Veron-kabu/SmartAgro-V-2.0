@@ -10,6 +10,7 @@ import EmptyState from "../../components/EmptyState"
 import { getJSON } from "../../context/api"
 import { subscribeAppEvents } from "../../context/favorites"
 import { homeStyles } from "../../assets/styles/(tabs)/home.styles"
+import { productDetailStyles as pstyles } from '../../assets/styles/products.styles'
 import { Image } from "expo-image"
 import { COLORS } from "../../constants/colors"
 import CategoryFilter from "../../components/CategoryFilter"
@@ -93,6 +94,36 @@ export default function MarketScreen() {
             }
           }
         })()
+      }
+      else if (evt.type === 'product:updated') {
+        const { productId, product } = evt.payload || {}
+        const id = productId || product?.id
+        if (!id) return
+        setProducts(prev => {
+          const exists = prev.some(p => p.id === id)
+          // If product already in list, either update it (if still visible) or remove it (if now inactive/out of stock)
+          if (exists) {
+            return prev.reduce((acc, p) => {
+              if (p.id !== id) { acc.push(p); return acc }
+              // p.id === id
+              if (product && (product.status || 'active') === 'active' && Number(product.quantityAvailable || 0) > 0) {
+                acc.push(product)
+              }
+              return acc
+            }, [])
+          }
+          // Not present: if product became active and in-stock, insert it at the top
+          if (product && (product.status || 'active') === 'active' && Number(product.quantityAvailable || 0) > 0) {
+            return [product, ...prev]
+          }
+          return prev
+        })
+        // Update featured product if it matches or seed if missing
+        setFeaturedProduct(fp => {
+          if (fp && fp.id === id) return (product || fp)
+          if (!fp && product && (product.status || 'active') === 'active' && Number(product.quantityAvailable || 0) > 0) return product
+          return fp
+        })
       }
     })
     return () => { unsub && unsub() }
@@ -215,23 +246,26 @@ export default function MarketScreen() {
         {/* Market Prices CTA */}
         <TouchableOpacity
           onPress={() => router.push('/market-prices')}
-          style={{
-            marginHorizontal: 16,
-            marginBottom: 12,
-            backgroundColor: '#fff7ed',
-            borderRadius: 12,
-            paddingVertical: 12,
-            paddingHorizontal: 14,
-            borderWidth: 1,
-            borderColor: '#fed7aa',
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'flex-start'
-          }}
+          style={[
+            pstyles.addBtn,
+            {
+              marginHorizontal: 16,
+              marginBottom: 12,
+              width: '48%',
+              alignSelf: 'center',
+              // Use theme background and green outline similar to other action buttons
+              backgroundColor: COLORS.card,
+              borderWidth: 1,
+              borderColor: COLORS.online,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }
+          ]}
           activeOpacity={0.8}
         >
-          <Ionicons name="storefront-outline" size={20} color="#9a3412" style={{ marginRight: 10 }} />
-          <Text style={{ color: '#9a3412', fontWeight: '700', fontSize: 14 }}>View Market Prices</Text>
+          <Ionicons name="storefront-outline" size={18} color={COLORS.online} style={{ marginRight: 8 }} />
+          <Text style={[pstyles.addBtnText, { color: COLORS.online }]}>View Market Prices</Text>
         </TouchableOpacity>
 
         {/* Farmers Map CTA (hidden for now) */}

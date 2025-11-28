@@ -1,13 +1,11 @@
 "use client"
 
-import { View, ActivityIndicator, Text } from "react-native"
+import LoadingSpinner from "../../components/LoadingSpinner"
 import { useProfile } from "../../context/profile"
 import UserDashboard from "../dashboard/UserDashboard"
 import AdminDashboard from "../dashboard/admin"
 import { useFocusEffect } from "expo-router"
 import { useCallback } from "react"
-import { profileStyles as styles } from "../../assets/styles/(tabs)/profile.styles"
-import { COLORS } from "../../constants/colors"
 
 export default function ProfileTab() {
   const { profile, loading, refresh } = useProfile()
@@ -28,12 +26,7 @@ export default function ProfileTab() {
 
 
   if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Loading profile…</Text>
-      </View>
-    )
+    return <LoadingSpinner message="Loading profile..." />
   }
 
   if (isAdmin) {

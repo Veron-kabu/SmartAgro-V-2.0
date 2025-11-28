@@ -3,7 +3,7 @@ import { COLORS } from '../constants/colors'
 
 export function formatCurrency(amount) {
   const n = Number(amount || 0)
-  return `$${n.toFixed(2)}`
+  return `Ksh ${n.toFixed(2)}`
 }
 
 export function formatDate(iso) {
