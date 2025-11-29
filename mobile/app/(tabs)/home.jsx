@@ -253,7 +253,6 @@ export default function MarketScreen() {
               marginBottom: 12,
               width: '48%',
               alignSelf: 'center',
-              // Use theme background and green outline similar to other action buttons
               backgroundColor: COLORS.card,
               borderWidth: 1,
               borderColor: COLORS.online,

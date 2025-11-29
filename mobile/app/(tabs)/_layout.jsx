@@ -6,6 +6,7 @@ import { View } from 'react-native'
 import CountBadge from '../../components/CountBadge'
 import { useFavorites } from '../../context/favorites'
 import { useCart } from '../../context/cart'
+import { COLORS } from "../../constants/colors"
 
 export default function TabsLayout() {
   // Show the number of FAVORITES on the Favorites tab (not cart items)
@@ -22,7 +23,7 @@ export default function TabsLayout() {
           tabBarStyle: {
             backgroundColor: "#E8F5E9",
             borderTopWidth: 1,
-            borderTopColor: "#16a34a",
+            borderTopColor: COLORS.background,
             height: 50,
           },
           headerShown: false,

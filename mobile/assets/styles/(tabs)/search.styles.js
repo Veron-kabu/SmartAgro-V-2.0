@@ -13,10 +13,10 @@ export const searchStyles = StyleSheet.create({
   searchContainer: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: COLORS.card,
-    borderRadius: 16,
+    backgroundColor: COLORS.white,
+    borderRadius: 28,
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 1,
     borderWidth: 1,
     borderColor: COLORS.border,
     shadowColor: COLORS.shadow,
@@ -35,9 +35,10 @@ export const searchStyles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: COLORS.text,
+    height: 44,
   },
   clearButton: {
-    padding: 4,
+    padding: 8,
   },
   quickFilters: {
     marginTop: 20,

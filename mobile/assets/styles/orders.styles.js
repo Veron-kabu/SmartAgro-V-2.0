@@ -61,7 +61,7 @@ export const checkoutStyles = StyleSheet.create({
   meta: { fontSize:12, color: COLORS.textLight, marginTop:4 },
   adjustTitle: { fontSize:14, fontWeight:'700', color: COLORS.text, marginBottom:2 },
   adjustLine: { fontSize:12, color: COLORS.text, marginTop:0 },
-  primaryBtn: { backgroundColor: COLORS.primary, paddingVertical:14, borderRadius:12, alignItems:'center' },
+  primaryBtn: { backgroundColor: COLORS.primary, paddingVertical:14, paddingHorizontal:18, minWidth:160, borderRadius:28, alignItems:'center', alignSelf:'center' },
   primaryText: { color: COLORS.white, fontWeight:'700', fontSize:15 },
   secondaryBtn: { backgroundColor: COLORS.text, paddingVertical:14, borderRadius:12, alignItems:'center' },
   secondaryText: { color: COLORS.white, fontWeight:'600', fontSize:13 },

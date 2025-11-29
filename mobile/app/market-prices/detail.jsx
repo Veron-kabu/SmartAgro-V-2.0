@@ -1,4 +1,3 @@
-// CLEAN REACT NATIVE DETAIL SCREEN
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { View, Text, Image, FlatList, ActivityIndicator, TouchableOpacity, Share, ScrollView, TextInput } from 'react-native'
 import Ionicons from '@expo/vector-icons/Ionicons'
@@ -104,7 +103,7 @@ export default function MarketPriceDetail() {
         <View style={s.container}>
             <View style={s.header}>
                 <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
-                    <Ionicons name="arrow-back" size={20} color={COLORS.primary} />
+                    <Ionicons name="arrow-back" size={20} />
                 </TouchableOpacity>
                 <Text numberOfLines={1} style={s.detailTitle}>{productTitle || 'Product'}</Text>
                 <View style={s.headerSpacer} />
@@ -214,13 +213,16 @@ export default function MarketPriceDetail() {
                             </TouchableOpacity>
                         </View>
                         <View style={s.contentPadding}>
-                            <TextInput
-                                placeholder="Search markets..."
-                                value={marketsQ}
-                                onChangeText={setMarketsQ}
-                                style={s.marketSearch}
-                                placeholderTextColor={COLORS.textLight}
-                            />
+                            <View style={s.marketSearchWrap}>
+                                <Ionicons name="search" size={16} color={COLORS.textLight} style={s.marketSearchIcon} />
+                                <TextInput
+                                    placeholder="Search markets..."
+                                    value={marketsQ}
+                                    onChangeText={setMarketsQ}
+                                    style={s.marketSearchInput}
+                                    placeholderTextColor={COLORS.textLight}
+                                />
+                            </View>
                         </View>
                         <FlatList
                             data={markets}

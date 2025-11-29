@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { View, Text, TextInput, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity, Modal } from 'react-native'
 import MarketPriceCard from '../../components/MarketPriceCard'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import { useRouter } from 'expo-router'
 import { fetchMarketPrices } from '../../utils/marketPrices'
 import { searchMarketProducts } from '../../utils/marketSearch'
@@ -201,19 +202,25 @@ export default function MarketPricesScreen() {
       (m.county || '').toLowerCase().includes(term)
     )
   }
+  if (loading) {
+    return <LoadingSpinner message="Loading market prices..." />
+  }
 
   return (
     <View style={s.container}>
       <View style={s.topBar}>
-        <Text style={s.titleLarge}>Market Prices</Text>
+        {/* <Text style={s.titleLarge}>Market Prices</Text> */}
         <View style={s.searchRow}>
+          <View style={s.searchWrap}>
+            <Ionicons name="search" size={18} color={COLORS.textLight} style={s.searchIcon} />
             <TextInput
-            placeholder={selectedMarket ? `Search (filter: ${selectedMarket})` : "Search commodity / market / county"}
-            value={q}
-            onChangeText={setQ}
-              style={s.search}
+              placeholder={selectedMarket ? `Search (filter: ${selectedMarket})` : "Search commodity / market / county"}
+              value={q}
+              onChangeText={setQ}
+              style={s.searchInput}
               placeholderTextColor={COLORS.textLight}
-          />
+            />
+          </View>
           <TouchableOpacity onPress={openMarkets} activeOpacity={0.8} style={s.storeBtn}>
             <Ionicons name="storefront" size={20} color={COLORS.white} />
           </TouchableOpacity>
@@ -230,10 +237,7 @@ export default function MarketPricesScreen() {
           </View>
         </View>
       ) : null}
-
-      {loading ? (
-        <View style={s.center}><ActivityIndicator size="large" /></View>
-      ) : error ? (
+      {error ? (
       <View style={s.center}><Text style={{ color: COLORS.error }}>{error}</Text></View>
       ) : (
         <FlatList
@@ -286,13 +290,16 @@ export default function MarketPricesScreen() {
             </View>
 
             <View style={s.contentPadding}>
-                <TextInput
-                placeholder="Search markets..."
-                value={marketsQ}
-                onChangeText={setMarketsQ}
-                style={s.marketSearch}
-                  placeholderTextColor={COLORS.textLight}
-              />
+                <View style={s.marketSearchWrap}>
+                  <Ionicons name="search" size={16} color={COLORS.textLight} style={s.marketSearchIcon} />
+                  <TextInput
+                    placeholder="Search markets..."
+                    value={marketsQ}
+                    onChangeText={setMarketsQ}
+                    style={s.marketSearchInput}
+                    placeholderTextColor={COLORS.textLight}
+                  />
+                </View>
             </View>
 
             {marketsLoading ? (
