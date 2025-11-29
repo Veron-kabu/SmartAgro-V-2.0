@@ -9,13 +9,18 @@ import { useCallback } from "react"
 
 export default function ProfileTab() {
   const { profile, loading, refresh } = useProfile()
-  
   // Refresh profile when tab comes into focus (e.g., after verification)
   useFocusEffect(
     useCallback(() => {
-      refresh()
-    }, [refresh])
+      if (!profile) {
+        refresh()
+      }
+    }, [refresh, profile])
   )
+
+  if (loading) {
+    return <LoadingSpinner message="Loading profile..." />
+  }
 
   const isAdmin = profile?.role === 'admin'
   // Admins previously navigated to a separate Admin screen which lives
@@ -24,10 +29,6 @@ export default function ProfileTab() {
   // If you prefer a full-screen admin console without tabs, revert to
   // using `router.replace('/dashboard/admin')` instead.
 
-
-  if (loading) {
-    return <LoadingSpinner message="Loading profile..." />
-  }
 
   if (isAdmin) {
     // Render the Admin dashboard inside the Profile tab so the bottom

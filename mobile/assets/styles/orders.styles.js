@@ -55,7 +55,7 @@ export const farmerOrdersStyles = StyleSheet.create({
 
 // Checkout Page Styles
 export const checkoutStyles = StyleSheet.create({
-  container: { flex:1, backgroundColor: COLORS.background, padding:34, paddingTop:0 },
+  container: { flex:1, backgroundColor: COLORS.background, padding:10, paddingTop:0 },
   title: { fontSize:22, fontWeight:'700', color: COLORS.text },
   desc: { fontSize:14, color: COLORS.text, marginTop:4 },
   meta: { fontSize:12, color: COLORS.textLight, marginTop:4 },

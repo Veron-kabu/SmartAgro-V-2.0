@@ -1,0 +1,17 @@
+# ngrok configuration (template). Do NOT commit a real authtoken to the repo.
+# Preferred: run `ngrok config add-authtoken <token>` locally to store your token in the user config.
+
+version: 3
+agent:
+  # authtoken: <YOUR_NGROK_AUTHTOKEN>
+
+endpoints:
+  - name: app
+    url: semideterministic-buena-semidefined.ngrok-free.dev
+    upstream:
+      url: 5001
+
+# To start this tunnel run:
+#   ngrok start app --config ./devtools/ngrok.yml
+# or start all endpoints in this file:
+#   ngrok start --config ./devtools/ngrok.yml --all

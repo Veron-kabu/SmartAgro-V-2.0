@@ -19,8 +19,6 @@ import { profileStyles as styles } from '../../assets/styles/(tabs)/profile.styl
 import { COLORS } from '../../constants/colors'
 import { userDashboardStyles as modalStyles } from '../../assets/styles/userDashboard.styles'
 
-// Floating FabActions removed for farmer: actions integrated into sections
-
 // Shared dashboard for Buyer and Farmer with identical UI; location stays hidden
 export default function UserDashboard({ expectedRole = 'buyer', fallbackName = 'User' }) {
   const { user } = useUser()
@@ -45,6 +43,7 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
   const [editAddress, setEditAddress] = useState(getInitialAddress())
   const [editFullName, setEditFullName] = useState(profile?.fullName || '')
   const [pickingImage, setPickingImage] = useState(false)
+  const [mediaOpen, setMediaOpen] = useState(false)
   // media & stats hooks
   const { avatarUrl, bannerUrl, bannerResolving, setBannerUrl } = useDashboardMedia(profile)
   // const { stats } = useDashboardStats(!loading, 60000)
@@ -306,18 +305,8 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
   // Quick actions for media via small icon buttons
   // Unified media actions (single camera button will open these)
   const openMediaActions = useCallback(() => {
-    Alert.alert(
-      'Media',
-      'Choose an action',
-      [
-        { text: 'Change profile photo', onPress: () => onPickImage() },
-        { text: 'Remove profile photo', style: 'destructive', onPress: () => onRemoveAvatar() },
-        { text: 'Change banner', onPress: () => onPickBanner() },
-        { text: 'Remove banner', style: 'destructive', onPress: () => onRemoveBanner() },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    )
-  }, [onPickImage, onRemoveAvatar, onPickBanner, onRemoveBanner])
+    setMediaOpen(true)
+  }, [])
 
   const onRemoveAvatar = useCallback(async () => {
     try {
@@ -673,7 +662,7 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
             accessibilityLabel="Change profile or banner photo"
             onPress={openMediaActions}
             activeOpacity={0.85}
-            style={{ position: 'absolute', right: 18, bottom: -12, zIndex: 20, backgroundColor: '#fff', borderRadius: 20, padding: 8, borderWidth: 1, borderColor: COLORS.border }}
+            style={{ position: 'absolute', right: 112, bottom: -37, zIndex: 20, backgroundColor: '#fff', borderRadius: 20, padding: 8, borderWidth: 1, borderColor: COLORS.border }}
           >
             <Ionicons name="camera" size={18} color={COLORS.primary} />
           </TouchableOpacity>
@@ -828,7 +817,10 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
                   <Text style={styles.logoutText}>Logging out…</Text>
                 </View>
               ) : (
-                <Text style={styles.logoutText}>Log Out</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Ionicons name="log-out-outline" size={18} color={COLORS.white} />
+                  <Text style={[styles.logoutText, { marginLeft: 8 }]}>Log Out</Text>
+                </View>
               )}
             </TouchableOpacity>
           </View>
@@ -874,21 +866,48 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
           </View>
         </View>
       </Modal>
-      {/* FabActions removed: actions now integrated into respective sections for farmer */}
-
+      {/* Media Modal (replaces native Alert.alert to avoid clipping) */}
+      <Modal visible={mediaOpen} transparent animationType="fade" onRequestClose={() => setMediaOpen(false)}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ width: '100%', maxWidth: 520, backgroundColor: COLORS.background, borderRadius: 12, padding: 18 }}>
+            <Text style={{ color: COLORS.text, fontSize: 18, fontWeight: '800', marginBottom: 6, textAlign: 'center' }}>Media</Text>
+            <Text style={{ color: COLORS.textLight, marginBottom: 12, textAlign: 'center' }}>Choose an action</Text>
+            <ScrollView style={{ maxHeight: 260 }} contentContainerStyle={{ paddingBottom: 8 }}>
+              <TouchableOpacity activeOpacity={0.85} onPress={async () => { setMediaOpen(false); try { await onPickImage() } catch {} }} style={{ paddingVertical: 12 }}>
+                <Text style={{ color: COLORS.primary, fontWeight: '700' }}>Change Profile Photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity activeOpacity={0.85} onPress={async () => { setMediaOpen(false); try { await onRemoveAvatar() } catch {} }} style={{ paddingVertical: 12 }}>
+                <Text style={{ color: COLORS.primary, fontWeight: '700' }}>Remove Profile Photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity activeOpacity={0.85} onPress={async () => { setMediaOpen(false); try { await onPickBanner() } catch {} }} style={{ paddingVertical: 12 }}>
+                <Text style={{ color: COLORS.primary, fontWeight: '700' }}>Change Banner</Text>
+              </TouchableOpacity>
+              <TouchableOpacity activeOpacity={0.85} onPress={async () => { setMediaOpen(false); try { await onRemoveBanner() } catch {} }} style={{ paddingVertical: 12 }}>
+                <Text style={{ color: COLORS.primary, fontWeight: '700' }}>Remove Banner</Text>
+              </TouchableOpacity>
+            </ScrollView>
+            <View style={{ marginTop: 8 }}>
+              <TouchableOpacity onPress={() => setMediaOpen(false)} activeOpacity={0.85} style={{ backgroundColor: COLORS.offline, paddingVertical: 14, paddingHorizontal: 18, borderRadius: 28, alignItems: 'center', borderWidth: 2, borderColor: COLORS.online }}>
+                <Text style={{ color: COLORS.text, fontWeight: '700' }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      
       {/* Edit Profile Modal (full-screen, scrollable, keyboard-aware) */}
   <Modal visible={editOpen} animationType="none" presentationStyle="fullScreen" onRequestClose={() => setEditOpen(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <View style={modalStyles.editContainer}>
-            <View style={modalStyles.modalHeader}>
-        {/**      <TouchableOpacity onPress={() => setEditOpen(false)}>
-                <Text style={modalStyles.headerAction}>Cancel</Text>
-              </TouchableOpacity>  */}
-              <Text style={modalStyles.headerTitle}>Edit Profile</Text>
+            <View style={[{ marginTop: 8, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center', flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 20, borderBottomWidth: 1, borderBottomColor: COLORS.background }]}>
+              <TouchableOpacity onPress={() => setEditOpen(false)} accessibilityLabel="Back" activeOpacity={0.85} style={{ position: 'absolute', left: 0, top: 0, bottom: 0, justifyContent: 'center', paddingHorizontal: 12 }}>
+                <Ionicons name="arrow-back" size={20} color={COLORS.primary} />
+              </TouchableOpacity>
+              <Text style={[modalStyles.headerTitle, { marginLeft: 58 }]}>Edit Profile</Text>
               <View style={{ width: 56 }} />
             </View>
             <ScrollView contentContainerStyle={modalStyles.editContent} keyboardShouldPersistTaps="handled">
-              <Text style={modalStyles.inputLabel}>Full name</Text>
+              <Text style={[modalStyles.inputLabel, { marginTop: -15 }]}>Full name</Text>
               <TextInput
                 value={editFullName}
                 onChangeText={setEditFullName}
@@ -1081,15 +1100,15 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
                 )}
               </View>
             </ScrollView>
-            {/* Bottom action bar: Save and Cancel */}
-            <View style={modalStyles.modalFooter}>
-              <TouchableOpacity style={[modalStyles.footerBtn, modalStyles.secondaryBtn]} onPress={() => setEditOpen(false)}>
+            <View style={[modalStyles.modalFooter, { backgroundColor: COLORS.background }]}>
+              <TouchableOpacity style={[modalStyles.footerBtn, modalStyles.secondaryBtn, { borderRadius: 28, paddingVertical: 14, paddingHorizontal: 18 }]} onPress={() => setEditOpen(false)} activeOpacity={0.85}>
                 <Text style={[modalStyles.buttonText, modalStyles.secondaryBtnText]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[modalStyles.button, modalStyles.footerBtn, (saving || !canSubmit) && modalStyles.buttonDisabled]}
+                style={[modalStyles.footerBtn, modalStyles.button, { borderRadius: 28, paddingVertical: 14, paddingHorizontal: 18}, (saving || !canSubmit) && modalStyles.buttonDisabled]}
                 disabled={saving || !canSubmit}
                 onPress={handleSave}
+                activeOpacity={0.85}
               >
                 <Text style={modalStyles.buttonText}>{saving ? 'Saving…' : 'Save'}</Text>
               </TouchableOpacity>
@@ -1098,14 +1117,9 @@ export default function UserDashboard({ expectedRole = 'buyer', fallbackName = '
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Bottom sheet removed */}
-
-      {/* Inline image picking shows spinner via pickingImage state */}
     </>
   )
 }
-
-// Removed DetailRow component (no longer used in redesigned UI)
 
 async function pickImageFromLibrary({ base64 = true } = {}) {
   const ImagePicker = await import('expo-image-picker')

@@ -1,7 +1,7 @@
-import { View, Text, TouchableOpacity, ActivityIndicator, ScrollView, TextInput } from 'react-native'
+import { View, Text, TouchableOpacity, ActivityIndicator, TextInput } from 'react-native'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { useCart } from '../../context/cart'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useLayoutEffect } from 'react'
 import { formatCurrency } from '../../utils/orders'
 import { validateCartItems } from '../../utils/cartValidation'
 import { checkoutStyles as styles } from '../../assets/styles/orders.styles'
@@ -11,9 +11,11 @@ import { useToast } from '../../context/toast'
 import { initiateStkPush, getStkStatus } from '../../utils/mpesa'
 import { postJSON, patchJSON, getJSON } from '../../context/api'
 import { Ionicons } from '@expo/vector-icons'
+import { useNavigation } from '@react-navigation/native'
 
 export default function CheckoutPlaceholder() {
   const router = useRouter()
+  const navigation = useNavigation()
   const { items, clearCart, updateQuantity, removeItem } = useCart()
   const { singleId, singleQty } = useLocalSearchParams()
   // We'll lazily fetch a single product inside validate() when needed; avoid extra effect
@@ -117,6 +119,11 @@ export default function CheckoutPlaceholder() {
     return () => off('location:delivery-selected', handler)
   }, [])
 
+  // Hide native header and use in-page header for consistent UI
+  useLayoutEffect(() => {
+    try { navigation.setOptions({ headerShown: false }) } catch (_e) {}
+  }, [navigation])
+
   // Calculate shipping cost when items (or single item) and delivery location are available
   useEffect(() => {
     const calculateShipping = async () => {
@@ -211,6 +218,15 @@ export default function CheckoutPlaceholder() {
 
   return (
     <View style={styles.container}>
+      {/* In-page header */}
+      <View style={{ paddingHorizontal: 12, marginTop: -5 }}>
+        <View style={{ height: 44, justifyContent: 'center', alignItems: 'center', position: 'relative', marginBottom: 6 }}>
+          <TouchableOpacity onPress={() => router.back()} style={{ position: 'absolute', left: 0, padding: 6 }}>
+            <Ionicons name="arrow-back" size={22} color={COLORS.primary} />
+          </TouchableOpacity>
+          <Text style={[styles.title, { textAlign: 'center', marginLeft: 0 }]}>Checkout</Text>
+        </View>
+      </View>
       {singleItemState && (
         <View style={{ marginTop: 12, marginHorizontal: 12, padding: 10, borderRadius: 8, backgroundColor: '#eef2ff', borderWidth: 1, borderColor: '#c7ddff' }}>
           <Text style={{ color: COLORS.primary, fontWeight: '700' }}>Purchasing only this item</Text>
@@ -270,10 +286,7 @@ export default function CheckoutPlaceholder() {
           </View>
         </View>
       </View>
-      <ScrollView style={{ marginTop:12 }} contentContainerStyle={{ paddingBottom:140 }}>
-        {/* Adjustments and auto-applied price notices removed per UX request */}
-      </ScrollView>
-      <View style={[styles.actionsBar, { marginBottom: 24 }] }>
+      <View style={[styles.actionsBar, { marginBottom: 12 }] }>
         <TouchableOpacity
           style={[styles.primaryBtn, { backgroundColor: (validating || paying) ? '#9ca3af' : COLORS.primary }]}
           onPress={payNow}
@@ -285,8 +298,6 @@ export default function CheckoutPlaceholder() {
             <Text style={styles.primaryText}>{paying ? 'Sending…' : 'Pay Now (M-Pesa)'}</Text>
           </View>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.secondaryBtn,{marginTop:12}]} onPress={() => { clearCart(); router.back() }} disabled={validating}>
-          <Text style={styles.secondaryText}>Clear & Close</Text></TouchableOpacity>
       </View>
     </View>
   )
