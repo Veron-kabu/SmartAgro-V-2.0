@@ -1,15 +1,17 @@
 import { useLocalSearchParams, router, useFocusEffect } from 'expo-router'
 import { useEffect, useState, useCallback, useLayoutEffect } from 'react'
 import { useNavigation } from '@react-navigation/native'
-import { View, Text, ActivityIndicator, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, Alert, ScrollView } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { getJSON, postJSON, patchJSON } from '../../context/api'
 import { track } from '../../utils/analytics'
 import { ANALYTICS_EVENTS } from '../../constants/analyticsEvents'
-import { formatCurrency } from '../../utils/orders'
+ 
 import { emitAppEvent } from '../../context/favorites'
 import { useToast } from '../../context/toast'
 import { newOrderStyles as styles, checkoutStyles } from '../../assets/styles/orders.styles'
+import LoadingSpinner from '../../components/LoadingSpinner'
+import { productEditStyles as productInputStyles } from '../../assets/styles/products.styles'
 import { useProfile } from '../../context/profile'
 import { initiateStkPush, getStkStatus } from '../../utils/mpesa'
 import { COLORS } from '../../constants/colors'
@@ -198,14 +200,14 @@ export default function NewOrderScreen() {
   }
 
   if (!profile) {
-  return <View style={styles.center}><ActivityIndicator color={COLORS.primary} /></View>
+    return <LoadingSpinner message="Loading profile..." />
   }
   // Allow both buyers and farmers to place orders (farmers act as buyers for others' listings)
   if (!['buyer','farmer'].includes(profile.role)) {
     return <View style={styles.center}><Text style={styles.muted}>Only buyers or farmers can place orders.</Text></View>
   }
 
-  if (loading) return <View style={styles.center}><ActivityIndicator color={COLORS.primary} /></View>
+  if (loading) return <LoadingSpinner message="Loading order..." />
   if (!product) return <View style={styles.center}><Text style={styles.muted}>Product not found.</Text></View>
 
   const isSelfOwned = profile.role === 'farmer' && product?.farmerId === profile.id
@@ -244,7 +246,7 @@ export default function NewOrderScreen() {
         <View style={{ height: 16 }} />
         <Text style={styles.label}>Quantity</Text>
         <TextInput
-          style={styles.input}
+          style={productInputStyles.input}
           keyboardType='number-pad'
           value={quantity}
           onChangeText={setQuantity}
@@ -255,7 +257,7 @@ export default function NewOrderScreen() {
         <Text style={styles.label}>Delivery Address</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <TextInput
-            style={[styles.input, { minHeight: 60, textAlignVertical: 'top', flex: 1 }]}
+            style={[productInputStyles.input, productInputStyles.multiline, { minHeight: 60, textAlignVertical: 'top', flex: 1 }]}
             multiline
             value={deliveryAddress}
             onChangeText={(t) => { setDeliveryAddress(t); setDeliveryObj(null) }}
@@ -268,7 +270,7 @@ export default function NewOrderScreen() {
         <View style={{ height: 16 }} />
         <Text style={styles.label}>Phone Number</Text>
         <TextInput
-          style={styles.input}
+          style={productInputStyles.input}
           keyboardType='phone-pad'
           value={phone}
           onChangeText={(t) => { setPhone(t) }}

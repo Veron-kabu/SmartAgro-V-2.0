@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useLocalSearchParams, router } from 'expo-router'
-import { View, Text, ActivityIndicator, ScrollView, TouchableOpacity } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import BlurhashImage from '../../components/BlurhashImage'
 import { getJSON } from '../../context/api'
 import { formatCurrency, formatDate, statusBadgeColor } from '../../utils/orders'
@@ -11,6 +12,7 @@ import { ANALYTICS_EVENTS } from '../../constants/analyticsEvents'
 import { COLORS } from '../../constants/colors'
 import { useProfile } from '../../context/profile'
 import { useResolvedUrls } from '../../hooks/useResolvedUrls'
+import LoadingSpinner from '../../components/LoadingSpinner'
 
 export default function OrderDetails() {
   const { id } = useLocalSearchParams()
@@ -39,7 +41,7 @@ export default function OrderDetails() {
   }, [numericId])
 
   if (!numericId || Number.isNaN(numericId)) return <View style={styles.center}><Text style={styles.error}>Invalid order id</Text></View>
-  if (loading) return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.primary} /></View>
+  if (loading) return <LoadingSpinner message="Loading order..." />
   if (error) return <View style={styles.center}><Text style={styles.error}>{error}</Text></View>
   if (!order) return <View style={styles.center}><Text style={styles.error}>Order not found</Text></View>
 
@@ -49,8 +51,13 @@ export default function OrderDetails() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ padding:16, paddingBottom:40 }}>
       <View style={styles.headerRow}>
-        <Text style={styles.title}>Order #{order.id}</Text>
-        <View style={[styles.badge, { backgroundColor: badge.bg }]}><Text style={[styles.badgeText, { color: badge.fg }]}>{String(order.status || '').toUpperCase()}</Text></View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', width: '100%' }}>
+          <TouchableOpacity onPress={() => router.back()} style={{ width: 44, justifyContent: 'center', paddingLeft: 6 }} accessibilityLabel="Back">
+            <Ionicons name="arrow-back" size={22} color={COLORS.text} />
+          </TouchableOpacity>
+          <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>Order</Text>
+          <View style={{ width: 44 }} />
+        </View>
       </View>
       {String(order.status).toLowerCase() === 'paused' && (
         <View style={{ marginTop: 10, backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#F59E0B', borderRadius: 8, padding: 10 }}>
@@ -58,7 +65,12 @@ export default function OrderDetails() {
           <Text style={{ color: '#92400E', marginTop: 4 }}>This order is paused due to account suspension. Progress will resume automatically after the account is reactivated.</Text>
         </View>
       )}
-      <Text style={styles.muted}>Placed {formatDate(order.createdAt)}</Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.muted}>Placed {formatDate(order.createdAt)}</Text>
+        <View style={[styles.badge, { backgroundColor: badge.bg }]}>
+          <Text style={[styles.badgeText, { color: badge.fg }]}>{String(order.status || '').toUpperCase()}</Text>
+        </View>
+      </View>
       <View style={styles.section}>        
         <Text style={styles.sectionLabel}>Product</Text>
         <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center', marginBottom: 6 }}>
@@ -78,35 +90,31 @@ export default function OrderDetails() {
         <Text style={styles.value}>Buyer: {order.buyer?.fullName || 'N/A'}</Text>
         <Text style={styles.value}>Farmer: {order.farmer?.fullName || 'N/A'}</Text>
       </View>
-      {/* Actions */}
-      <View style={[styles.section, { marginTop: 16 }]}>
-        <Text style={styles.sectionLabel}>Actions</Text>
-        <View style={{ flexDirection: 'row', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
-          <TouchableOpacity
-            onPress={() => router.push(`/dashboard/user-profile?id=${order.farmer?.id}&productId=${order.product?.id}`)}
-            style={{ backgroundColor: '#111827', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10 }}
-            activeOpacity={0.85}
-          >
-            <Text style={{ color: '#fff', fontWeight: '700' }}>Seller Profile</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => router.push(`/report-user?id=${order.farmer?.id}`)}
-            style={{ backgroundColor: '#dc2626', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10 }}
-            activeOpacity={0.85}
-          >
-            <Text style={{ color: '#fff', fontWeight: '700' }}>Report Seller</Text>
-          </TouchableOpacity>
-          {canReview ? (
+      {/* Actions (hidden for product owner) */}
+      {profile?.id !== order.farmer?.id && (
+        <View style={[styles.section, { marginTop: 16 }]}>
+          <Text style={styles.sectionLabel}>Actions</Text>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+            {/* Seller Profile button hidden per design */}
             <TouchableOpacity
-              onPress={() => router.push(`/orders/write-review?id=${order.id}`)}
-              style={{ backgroundColor: COLORS.primary, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10 }}
+              onPress={() => router.push(`/report-user?id=${order.farmer?.id}`)}
+              style={{ backgroundColor: '#dc2626', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10 }}
               activeOpacity={0.85}
             >
-              <Text style={{ color: '#fff', fontWeight: '700' }}>Write a Review</Text>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>Report Seller</Text>
             </TouchableOpacity>
-          ) : null}
+            {canReview ? (
+              <TouchableOpacity
+                onPress={() => router.push(`/orders/write-review?id=${order.id}`)}
+                style={{ backgroundColor: COLORS.primary, paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10 }}
+                activeOpacity={0.85}
+              >
+                <Text style={{ color: '#fff', fontWeight: '700' }}>Write a Review</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
-      </View>
+      )}
       {order.notes ? (
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Notes</Text>

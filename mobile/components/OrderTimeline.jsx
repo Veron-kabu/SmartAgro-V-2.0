@@ -1,5 +1,6 @@
 import React from 'react'
 import { View, Text, StyleSheet } from 'react-native'
+import { MaterialIcons } from '@expo/vector-icons'
 import { ORDER_STATUS_FLOW } from '../utils/orders'
 
 /**
@@ -18,10 +19,22 @@ export function OrderTimeline({ status, style, compact = false }) {
       {flow.map((step, idx) => {
         const reached = flow.indexOf(s) >= idx
         const isCurrent = step === s
+        // decide icon and color based on step
+        const getIconName = (st) => {
+          switch ((st || '').toLowerCase()) {
+            case 'pending': return 'schedule'
+            case 'paid': return 'payment'
+            case 'shipped': return 'local-shipping'
+            case 'delivered': return 'check-circle'
+            default: return 'lens'
+          }
+        }
+        const color = isCurrent ? '#16a34a' : (reached ? '#60a5fa' : '#d1d5db')
+        const iconName = getIconName(step)
         return (
           <React.Fragment key={step}>
             <View style={styles.col}>
-              <View style={[styles.dot, reached && styles.dotReached, isCurrent && styles.dotCurrent]} />
+              <MaterialIcons name={iconName} size={compact ? 14 : 18} color={color} />
               <Text style={[styles.label, reached ? styles.labelReached : styles.labelPending, compact && styles.labelCompact]}>{step}</Text>
             </View>
             {idx < flow.length - 1 && <View style={[styles.line, flow.indexOf(s) > idx && styles.lineReached]} />}

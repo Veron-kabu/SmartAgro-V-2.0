@@ -4,7 +4,11 @@ import {
   Text, 
   TouchableOpacity, 
   TextInput, 
-  FlatList
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { useRouter, useNavigation, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,7 +25,7 @@ export default function ChatConversation() {
   const router = useRouter();
   const navigation = useNavigation();
   const [newMessage, setNewMessage] = useState('');
-  const flatListRef = useRef(null);
+  const scrollRef = useRef(null);
 
   // Debug: Log chat state
   console.log('Chat conversation state:', {
@@ -133,12 +137,18 @@ export default function ChatConversation() {
           >
             <Ionicons name="videocam" size={24} color={COLORS.white} />
           </TouchableOpacity>
-          <TouchableOpacity style={{ marginRight: 10 }}>
-            <Ionicons name="call" size={24} color={COLORS.white} />
-          </TouchableOpacity>
-          <TouchableOpacity>
-            <Ionicons name="ellipsis-vertical" size={24} color={COLORS.white} />
-          </TouchableOpacity>
+          {/* Temporarily hidden: voice call button */}
+          {false && (
+            <TouchableOpacity style={{ marginRight: 10 }}>
+              <Ionicons name="call" size={24} color={COLORS.white} />
+            </TouchableOpacity>
+          )}
+          {/* Temporarily hidden: menu / three vertical dots */}
+          {false && (
+            <TouchableOpacity>
+              <Ionicons name="ellipsis-vertical" size={24} color={COLORS.white} />
+            </TouchableOpacity>
+          )}
         </View>
       ),
     });
@@ -270,32 +280,44 @@ export default function ChatConversation() {
   const displayMessages = chatMessages.length > 0 ? chatMessages : [];
 
   return (
-    <View style={chatStyles.container}>
+    <KeyboardAvoidingView
+      style={chatStyles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 80}
+    >
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={{ flex: 1 }}>
       <View style={chatStyles.messagesContainer}>
-        {/* Messages List */}
+        {/* Messages List (ScrollView replacement for FlatList) */}
         {displayMessages.length > 0 ? (
-          <FlatList
-            ref={flatListRef}
-            data={displayMessages}
-            renderItem={renderMessage}
-            keyExtractor={(item, index) => item._id || index.toString()}
+          <ScrollView
+            ref={scrollRef}
             style={chatStyles.messagesList}
             contentContainerStyle={chatStyles.messagesContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
             onContentSizeChange={() => {
               // Scroll to bottom when content changes (new messages)
-              if (flatListRef.current && displayMessages.length > 0) {
-                flatListRef.current.scrollToEnd({ animated: true });
+              if (scrollRef.current && displayMessages.length > 0) {
+                try { scrollRef.current.scrollToEnd({ animated: true }); } catch (_e) {}
               }
             }}
             onLayout={() => {
               // Scroll to bottom when layout changes (keyboard)
-              if (flatListRef.current && displayMessages.length > 0) {
-                flatListRef.current.scrollToEnd({ animated: false });
+              if (scrollRef.current && displayMessages.length > 0) {
+                try { scrollRef.current.scrollToEnd({ animated: false }); } catch (_e) {}
               }
             }}
-          />
+          >
+            {displayMessages.map((item, index) => {
+              const key = item._id || index.toString();
+              return (
+                <View key={key}>
+                  {renderMessage({ item })}
+                </View>
+              );
+            })}
+          </ScrollView>
         ) : (
           <View style={chatStyles.emptyStateContainer}>
             <View style={chatStyles.emptyStateContent}>
@@ -321,28 +343,54 @@ export default function ChatConversation() {
             multiline
             maxLength={1000}
           />
-          <TouchableOpacity style={chatStyles.attachButton}>
-            <Ionicons name="attach" size={24} color={COLORS.messageInputPlaceholder} />
-          </TouchableOpacity>
-          <TouchableOpacity style={chatStyles.cameraButton}>
-            <Ionicons name="camera" size={24} color={COLORS.messageInputPlaceholder} />
+          {/* Temporarily hidden: attach (clip) button */}
+          {false && (
+            <TouchableOpacity style={chatStyles.attachButton}>
+              <Ionicons name="attach" size={24} color={COLORS.messageInputPlaceholder} />
+            </TouchableOpacity>
+          )}
+          {/* Temporarily hidden: camera button */}
+          {false && (
+            <TouchableOpacity style={chatStyles.cameraButton}>
+              <Ionicons name="camera" size={24} color={COLORS.messageInputPlaceholder} />
+            </TouchableOpacity>
+          )}
+          {/* Inline send button placed at the far right inside the input wrapper */}
+          <TouchableOpacity
+            style={[
+              chatStyles.sendButtonInline,
+              newMessage.trim() ? chatStyles.sendButtonInlineActive : chatStyles.sendButtonInlineDisabled
+            ]}
+            onPress={newMessage.trim() ? handleSendMessage : null}
+            disabled={!newMessage.trim()}
+          >
+            <Ionicons
+              name="send"
+              size={18}
+              color={newMessage.trim() ? COLORS.white : COLORS.messageInputPlaceholder}
+            />
           </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={[
-            chatStyles.sendButton,
-            newMessage.trim() ? chatStyles.sendButtonActive : null
-          ]}
-          onPress={newMessage.trim() ? handleSendMessage : null}
-        >
-          <Ionicons 
-            name={newMessage.trim() ? "send" : "mic"} 
-            size={20} 
-            color={COLORS.white} 
-          />
-        </TouchableOpacity>
+        {/* Audio/send button commented out (including its background) */}
+        {false && (
+          <TouchableOpacity
+            style={[
+              chatStyles.sendButton,
+              newMessage.trim() ? chatStyles.sendButtonActive : null
+            ]}
+            onPress={newMessage.trim() ? handleSendMessage : null}
+          >
+            <Ionicons 
+              name={newMessage.trim() ? "send" : "mic"} 
+              size={20} 
+              color={COLORS.white} 
+            />
+          </TouchableOpacity>
+        )}
       </View>
-    </View>
+        </View>
+      </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -444,6 +492,7 @@ const chatStyles = {
     paddingVertical: 8,
     minHeight: 48,
     maxHeight: 120,
+    marginRight: 0,
   },
   textInput: {
     flex: 1,
@@ -461,6 +510,20 @@ const chatStyles = {
   cameraButton: {
     marginLeft: 4,
     padding: 4,
+  },
+  sendButtonInline: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  sendButtonInlineActive: {
+    backgroundColor: COLORS.primary,
+  },
+  sendButtonInlineDisabled: {
+    backgroundColor: 'transparent',
   },
   sendButton: {
     width: 48,

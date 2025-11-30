@@ -7,6 +7,8 @@ import { useRouter, useLocalSearchParams } from 'expo-router'
 import { getJSON, postJSON } from '../../context/api'
 import { groupOrders, formatCurrency, formatDate, statusBadgeColor } from '../../utils/orders'
 import { OrderTimeline } from '../../components/OrderTimeline'
+import { Ionicons } from '@expo/vector-icons'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import { buyerOrdersStyles as styles } from '../../assets/styles/orders.styles'
 import { COLORS } from '../../constants/colors'
 
@@ -21,7 +23,6 @@ export default function BuyerOrders() {
   const [offset, setOffset] = useState(0)
   const limit = 25
   const listRef = useRef(null)
-  const [focusedKey, setFocusedKey] = useState(null)
   // Resolve product image URLs for current items to ensure thumbnails display even for private buckets
   const productImageUrls = useMemo(() => (orders || []).map(o => o?.product?.imageUrl || null).filter(Boolean), [orders])
   const resolvedOrderImages = useResolvedUrls(productImageUrls)
@@ -79,6 +80,7 @@ export default function BuyerOrders() {
 
   const { current, completed } = useMemo(() => groupOrders(orders), [orders])
   const view = String(params?.view || '').toLowerCase() || (params?.focus ? String(params.focus).toLowerCase() : '')
+  const headerTitle = (view === 'fulfilled' || view === 'completed') ? 'Fulfilled Orders' : 'Sent Orders'
   const canLoadMore = orders.length < total
 
   const sections = useMemo(() => {
@@ -88,11 +90,11 @@ export default function BuyerOrders() {
     all.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))
     const nonDelivered = all.filter(o => String(o.status || '').toLowerCase() !== 'delivered')
     if (view === 'fulfilled' || view === 'completed') {
-      return [{ key: 'completed', title: 'Fulfilled Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (completed.length ? completed : [{ __empty: true }]) }]
+      return [{ key: 'completed', title: 'Fulfilled Orders', data: (completed.length ? completed : [{ __empty: true }]) }]
     }
     // Default 'sent' view hides delivered orders
-    return [{ key: 'sent', title: 'Sent Orders', data: loading && orders.length === 0 ? [{ __skeleton: true }, { __skeleton: true }] : (nonDelivered.length ? nonDelivered : [{ __empty: true }]) }]
-  }, [view, loading, orders.length, current, completed])
+    return [{ key: 'sent', title: 'Sent Orders', data: (nonDelivered.length ? nonDelivered : [{ __empty: true }]) }]
+  }, [view, current, completed])
 
   // Auto-scroll to section based on focus/view param and briefly highlight header
   useEffect(() => {
@@ -104,15 +106,27 @@ export default function BuyerOrders() {
       setTimeout(() => {
         try {
           listRef.current.scrollToLocation({ sectionIndex: index, itemIndex: 0, animated: true, viewPosition: 0 })
-          setFocusedKey(key)
-          setTimeout(() => setFocusedKey(null), 1600)
         } catch {}
       }, 0)
     }
   }, [params?.focus, params?.view, loading, sections])
 
+  if (loading && orders.length === 0) {
+    return <LoadingSpinner message="Loading orders..." />
+  }
+
   return (
-    <SectionList
+    <>
+      <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, backgroundColor: COLORS.background }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity onPress={() => router.back()} style={{ width: 44, justifyContent: 'center', paddingLeft: 6 }} accessibilityLabel="Back">
+            <Ionicons name="arrow-back" size={22} color={COLORS.text} />
+          </TouchableOpacity>
+          <Text style={{ flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '700', color: COLORS.text }}>{headerTitle}</Text>
+          <View style={{ width: 44 }} />
+        </View>
+      </View>
+      <SectionList
       ref={listRef}
       sections={sections}
       keyExtractor={(item, index) => String(item?.id ?? index)}
@@ -122,16 +136,8 @@ export default function BuyerOrders() {
       onRefresh={() => { setRefreshing(true); load(0) }}
       onEndReachedThreshold={0.3}
       onEndReached={() => { if (canLoadMore && !loadingMore) load(offset + limit) }}
-      renderSectionHeader={({ section }) => (
-        <View style={[styles.card, { paddingBottom: 8 }, focusedKey === section.key && styles.sectionHeaderFocused]}>
-          <View style={styles.rowBetween}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
-            {loading ? <ActivityIndicator size="small" color={COLORS.primary} /> : null}
-          </View>
-        </View>
-      )}
+      renderSectionHeader={() => null}
       renderItem={({ item, section }) => {
-        if (item.__skeleton) return (<View style={styles.card}><View style={styles.skelTitle} /><View style={styles.skelLine} /></View>)
         if (item.__empty) return (
           <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
             <EmptyState context="orders" />
@@ -221,5 +227,6 @@ export default function BuyerOrders() {
       ) : null}
       stickySectionHeadersEnabled={false}
     />
+    </>
   )
 }

@@ -12,6 +12,7 @@ export default function OrdersLayout() {
   return (
     <Stack
       screenOptions={{
+        headerShown: false,
         headerTitle: 'Orders',
         headerLargeTitle: Platform.OS === 'ios',
         headerShadowVisible: false,

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef, useLayoutEffect } from 'react'
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, TextInput, ScrollView, Alert } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { getJSON, patchJSON, deleteJSON } from '../../context/api'
@@ -6,12 +6,17 @@ import { emitAppEvent, subscribeAppEvents } from '../../context/favorites'
 import { useProfile } from '../../context/profile'
 import EmptyState from '../../components/EmptyState'
 import { router } from 'expo-router'
+import { useNavigation } from '@react-navigation/native'
 import BlurhashImage from '../../components/BlurhashImage'
+import { Ionicons } from '@expo/vector-icons'
+import { COLORS } from '../../constants/colors'
 import { useResolvedUrls } from '../../hooks/useResolvedUrls'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import { myListingsStyles as styles } from '../../assets/styles/listings.styles'
 
 export default function MyListings() {
 	const { profile } = useProfile()
+	const navigation = useNavigation()
 	const [loading, setLoading] = useState(true)
 	const [refreshing, setRefreshing] = useState(false)
 	const [error, setError] = useState('')
@@ -63,6 +68,10 @@ export default function MyListings() {
 	}, [profile?.id, nextCursor])
 
 	useEffect(() => { load({ reset: true }) }, [load])
+
+	useLayoutEffect(() => {
+		try { navigation.setOptions({ headerShown: false }) } catch (_e) {}
+	}, [navigation])
 
 	// Insert newly created product instantly if it belongs to current farmer
 	useEffect(() => {
@@ -294,9 +303,7 @@ export default function MyListings() {
 		)
 	}
 
-	if (loading) {
-		return <View style={styles.center}><ActivityIndicator /><Text style={styles.loadingTxt}>Loading listings…</Text></View>
-	}
+	if (loading) return <LoadingSpinner message="Loading listings..." />
 	if (error) {
 		return <View style={styles.center}><Text style={styles.error}>{error}</Text><TouchableOpacity onPress={load} style={styles.retry}><Text style={styles.retryText}>Retry</Text></TouchableOpacity></View>
 	}
@@ -306,13 +313,15 @@ export default function MyListings() {
 	return (
 		<View style={styles.container}>
 			<View style={styles.header}>
-				<View style={{ width: 56 }} />
-				<Text style={styles.headerTitle}>My Listings</Text>
-				<View style={styles.headerActions}>
+				<TouchableOpacity onPress={() => { try { router.back() } catch {} }} accessibilityLabel="Back" activeOpacity={0.85} style={{ position: 'absolute', left: 12, top: 0, bottom: 0, justifyContent: 'center'}}>
+					<Ionicons name="arrow-back" size={20} color={COLORS.primary} />
+				</TouchableOpacity>
+				<Text style={[styles.headerTitle, { position: 'absolute', left: 0, right: 0, textAlign: 'center' }]}>My Listings</Text>
+			{/*	<View style={styles.headerActions}>
 					<TouchableOpacity onPress={toggleSelectionMode} style={styles.headerBtn} activeOpacity={0.7}>
 						<Text style={styles.headerBtnText}>{selectionMode ? `Done (${selected.size})` : 'Select'}</Text>
 					</TouchableOpacity>
-				</View>
+				</View> */}
 			</View>
 			<View style={styles.searchBarWrapper}>
 				<TextInput
@@ -341,7 +350,7 @@ export default function MyListings() {
 					</TouchableOpacity>
 				))}
 			</ScrollView>
-			<ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sortScroll} contentContainerStyle={styles.sortRow}>
+	{/*		<ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.sortScroll} contentContainerStyle={styles.sortRow}>
 				{[
 					{ key: 'newest', label: 'Newest' },
 					{ key: 'price-asc', label: 'Price ↑' },
@@ -357,7 +366,7 @@ export default function MyListings() {
 						<Text style={[styles.sortChipText, sortKey === s.key && styles.sortChipTextActive]}>{s.label}</Text>
 					</TouchableOpacity>
 				))}
-			</ScrollView>
+			</ScrollView>  */}
 			<FlatList
 				data={sortedItems}
 				keyExtractor={i => String(i.id)}

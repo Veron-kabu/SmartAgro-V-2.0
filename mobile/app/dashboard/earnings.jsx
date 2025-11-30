@@ -1,12 +1,14 @@
-import { useEffect, useState, useCallback } from 'react'
-import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, Dimensions, StatusBar } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { useEffect, useState, useCallback, useLayoutEffect } from 'react'
+import { View, Text, ScrollView, TouchableOpacity, Dimensions } from 'react-native'
+import { useNavigation } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
+import { useRouter } from 'expo-router'
 import { VictoryPie, VictoryLabel } from 'victory-native'
 import { getJSON } from '../../context/api'
 import { earningsStyles as styles } from '../../assets/styles/dashboard.styles'
 // import { router } from 'expo-router'
 import { COLORS } from '../../constants/colors'
+import LoadingSpinner from '../../components/LoadingSpinner'
 
 // Simple in-memory cache (resets on app reload)
 const earningsCache = { data: null, fetchedAt: 0 }
@@ -42,6 +44,13 @@ export default function EarningsScreen() {
 
   useEffect(() => { fetchEarnings() }, [fetchEarnings])
 
+  const router = useRouter()
+  const navigation = useNavigation()
+
+  useLayoutEffect(() => {
+    try { navigation.setOptions({ headerShown: false }) } catch (_e) {}
+  }, [navigation])
+
   // Fetch transactions (orders for this farmer) for recent paid list
   useEffect(() => {
     let cancelled = false
@@ -69,7 +78,7 @@ export default function EarningsScreen() {
     return `Ksh ${num.toLocaleString('en-KE',{maximumFractionDigits:2})}`
   }, [])
 
-  if (loading) return <View style={styles.center}><ActivityIndicator size="small"/><Text style={styles.muted}> Loading earnings...</Text></View>
+  if (loading) return <LoadingSpinner message="Loading earnings..." />
   if (error) return (
     <View style={styles.center}>
       <Text style={styles.error}>{error}</Text>
@@ -92,14 +101,12 @@ export default function EarningsScreen() {
   const labelRadius = Math.max(20, Math.floor(pieRadius - 90))
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.background }}>
-      <StatusBar backgroundColor={String(COLORS.background)} barStyle="dark-content" />
-      <ScrollView style={{ flex: 1, backgroundColor: 'transparent' }} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView style={{ flex: 1, backgroundColor: '#10b981' }} contentContainerStyle={{ paddingBottom: 40 }}>
         {/* Hero summary wrapper: green background with white inner card */}
-        <View style={{ backgroundColor: '#10b981', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 }}>
+        <View style={{ backgroundColor: '#10b981', paddingHorizontal: 16, paddingBottom: 16, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <TouchableOpacity onPress={() => {}} style={{ padding: 4 }}>
-            <Ionicons name="menu" size={20} color="#fff" />
+          <TouchableOpacity onPress={() => router.back()} style={{ padding: 4 }}>
+            <Ionicons name="arrow-back" size={20} color="#fff" />
           </TouchableOpacity>
           <Text style={[{ fontSize: 18, fontWeight: '800', color: '#fff', textAlign: 'center', flex: 1 }]}>Earnings</Text>
           <TouchableOpacity onPress={() => {}} style={{ padding: 4 }}>
@@ -297,6 +304,5 @@ export default function EarningsScreen() {
         <View style={{ height: 60 }} />
         </View>
       </ScrollView>
-    </SafeAreaView>
   )
 }

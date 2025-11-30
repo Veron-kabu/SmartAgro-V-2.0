@@ -6,6 +6,8 @@ import BlurhashImage from '../../components/BlurhashImage'
 import EmptyState from '../../components/EmptyState'
 import { useRouter, useLocalSearchParams } from 'expo-router'
 import { getJSON, patchJSON } from '../../context/api'
+import { Ionicons } from '@expo/vector-icons'
+import { COLORS } from '../../constants/colors'
 import { groupOrders, formatCurrency, formatDate, statusBadgeColor, nextStatusesFor } from '../../utils/orders'
 import { OrderTimeline } from '../../components/OrderTimeline'
 import { track } from '../../utils/analytics'
@@ -13,6 +15,7 @@ import { ANALYTICS_EVENTS } from '../../constants/analyticsEvents'
 import { farmerOrdersStyles as styles } from '../../assets/styles/orders.styles'
 import { useResolvedUrls } from '../../hooks/useResolvedUrls'
 import { useProfile } from '../../context/profile'
+import LoadingSpinner from '../../components/LoadingSpinner'
 
 export default function FarmerOrders() {
   const router = useRouter()
@@ -153,7 +156,7 @@ export default function FarmerOrders() {
   }
 
   const sections = [
-    { key: showingIncoming ? 'incoming' : 'completed', title: showingIncoming ? 'Incoming Orders' : 'Fulfilled Orders', data: loading && (ordersSent.length === 0 && ordersReceived.length === 0) ? [{ __skeleton: true }, { __skeleton: true }] : (listData.length ? listData : [{ __empty: true }]) },
+    { key: showingIncoming ? 'incoming' : 'completed', title: showingIncoming ? 'Incoming Orders' : 'Fulfilled Orders', data: (listData.length ? listData : [{ __empty: true }]) },
   ]
 
   if (!profile) {
@@ -173,8 +176,32 @@ export default function FarmerOrders() {
     )
   }
 
+  if (loading && ordersSent.length === 0 && ordersReceived.length === 0) {
+    return <LoadingSpinner message="Loading orders..." />
+  }
+
   return (
-    <SectionList
+    <>
+      <View style={{ paddingHorizontal: 16, paddingTop: 1, paddingBottom: 8, backgroundColor: COLORS.background }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity onPress={() => router.back()} style={{ width: 44, justifyContent: 'center', paddingLeft: 6 }} accessibilityLabel="Back">
+            <Ionicons name="arrow-back" size={22} color={COLORS.text} />
+          </TouchableOpacity>
+          <Text style={{ flex: 1, textAlign: 'center', fontSize: 18, fontWeight: '700', color: COLORS.text }}>{showingIncoming ? 'Incoming Orders' : 'Fulfilled Orders'}</Text>
+          <View style={{ width: 44 }} />
+        </View>
+        {!showingIncoming && (
+          <View style={{ flexDirection: 'row', marginTop: 8, justifyContent: 'center' }}>
+            <TouchableOpacity onPress={() => setFilterMode('sent')} activeOpacity={0.85} style={[styles.button, { flex: 1, marginRight: 6, paddingVertical: 8, borderWidth: filterMode==='sent'?0:1, backgroundColor: filterMode==='sent'?'#16a34a':'transparent', borderColor: '#16a34a', alignItems: 'center', justifyContent: 'center', borderRadius: 999 }]}>
+              <Text style={[styles.buttonText, { color: filterMode==='sent'?'#fff':'#16a34a' }]}>i Sold</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setFilterMode('received')} activeOpacity={0.85} style={[styles.button, { flex: 1, marginLeft: 6, paddingVertical: 8, borderWidth: filterMode==='received'?0:1, backgroundColor: filterMode==='received'?'#16a34a':'transparent', borderColor: '#16a34a', alignItems: 'center', justifyContent: 'center', borderRadius: 999 }]}>
+              <Text style={[styles.buttonText, { color: filterMode==='received'?'#fff':'#16a34a' }]}>i Bought</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+      <SectionList
       sections={sections}
       keyExtractor={(item, index) => String(item?.id ?? index)}
       contentContainerStyle={{ paddingBottom: 24 }}
@@ -186,27 +213,8 @@ export default function FarmerOrders() {
         if (showingIncoming || filterMode === 'sent') load(offsetSent + limit, offsetReceived, 'sent')
         else load(offsetSent, offsetReceived + limit, 'received')
       } }}
-      renderSectionHeader={({ section }) => (
-        <View style={[styles.card, { paddingBottom: 8 }]}>
-          <View style={styles.rowBetween}>
-            <Text style={styles.sectionTitle}>{section.title}</Text>
-            {loading ? <ActivityIndicator size="small" color="#16a34a" /> : null}
-          </View>
-          {/* Show Sent/Received toggle only when viewing Fulfilled */}
-          {!showingIncoming && (
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-              <TouchableOpacity onPress={() => setFilterMode('sent')} activeOpacity={0.85} style={[styles.button, { paddingVertical: 6, borderWidth: filterMode==='sent'?0:1, backgroundColor: filterMode==='sent'?'#16a34a':'transparent', borderColor: '#16a34a' }]}>
-                <Text style={[styles.buttonText, { color: filterMode==='sent'?'#fff':'#16a34a' }]}>Sent</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setFilterMode('received')} activeOpacity={0.85} style={[styles.button, { paddingVertical: 6, borderWidth: filterMode==='received'?0:1, backgroundColor: filterMode==='received'?'#16a34a':'transparent', borderColor: '#16a34a' }]}>
-                <Text style={[styles.buttonText, { color: filterMode==='received'?'#fff':'#16a34a' }]}>Received / Bought</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      )}
+      renderSectionHeader={() => null}
       renderItem={({ item }) => {
-        if (item.__skeleton) return (<View style={styles.card}><View style={styles.skelTitle} /><View style={styles.skelLine} /></View>)
         if (item.__empty) return (
           <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
             <EmptyState context="fulfilledOrders" />
@@ -279,5 +287,6 @@ export default function FarmerOrders() {
       ) : null}
       stickySectionHeadersEnabled={false}
     />
+    </>
   )
 }

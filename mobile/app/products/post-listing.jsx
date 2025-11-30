@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useLayoutEffect } from 'react'
 import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Image } from 'react-native'
 import { COLORS } from '../../constants/colors'
 import CategoryFilter from '../../components/CategoryFilter'
@@ -8,6 +8,7 @@ import { getJSON, postJSON } from '../../context/api'
 import { emitAppEvent } from '../../context/favorites'
 import * as ImagePicker from 'expo-image-picker'
 import { router } from 'expo-router'
+import { useNavigation } from '@react-navigation/native'
 import { Ionicons } from '@expo/vector-icons'
 import { useToast } from '../../context/toast'
 import BlurhashImage from '../../components/BlurhashImage'
@@ -17,6 +18,7 @@ import { postListingStyles as styles } from '../../assets/styles/listings.styles
 export default function PostListing() {
   const { profile } = useProfile()
   const toast = useToast()
+  const navigation = useNavigation()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [keyFeaturesText, setKeyFeaturesText] = useState('')
@@ -67,6 +69,10 @@ export default function PostListing() {
     })()
     return () => { mounted = false }
   }, [])
+
+  useLayoutEffect(() => {
+    try { navigation.setOptions({ headerShown: false }) } catch (_e) {}
+  }, [navigation])
 
   const resetForm = useCallback(() => {
     setTitle('')
@@ -285,7 +291,13 @@ export default function PostListing() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <View style={styles.headerRow}>
-        <Text style={styles.brand}>SmartAgro</Text>
+        <View style={{ width: 40, justifyContent: 'center' }}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 8 }} accessibilityLabel="Back">
+            <Ionicons name="arrow-back" size={24} color={COLORS.primary} />
+          </TouchableOpacity>
+        </View>
+        <Text style={[styles.brand, { textAlign: 'center', flex: 1 }]}>Create Listing</Text>
+        <View style={{ width: 40 }} />
       </View>
       {String(profile?.status || '').toLowerCase() === 'suspended' && (
         <View style={{ backgroundColor: '#FEE2E2', borderColor: '#FCA5A5', borderWidth: 1, padding: 12, borderRadius: 8, marginBottom: 12 }}>
@@ -306,7 +318,6 @@ export default function PostListing() {
           </TouchableOpacity>
         </View>
       )}
-      <Text style={styles.title}>Create a New Post</Text>
 
       <Text style={styles.label}>Product Name</Text>
   <TextInput style={[styles.input, errors.title && styles.inputError]} value={title} onChangeText={(v)=>{ setTitle(v); suggestCategory(v); if(errors.title) setErrors(e=>({...e, title: undefined})) }} placeholder="Enter product name" />

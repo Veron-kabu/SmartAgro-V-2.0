@@ -14,7 +14,13 @@ export default function OrdersIndex() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Orders</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, marginTop: -20 }}>
+        <TouchableOpacity onPress={() => router.back()} style={{ width: 44, justifyContent: 'center', paddingLeft: 6 }} accessibilityLabel="Back">
+          <Ionicons name="arrow-back" size={22} color={COLORS.text} />
+        </TouchableOpacity>
+        <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>Orders</Text>
+        <View style={{ width: 44 }} />
+      </View>
       <Text style={styles.subtitle}>Choose a category</Text>
       <View style={styles.grid}>
         {role === 'farmer' && (

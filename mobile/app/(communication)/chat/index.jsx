@@ -163,14 +163,23 @@ export default function ChatIndex() {
         <>
           {/* Custom Header with title and action buttons */}
           <View style={styles.header}>
-            <Text style={styles.title}>Messages</Text>
-            <View style={styles.headerActions}>
-              <TouchableOpacity
+            <TouchableOpacity
+              style={{ width: 48, alignItems: 'flex-start', justifyContent: 'center' }}
+              onPress={() => router.back()}
+              accessibilityLabel="Back"
+            >
+              <Ionicons name="arrow-back" size={24} color={COLORS.text} />
+            </TouchableOpacity>
+
+            <Text style={[styles.title, { flex: 1, textAlign: 'center' }]}>Messages</Text>
+
+            <View style={[styles.headerActions, { width: 48, alignItems: 'flex-end', justifyContent: 'center' }]}>
+            {/*  <TouchableOpacity
                 style={styles.headerButton}
                 onPress={() => router.push('/chat/test')}
               >
                 <Ionicons name="bug" size={20} color={COLORS.text} />
-              </TouchableOpacity>
+              </TouchableOpacity>  */}
               <TouchableOpacity
                 style={styles.headerButton}
                 onPress={() => router.push('/chat/new-chat')}

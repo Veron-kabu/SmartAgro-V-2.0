@@ -5,8 +5,8 @@ import { COLORS, BACKDROP, OVERLAY } from '../../constants/colors';
 export const postListingStyles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   content: { padding: 16, paddingBottom: 64 },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  brand: { fontSize: 18, fontWeight: '700', color: COLORS.text },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5,  marginTop: -20 },
+  brand: { fontSize: 18, fontWeight: '700', color: COLORS.text, },
   title: { fontSize: 16, fontWeight: '700', color: COLORS.text, marginBottom: 16 },
   label: { fontSize: 12, fontWeight: '600', color: COLORS.textLight, marginTop: 12, marginBottom: 6 },
   input: { backgroundColor: COLORS.card, borderWidth: 1, borderColor: COLORS.border, borderRadius: 24, paddingHorizontal: 16, paddingVertical: 12, fontSize: 13, color: COLORS.text },
@@ -37,7 +37,7 @@ export const postListingStyles = StyleSheet.create({
 // My Listings Page Styles
 export const myListingsStyles = StyleSheet.create({
   container:{ flex:1, backgroundColor: COLORS.background },
-  header:{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingTop: 52, paddingHorizontal:16, paddingBottom:12, backgroundColor: COLORS.card, borderBottomWidth:1, borderColor: COLORS.border },
+  header:{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', paddingTop: 14, paddingHorizontal:16, paddingBottom:12, backgroundColor: COLORS.background},
   headerTitle:{ fontSize:16, fontWeight:'700', color: COLORS.text },
   back:{ color: COLORS.text, fontWeight:'600', fontSize:14 },
   card:{ flexDirection:'row', backgroundColor: COLORS.card, marginHorizontal:16, marginTop:12, borderRadius:16, overflow:'hidden', elevation:2, borderWidth:1, borderColor: COLORS.border },
@@ -52,7 +52,7 @@ export const myListingsStyles = StyleSheet.create({
   actionsRow:{ flexDirection:'row', marginTop:'auto', gap:8 },
   smallBtn:{ backgroundColor: COLORS.background, paddingHorizontal:12, paddingVertical:6, borderRadius:14 },
   smallBtnText:{ fontSize:11, fontWeight:'600', color: COLORS.text },
-  center:{ flex:1, justifyContent:'center', alignItems:'center' },
+  center:{ flex:1, justifyContent:'center', alignItems:'center', backgroundColor: COLORS.background },
   loadingTxt:{ marginTop:8, fontSize:12, color: COLORS.textLight },
   error:{ color: COLORS.error, fontSize:12 },
   retry:{ marginTop:12, backgroundColor: COLORS.primary, paddingHorizontal:16, paddingVertical:10, borderRadius:24 },

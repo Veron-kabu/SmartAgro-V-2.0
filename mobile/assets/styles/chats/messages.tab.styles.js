@@ -16,6 +16,7 @@ export const messagesTabStyles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
+    marginTop: -40,
     backgroundColor: COLORS.background,
   },
   title: {
