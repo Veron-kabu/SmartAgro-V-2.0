@@ -1,11 +1,14 @@
 import { useEffect, useState, useCallback } from 'react' 
-import { View, Text, ActivityIndicator, ScrollView, TouchableOpacity, TextInput } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { Image as ExpoImage } from 'expo-image'
 import { useLocalSearchParams, router } from 'expo-router'
 import { getJSON, postJSON } from '../../../context/api'
 import { emit as emitEvent } from '../../../utils/eventBus'
+import LoadingSpinner from '../../../components/LoadingSpinner'
 import ImageViewing from 'react-native-image-viewing'
 import { useToast } from '../../../context/toast'
+import { COLORS } from '../../../constants/colors'
 
 async function resolveImageUrl(uploadKey) {
   const q = encodeURIComponent(uploadKey)
@@ -104,13 +107,40 @@ export default function VerificationDetail() {
 
     // Escalate removed
 
-  if (loading) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator /></View>
+  if (loading) return <LoadingSpinner message="Loading verification..." />
   if (!rec) return <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><Text>Not found</Text></View>
+  const submitter = rec?.user?.username || rec?.user?.full_name || rec?.user?.name || rec?.userName || rec?.username || rec?.userEmail || rec?.email || rec?.submitted_by || rec?.submittedBy || `#${rec.id}`
+
+  const localHeaderStyles = StyleSheet.create({
+    header: {
+      height: 34,
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: -8,
+      justifyContent: 'space-between',
+      paddingHorizontal: 10,
+      backgroundColor: COLORS.background,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: COLORS.border,
+    },
+    leftBtn: { padding: 6 },
+    title: { fontSize: 18, fontWeight: '700', color: COLORS.text },
+    rightActions: { flexDirection: 'row', alignItems: 'center' },
+  })
+
+  const header = (
+    <View style={localHeaderStyles.header}>
+      <TouchableOpacity onPress={() => { try { router.back() } catch { router.replace('/verification/verification-reviews') } }} style={localHeaderStyles.leftBtn} accessibilityLabel="Back">
+        <Ionicons name="arrow-back" size={20} color={COLORS.primary} />
+      </TouchableOpacity>
+      <Text style={[localHeaderStyles.title, { marginLeft: -25 }]}>Submission by {submitter}</Text>
+      <View style={localHeaderStyles.rightActions} />
+    </View>
+  )
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: '#f3f4f6' }} contentContainerStyle={{ padding: 12, paddingBottom: 36 }}>
-      {/* Title only (header back button provided by navigation) */}
-      <Text style={{ fontSize: 20, fontWeight: '700', marginBottom:8 }}>Submission #{rec.id}</Text>
+    <ScrollView style={{ flex: 1, backgroundColor: COLORS.background }} contentContainerStyle={{ padding: 12, paddingBottom: 36 }}>
+      {header}
       <Text style={{ marginTop: 4, color: '#6b7280' }}>{new Date(rec.createdAt).toLocaleString()}</Text>
       {rec.awaitingSecondApproval && (
         <View style={{ marginTop: 8, backgroundColor: '#FEF3C7', padding: 10, borderRadius: 10 }}>
@@ -147,17 +177,17 @@ export default function VerificationDetail() {
                 {/* overlays removed */}
               </View>
             ) : (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator /></View>
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><LoadingSpinner message="Loading image..." size="small" /></View>
             )}
           </View>
           <View style={{ padding: 12 }} />
         </View>
       ))}
 
-      <View style={{ marginTop: 12, backgroundColor: '#fff', borderRadius: 12, padding: 12 }}>
+  {/**    <View style={{ marginTop: 12, backgroundColor: '#fff', borderRadius: 12, padding: 12 }}>
         <Text style={{ fontWeight: '700' }}>Device</Text>
         <Text style={{ marginTop: 4, color: '#374151' }}>{JSON.stringify(rec.deviceInfo || {}, null, 2)}</Text>
-      </View>
+      </View>   */}
 
       <View style={{ marginTop: 12, backgroundColor: '#fff', borderRadius: 12, padding: 12 }}>
         <Text style={{ fontWeight: '700' }}>Decision</Text>

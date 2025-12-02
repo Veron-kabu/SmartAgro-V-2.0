@@ -1,4 +1,5 @@
 import { SectionList, View, Text } from 'react-native'
+import { COLORS } from '../../constants/colors'
 
 export default function StickySections({ sections = [], contentContainerStyle, ListHeaderComponent, headerComponent, itemContainerStyle, cardless = false }) {
   const mapped = sections.map((s, i) => ({ key: String(i), title: s.title, data: [{}], render: s.render }))
@@ -16,7 +17,7 @@ export default function StickySections({ sections = [], contentContainerStyle, L
         </View>
       )}
       renderSectionHeader={({ section }) => (
-        <View style={{ backgroundColor:'#f3f4f6' }}>
+        <View style={{ backgroundColor: COLORS.background }}>
           <Text style={{ fontSize:14, fontWeight:'700', color:'#111827', paddingHorizontal:16, paddingVertical:8 }}>{section.title}</Text>
         </View>
       )}

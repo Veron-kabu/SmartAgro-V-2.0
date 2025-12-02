@@ -52,7 +52,7 @@ async function ensureReportsTables() {
 router.post('/reports', ensureAuth(), async (req, res) => {
   try {
     await ensureReportsTables()
-    const { reported_user_id, reason_code, description, evidence_media_links } = req.body || {}
+    const { reported_user_id, reason_code, description, evidence_media_links, reported_user_email } = req.body || {}
     // reported_user_id can be either a username (string non-numeric) or a numeric user id.
     let reportedId = null
     if (typeof reported_user_id === 'string') {
@@ -77,11 +77,17 @@ router.post('/reports', ensureAuth(), async (req, res) => {
     if (!meArr.length) return res.status(403).json({ error: 'Unauthorized' })
     const me = meArr[0]
     if (me.id === reportedId) return res.status(400).json({ error: 'Cannot report yourself' })
+    // Append any reporter-provided reported-user email into the description so admins can see it
+    let desc = description || null
+    if (reported_user_email) {
+      const emailNote = `Reported user contact: ${String(reported_user_email).trim()}`
+      desc = desc ? `${desc}\n${emailNote}` : emailNote
+    }
     const inserted = await db.insert(userReportsTable).values({
       reportedUserId: reportedId,
       reporterId: me.id,
       reasonCode: reason_code,
-      description: description || null,
+      description: desc,
       evidenceMediaLinks: Array.isArray(evidence_media_links) ? evidence_media_links : [],
   status: 'pending',
     }).returning()
@@ -112,6 +118,9 @@ router.get('/admin/reports', ensureAuth(), requireRole(['admin']), async (req, r
       validatedAt: userReportsTable.validatedAt,
       resolutionNote: userReportsTable.resolutionNote,
       reportedUserStatus: usersTable.status,
+      reportedUserEmail: usersTable.email,
+      reportedUserFullName: usersTable.fullName,
+      reportedUserUsername: usersTable.username,
       pausedOrdersCount: sql`(
         SELECT COUNT(*)::int FROM orders o
         WHERE o.status = 'paused' AND (o.buyer_id = ${usersTable.id} OR o.farmer_id = ${usersTable.id})
@@ -130,8 +139,41 @@ router.get('/admin/reports', ensureAuth(), requireRole(['admin']), async (req, r
     .from(userReportsTable)
     .leftJoin(usersTable, eq(userReportsTable.reportedUserId, usersTable.id))
     rows.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))
-    // Backward-compat: map legacy 'open' to 'pending' for clients, no severity
-    const items = rows.map(r => ({ ...r, status: r.status === 'open' ? 'pending' : r.status }))
+    // For each report, include reporter details and any appeals (with submitter info + reason)
+    const items = []
+    for (const r of rows) {
+      // Fetch reporter user details (if available)
+      let reporter = null
+      try {
+        const rep = await db.select({ id: usersTable.id, username: usersTable.username, email: usersTable.email, fullName: usersTable.fullName }).from(usersTable).where(eq(usersTable.id, r.reporterId))
+        reporter = rep?.[0] || null
+      } catch (e) { reporter = null }
+
+      // Fetch appeals for this report and include submitter info
+      let appeals = []
+      try {
+        appeals = await db.select({
+          id: reportAppealsTable.id,
+          reportId: reportAppealsTable.reportId,
+          userId: reportAppealsTable.userId,
+          reason: reportAppealsTable.reason,
+          status: reportAppealsTable.status,
+          createdAt: reportAppealsTable.createdAt,
+          resolvedAt: reportAppealsTable.resolvedAt,
+          resolverUserId: reportAppealsTable.resolverUserId,
+          resolutionNote: reportAppealsTable.resolutionNote,
+          submitterFullName: usersTable.fullName,
+          submitterEmail: usersTable.email,
+          submitterUsername: usersTable.username,
+        }).from(reportAppealsTable).leftJoin(usersTable, eq(reportAppealsTable.userId, usersTable.id)).where(eq(reportAppealsTable.reportId, r.id))
+      } catch (e) {
+        appeals = []
+      }
+
+      // Backward-compat: map legacy 'open' to 'pending' for clients, no severity
+      const mappedStatus = r.status === 'open' ? 'pending' : r.status
+      items.push({ ...r, status: mappedStatus, reporter, appeals })
+    }
     return res.json({ items, total: items.length })
   } catch (e) {
     console.error('list reports failed', e)
@@ -273,7 +315,52 @@ router.post('/reports/appeal-latest', ensureAuth(), async (req, res) => {
     // Find latest validated report against this user
     let rows = await db.select().from(userReportsTable).where(eq(userReportsTable.reportedUserId, me.id))
     rows = rows.filter(r => String(r.status) === 'validated').sort((a,b) => new Date(b.validatedAt || b.createdAt) - new Date(a.validatedAt || a.createdAt))
-    const latest = rows[0]
+    let latest = rows[0]
+
+    // If no validated report exists, try to find a report id referenced in recent notifications
+    if (!latest) {
+      try {
+        const notes = await db.select().from(userNotificationsTable).where(eq(userNotificationsTable.userId, me.id))
+        // newest first
+        notes.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))
+        for (const n of notes) {
+          try {
+            const data = n.data || {}
+            const rid = Number(data?.reportId || data?.report_id || NaN)
+            if (Number.isFinite(rid)) {
+              const found = await db.select().from(userReportsTable).where(eq(userReportsTable.id, rid))
+              if (found.length) { latest = found[0]; break }
+            }
+          } catch {}
+        }
+      } catch (e) { /* ignore notification lookup errors */ }
+    }
+
+    // If still no validated report but the user's account is suspended (manual admin suspend),
+    // create a synthetic validated report record so the user can file an appeal against the suspension.
+    if (!latest) {
+      try {
+        const urows = await db.select().from(usersTable).where(eq(usersTable.id, me.id))
+        const u = urows?.[0]
+        if (u && String(u.status) === 'suspended') {
+          const ins = await db.insert(userReportsTable).values({
+            reportedUserId: me.id,
+            reporterId: me.id,
+            reasonCode: 'admin_suspension',
+            description: 'Account suspended by admin (manual)',
+            evidenceMediaLinks: [],
+            status: 'validated',
+            validatedByUserId: null,
+            validatedAt: new Date(),
+            resolutionNote: 'Suspended by admin'
+          }).returning()
+          latest = ins[0]
+        }
+      } catch (e) {
+        console.warn('failed to synthesize report for appeal-latest fallback', e?.message || e)
+      }
+    }
+
     if (!latest) return res.status(404).json({ error: 'No validated report found to appeal' })
     // Guard duplicate open appeal
     try {

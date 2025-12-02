@@ -1,8 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react'
-import { View, Text, ActivityIndicator, ScrollView, Image } from 'react-native'
+import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet } from 'react-native'
+import { useRouter } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { getJSON } from '../../../context/api'
 import { VictoryBar, VictoryChart, VictoryAxis } from 'victory-native'
+import LoadingSpinner from '../../../components/LoadingSpinner'
+import { COLORS } from '../../../constants/colors'
 
 // Module-level cache so the UI can render instantly on repeated opens
 let cachedProductsData = global.__cached_products_data__
@@ -58,20 +61,46 @@ export default function ProductsTransactions() {
   const categoryColors = ['#FB7185', '#34D399', '#F59E0B', '#60A5FA']
   const topFarmers = productsData?.topFarmers || []
 
+  const localHeaderStyles = StyleSheet.create({
+    header: {
+      height: 34,
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: -8,
+      justifyContent: 'space-between',
+      paddingHorizontal: 10,
+      backgroundColor: COLORS.background,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: COLORS.border,
+    },
+    leftBtn: { padding: 6 },
+    title: { fontSize: 18, fontWeight: '700', color: COLORS.text },
+    rightActions: { flexDirection: 'row', alignItems: 'center' },
+  })
+
+  const router = useRouter()
+
+  const header = (
+    <View style={localHeaderStyles.header}>
+      <TouchableOpacity onPress={() => { try { router.back() } catch {} }} style={localHeaderStyles.leftBtn} accessibilityLabel="Back">
+        <Ionicons name="arrow-back" size={20} color={COLORS.primary} />
+      </TouchableOpacity>
+      <Text style={[localHeaderStyles.title, {marginLeft: -25}]}>Products & Transactions</Text>
+      <View style={localHeaderStyles.rightActions} />
+    </View>
+  )
+
+  if (loading) return <LoadingSpinner message="Loading analytics..." />
+
   return (
-    <ScrollView contentContainerStyle={{ padding:16 }} style={{ backgroundColor:'#f3f4f6' }}>
-      <View style={{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-        <Text style={{ fontSize:20, fontWeight:'800' }}>Products & Transactions</Text>
-        <View />
-      </View>
-      {loading ? (
-        <ActivityIndicator />
-      ) : error ? (
+    <ScrollView contentContainerStyle={{ padding:16 }} style={{ backgroundColor:COLORS.background }}>
+      {header}
+      {error ? (
         <Text style={{ color:'#dc2626' }}>{error}</Text>
       ) : (
         <React.Fragment>
           {/* Transactions KPIs — styled cards */}
-          <View style={{ backgroundColor:'#fff', borderRadius:12, padding:16, marginBottom:16 }}>
+          <View style={{ backgroundColor:'#10b981', borderRadius:12, padding:16, marginBottom:16 }}>
             <Text style={{ fontSize:16, fontWeight:'700', marginBottom:12 }}>Order Metrics</Text>
             <View>
               {/* Small KPI cards arranged explicitly in a 2x2 grid */}
@@ -85,7 +114,7 @@ export default function ProductsTransactions() {
                         </View>
                         <View>
                           <Text style={{ color:'#6b7280', fontSize:11 }}>{it.label}</Text>
-                          <Text style={{ fontSize:16, fontWeight:'800', marginTop:2 }}>{it.key==='avg' ? `KSh ${it.value.toLocaleString()}` : String(it.value)}</Text>
+                          <Text style={[{ fontSize:16, fontWeight:'800', marginTop:2 }, it.key==='avg' ? { color: '#10b981' } : {}]}>{it.key==='avg' ? `KSh ${it.value.toLocaleString()}` : String(it.value)}</Text>
                         </View>
                       </View>
                     </View>
@@ -103,22 +132,22 @@ export default function ProductsTransactions() {
                 const changePct = hasPrev ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : null
                 const formattedAmount = `KSh ${totalRevenue.toLocaleString()}`
                 return (
-                  <View style={{ backgroundColor:'#10b981', borderRadius:12, padding:14, marginBottom:8, flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
+                  <View style={{ backgroundColor:'#f3f4f6', borderRadius:12, padding:14, marginBottom:8, flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
                     <View style={{ flex:1, paddingRight:12 }}>
-                      <Text style={{ color:'#ECFDF5', fontSize:12, fontWeight:'700' }}>Total Revenue</Text>
-                      <Text style={{ color:'#FFFFFF', fontSize:22, fontWeight:'900', marginTop:6 }}>{formattedAmount}</Text>
+                      <Text style={{ color:'#6b7280', fontSize:12, fontWeight:'700' }}>Total Revenue</Text>
+                      <Text style={{ color:'#10b981', fontSize:22, fontWeight:'900', marginTop:6 }}>{formattedAmount}</Text>
                       <View style={{ height:1, backgroundColor:'rgba(255,255,255,0.12)', marginVertical:10 }} />
                       {changePct !== null ? (
                         <View style={{ flexDirection:'row', alignItems:'center' }}>
-                          <Ionicons name={changePct >= 0 ? 'arrow-up' : 'arrow-down'} size={14} color={changePct >= 0 ? '#D1FAE5' : '#FEE2E2'} />
-                          <Text style={{ color:'#D1FAE5', marginLeft:8, fontSize:12 }}>{`${Math.abs(changePct).toFixed(1)}% from last month`}</Text>
+                          <Ionicons name={changePct >= 0 ? 'arrow-up' : 'arrow-down'} size={14} color={changePct >= 0 ? '#6b7280' : '#6b7280'} />
+                          <Text style={{ color:'#6b7280', marginLeft:8, fontSize:12 }}>{`${Math.abs(changePct).toFixed(1)}% from last month`}</Text>
                         </View>
                       ) : (
-                        <Text style={{ color:'#D1FAE5', fontSize:12 }}>No prior data</Text>
+                        <Text style={{ color:'#6b7280', fontSize:12 }}>No prior data</Text>
                       )}
                     </View>
                     <View style={{ width:44, height:44, borderRadius:10, backgroundColor:'rgba(255,255,255,0.12)', alignItems:'center', justifyContent:'center' }}>
-                      <Ionicons name="cash-outline" size={20} color="#fff" />
+                      <Ionicons name="cash-outline" size={20} color="#6b7280" />
                     </View>
                   </View>
                 )

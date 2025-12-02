@@ -1,8 +1,12 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react'
-import { View, Text, TouchableOpacity, ScrollView, Alert } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet } from 'react-native'
+import { useRouter } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
 import { getJSON, postJSON } from '../../../context/api'
 import StickySections from '../../../components/analytics/StickySections'
 import { VictoryLine, VictoryChart, VictoryAxis, VictoryTheme, VictoryArea, VictoryPie } from 'victory-native'
+import { COLORS } from '../../../constants/colors'
+import { productDetailStyles as pstyles } from '../../../assets/styles/products.styles'
 
 // Stable constants for chart labeling
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -182,7 +186,49 @@ export default function Users() {
     setActiveMenuId(prev => (prev === id ? null : id))
   }
 
-  const distro = [Number(data?.totals?.farmers ?? 0), Number(data?.totals?.buyers ?? 0)]
+  const roleCounts = useMemo(() => {
+    // Prefer computing counts from an available user list (usersLocal or data.users)
+    // because analytics.totals may omit some roles (e.g., admins). Only fall
+    // back to totals when no user list exists.
+    const list = Array.isArray(usersLocal) && usersLocal.length ? usersLocal : (Array.isArray(data?.users) && data.users.length ? data.users : null)
+    const counts = { farmers: 0, buyers: 0, admins: 0, others: 0 }
+    if (list) {
+      for (const u of list) {
+        // Normalized user objects may have `role` as title-cased (e.g. 'Admin')
+        const r = (u.role || u.roleName || u.role_name || '').toString().toLowerCase()
+        if (r.includes('farm')) counts.farmers += 1
+        else if (r.includes('buyer')) counts.buyers += 1
+        else if (r.includes('admin')) counts.admins += 1
+        else counts.others += 1
+      }
+      return counts
+    }
+
+    // No user list available — fall back to analytics totals if present
+    const totals = data?.totals || {}
+    if (typeof totals === 'object' && (typeof totals.farmers !== 'undefined' || typeof totals.buyers !== 'undefined' || typeof totals.admins !== 'undefined')) {
+      return {
+        farmers: Number(totals.farmers || 0),
+        buyers: Number(totals.buyers || 0),
+        admins: Number(totals.admins || 0),
+        others: Number(totals.others || 0),
+      }
+    }
+
+    return counts
+  }, [data, usersLocal])
+
+  const ROLE_COLORS = ['#f77206ff', '#93c5fd', COLORS.primary, '#bb07e8ff']
+
+  const rolePieData = useMemo(() => {
+    const items = [
+      { key: 'Farmers', value: roleCounts.farmers },
+      { key: 'Buyers', value: roleCounts.buyers },
+      { key: 'Admins', value: roleCounts.admins }
+    ]
+    const total = items.reduce((s, it) => s + Number(it.value || 0), 0) || 0
+    return items.map(it => ({ x: it.key, y: Number(it.value || 0), label: total > 0 ? `${Math.round((Number(it.value || 0) / total) * 100)}%` : '' }))
+  }, [roleCounts])
 
   // Prepare growth data for display
   const expandedChartData = useMemo(() => {
@@ -204,13 +250,32 @@ export default function Users() {
     }))
   }, [data])
 
+  const router = useRouter()
+
+  const localHeaderStyles = StyleSheet.create({
+    header: {
+      height: 34,
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: -8,
+      justifyContent: 'space-between',
+      paddingHorizontal: 10,
+      backgroundColor: COLORS.background,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: COLORS.border,
+    },
+    leftBtn: { padding: 6 },
+    title: { fontSize: 18, fontWeight: '700', color: COLORS.text },
+    rightActions: { flexDirection: 'row', alignItems: 'center' },
+  })
+
   const header = (
-    <View style={{ paddingTop:16, paddingBottom:8, paddingHorizontal:0 }}>
-      <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between' }}>
-        <View>
-          <Text style={{ fontSize:22, fontWeight:'800', color:'#111827', marginBottom:4 }}>Users</Text>
-        </View>
-      </View>
+    <View style={localHeaderStyles.header}>
+      <TouchableOpacity onPress={() => { try { router.back() } catch {} }} style={localHeaderStyles.leftBtn} accessibilityLabel="Back">
+        <Ionicons name="arrow-back" size={20} color={COLORS.primary} />
+      </TouchableOpacity>
+      <Text style={[localHeaderStyles.title, {marginLeft: -25}]}>Users</Text>
+      <View style={localHeaderStyles.rightActions} />
     </View>
   )
 
@@ -219,8 +284,7 @@ export default function Users() {
       title: 'New Users Growth',
       render: () => (
         <View style={{ paddingHorizontal:0, paddingBottom:6 }}>
-          <View style={{ backgroundColor:'#fff', borderRadius:8, padding:12, elevation:1, marginHorizontal:0 }} onLayout={(e)=> setChartWidth(e?.nativeEvent?.layout?.width || 0)}>
-            <Text style={{ fontSize:14, fontWeight:'700', marginBottom:12, color:'#111827' }}>User Signups (Sep - Dec)</Text>
+          <View style={{ backgroundColor: '#fff', borderRadius:8, padding:12, elevation:1, marginHorizontal:0 }} onLayout={(e)=> setChartWidth(e?.nativeEvent?.layout?.width || 0)}>
             {chartWidth <= 0 ? (
               <Text style={{ color:'#6b7280' }}>Loading chart…</Text>
             ) : expandedChartData && expandedChartData.length > 0 ? (
@@ -230,30 +294,36 @@ export default function Users() {
                   height={200}
                   padding={{ top: 20, bottom: 40, left: 50, right: 20 }}
                   theme={VictoryTheme.material}
+                  domain={{ y: [0, 5] }}
                 >
                   <VictoryAxis
                     tickValues={expandedChartData.map((_, i) => i + 1)}
                     tickFormat={(t) => expandedChartData[t - 1]?.label || ''}
                     style={{
                       tickLabels: { fontSize: 11, fill: '#6b7280' },
-                      grid: { stroke: 'transparent' }
+                      grid: { stroke: 'transparent' },
+                      axisLabel: { fontSize: 12, padding: 24, fill: '#6b7280' }
                     }}
+                    label="Month"
                   />
                   <VictoryAxis
                     dependentAxis
                     tickFormat={(v) => Math.round(v)}
+                    tickCount={6}
                     style={{
                       grid: { stroke: '#f3f4f6' },
-                      tickLabels: { fontSize: 11, fill: '#6b7280' }
+                      tickLabels: { fontSize: 11, fill: '#6b7280' },
+                      axisLabel: { fontSize: 12, padding: 36, fill: '#6b7280' }
                     }}
+                    label="Signups"
                   />
                   <VictoryArea
                     data={expandedChartData.map((d, i) => ({ x: i + 1, y: d.value }))}
                     style={{
                       data: {
-                        fill: '#4f46e5',
+                        fill: '#f77206ff',
                         fillOpacity: 0.2,
-                        stroke: '#4f46e5',
+                        stroke: '#88e546ff',
                         strokeWidth: 2
                       }
                     }}
@@ -262,7 +332,7 @@ export default function Users() {
                   <VictoryLine
                     data={expandedChartData.map((d, i) => ({ x: i + 1, y: d.value }))}
                     style={{
-                      data: { stroke: '#4f46e5', strokeWidth: 2 }
+                      data: { stroke: '#bb07e8ff', strokeWidth: 2 }
                     }}
                     interpolation="monotoneX"
                   />
@@ -280,39 +350,44 @@ export default function Users() {
       render: () => (
         <View style={{ paddingHorizontal:0, paddingVertical:6 }}>
           <View style={{ backgroundColor:'#fff', borderRadius:8, padding:16, marginHorizontal:0 }}>
-            { (distro[0] + distro[1]) > 0 ? (
+            { (roleCounts.farmers + roleCounts.buyers + roleCounts.admins + roleCounts.others) > 0 ? (
               <>
-                <View style={{ alignItems:'center' }}>
+                <View style={{ alignItems:'center', marginTop:-40 }}>
                   <VictoryPie
-                    data={[
-                      { x: 'Farmers', y: distro[0] },
-                      { x: 'Buyers', y: distro[1] }
-                    ]}
-                    width={200}
-                    height={200}
-                    innerRadius={60}
-                    colorScale={['#4f46e5', '#93c5fd']}
-                    labels={() => null}
+                    data={rolePieData}
+                    width={300}
+                    height={300}
+                    colorScale={ROLE_COLORS}
+                    labelRadius={70}
+                    labels={({ datum }) => datum.label}
+                    style={{ labels: { fill: COLORS.white, fontSize: 14, fontWeight: '700' } }}
                   />
                 </View>
-                <View style={{ marginTop: 16 }}>
+                <View style={{ marginTop: -40 }}>
                   <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
                     <View style={{ flexDirection:'row', alignItems:'center' }}>
-                      <View style={{ width:12, height:12, borderRadius:6, backgroundColor:'#4f46e5', marginRight:8 }} />
-                      <Text style={{ color:'#374151', fontWeight:'600' }}>Farmers</Text>
+                      <View style={{ width:12, height:12, borderRadius:6, backgroundColor: ROLE_COLORS[0], marginRight:8 }} />
+                      <Text style={{ color:COLORS.textLight, fontWeight:'600' }}>Farmers</Text>
                     </View>
-                    <Text style={{ color:'#111827', fontWeight:'700', fontSize:16 }}>{distro[0]}</Text>
+                    <Text style={{ color: COLORS.text, fontWeight:'700', fontSize:16 }}>{roleCounts.farmers}</Text>
                   </View>
                   <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
                     <View style={{ flexDirection:'row', alignItems:'center' }}>
-                      <View style={{ width:12, height:12, borderRadius:6, backgroundColor:'#93c5fd', marginRight:8 }} />
-                      <Text style={{ color:'#374151', fontWeight:'600' }}>Buyers</Text>
+                      <View style={{ width:12, height:12, borderRadius:6, backgroundColor: ROLE_COLORS[1], marginRight:8 }} />
+                      <Text style={{ color:COLORS.textLight, fontWeight:'600' }}>Buyers</Text>
                     </View>
-                    <Text style={{ color:'#111827', fontWeight:'700', fontSize:16 }}>{distro[1]}</Text>
+                    <Text style={{ color: COLORS.text, fontWeight:'700', fontSize:16 }}>{roleCounts.buyers}</Text>
+                  </View>
+                  <View style={{ flexDirection:'row', alignItems:'center', justifyContent:'space-between', marginBottom:12 }}>
+                    <View style={{ flexDirection:'row', alignItems:'center' }}>
+                      <View style={{ width:12, height:12, borderRadius:6, backgroundColor: ROLE_COLORS[2], marginRight:8 }} />
+                      <Text style={{ color:COLORS.textLight, fontWeight:'600' }}>Admins</Text>
+                    </View>
+                    <Text style={{ color: COLORS.text, fontWeight:'700', fontSize:16 }}>{roleCounts.admins}</Text>
                   </View>
                   <View style={{ marginTop:8, paddingTop:12, borderTopWidth:1, borderTopColor:'#f3f4f6', flexDirection:'row', justifyContent:'space-between' }}>
-                    <Text style={{ color:'#6b7280', fontWeight:'600' }}>Total Users</Text>
-                    <Text style={{ color:'#4f46e5', fontWeight:'800', fontSize:18 }}>{distro[0] + distro[1]}</Text>
+                    <Text style={{ color:COLORS.textLight, fontWeight:'600' }}>Total Users</Text>
+                    <Text style={{ color: COLORS.text, fontWeight:'800', fontSize:18 }}>{roleCounts.farmers + roleCounts.buyers + roleCounts.admins + roleCounts.others}</Text>
                   </View>
                 </View>
               </>
@@ -329,22 +404,29 @@ export default function Users() {
       title: 'Manage Users',
       render: () => (
         <View style={{ paddingHorizontal:0, paddingBottom:16 }}>
-          <TouchableOpacity
-            onPress={() => setShowManage(v => !v)}
-            style={{
-              backgroundColor: showManage ? '#0b1220' : '#111827',
-              borderRadius:20,
-              paddingVertical:6,
-              paddingHorizontal:10,
-              borderWidth:0,
-              alignSelf:'flex-start',
-              minWidth:96,
-              alignItems:'center',
-              justifyContent:'center'
-            }}
-          >
-            <Text style={{ color: '#fff', fontWeight:'700', fontSize:18 }}>{showManage ? 'Hide' : 'Manage Users'}</Text>
-          </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setShowManage(v => !v)}
+                  style={showManage ? [
+                    {
+                      backgroundColor: 'transparent',
+                      borderWidth: 2,
+                      borderColor: COLORS.primary,
+                      alignSelf: 'flex-start',
+                      minWidth: 120,
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
+                      borderRadius: 28,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      height: 44
+                    }
+                  ] : [
+                    pstyles.addBtn,
+                    { alignSelf: 'flex-start', minWidth: 120, paddingVertical: 10, paddingHorizontal: 12, height: 44 }
+                  ]}
+                >
+                  <Text style={showManage ? [pstyles.addBtnText, { color: COLORS.primary }] : pstyles.addBtnText}>{showManage ? 'Hide' : 'Manage Users'}</Text>
+                </TouchableOpacity>
 
         {showManage && (
           <View>
@@ -361,7 +443,7 @@ export default function Users() {
                 <View style={{ flexDirection:'row', gap:8, marginTop:12 }}>
                   {['all','active','suspended'].map(key => (
                     <TouchableOpacity key={key} onPress={() => setFilter(key)} style={{ backgroundColor: filter===key ? '#f3f4f6' : '#fff', paddingVertical:6, paddingHorizontal:12, borderRadius:8, borderWidth:1, borderColor:'#e5e7eb', marginLeft:8 }}>
-                      <Text style={{ color:'#111827', fontWeight: filter===key ? '700' : '600', textTransform: 'capitalize' }}>{key === 'all' ? 'All' : key === 'active' ? 'Active' : 'Suspended'}</Text>
+                      <Text style={{ color: COLORS.text, fontWeight: filter===key ? '700' : '600', textTransform: 'capitalize' }}>{key === 'all' ? 'All' : key === 'active' ? 'Active' : 'Suspended'}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -394,7 +476,7 @@ export default function Users() {
                   <View key={item.id || i} style={{ flexDirection:'row', alignItems:'center', paddingVertical:6, paddingHorizontal:6, borderBottomWidth:1, borderBottomColor:'#eef2f6' }}>
                     <View style={{ width: Math.round(COLW.name * widthScale), paddingRight:6 }}>
                       <View style={{ flex:1 }}>
-                        <Text style={{ fontWeight:'700', color:'#111827', fontSize: Math.round(12 * fontScale) }}>{item.name}</Text>
+                        <Text style={{ fontWeight:'700', color: COLORS.text, fontSize: Math.round(12 * fontScale) }}>{item.name}</Text>
                         <Text style={{ color:'#6b7280', fontSize: Math.round(10 * fontScale) }}>{item.email}</Text>
                       </View>
                     </View>
@@ -417,7 +499,7 @@ export default function Users() {
                       {activeMenuId === item.id ? (
                         <View style={{ alignItems:'center' }}>
                           <TouchableOpacity onPress={() => { toggleUserStatus(item.id, item.status); setActiveMenuId(null); }} style={{ paddingVertical:4, paddingHorizontal:6 }}>
-                            <Text style={{ fontSize: Math.round(11 * fontScale), color:'#111827', fontWeight:'700' }}>{item.status === 'Active' ? 'Suspend' : 'Activate'}</Text>
+                            <Text style={{ fontSize: Math.round(11 * fontScale), color: COLORS.text, fontWeight:'700' }}>{item.status === 'Active' ? 'Suspend' : 'Activate'}</Text>
                           </TouchableOpacity>
                           <TouchableOpacity onPress={() => { deleteUser(item.id); setActiveMenuId(null); }} style={{ paddingVertical:4, paddingHorizontal:6 }}>
                             <Text style={{ fontSize: Math.round(11 * fontScale), color:'#dc2626', fontWeight:'700' }}>Delete</Text>
@@ -443,12 +525,14 @@ export default function Users() {
   
 
   return (
-    <StickySections
-      sections={sections}
-      contentContainerStyle={{ paddingTop: 8, paddingHorizontal: 0 }}
-      ListHeaderComponent={header}
-      cardless
-      itemContainerStyle={{ marginBottom:16 }}
-    />
+    <View style={pstyles.container}>
+      <StickySections
+        sections={sections}
+        contentContainerStyle={{ paddingTop: 8, paddingHorizontal: 0, backgroundColor: COLORS.background }}
+        ListHeaderComponent={header}
+        cardless
+        itemContainerStyle={{ marginBottom:16, backgroundColor: COLORS.background }}
+      />
+    </View>
   )
 }

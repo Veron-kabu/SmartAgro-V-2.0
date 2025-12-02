@@ -332,11 +332,6 @@ export const verificationSubmissionsTable = pgTable("verification_submissions", 
 });
 
 // =======================
-// AUDIT LOGS removed (table dropped)
-
-// image_hashes table removed
-
-// =======================
 // APP SETTINGS (key-value)
 // =======================
 export const appSettingsTable = pgTable("app_settings", {
@@ -345,8 +340,6 @@ export const appSettingsTable = pgTable("app_settings", {
   value: jsonb("value").notNull(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
-
-// verification_codes table removed
 
 // =======================
 // UPLOAD TOKENS (Expected upload keys)

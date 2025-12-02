@@ -1,9 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { View, Text, ScrollView, ActivityIndicator, TouchableOpacity, TextInput, Alert } from 'react-native'
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native'
 import { getJSON, postJSON } from '../../../context/api'
 import { useToast } from '../../../context/toast'
 import { useAuth } from '@clerk/clerk-expo'
 import { useProfile } from '../../../context/profile'
+import { COLORS } from '../../../constants/colors'
+import LoadingSpinner from '../../../components/LoadingSpinner'
+import { Ionicons } from '@expo/vector-icons'
+import { router } from 'expo-router'
 
 // Module cache to make the UI appear instantly on open
 let cachedAppeals = global.__cached_appeals__
@@ -64,16 +68,28 @@ export default function VerificationAppealsAdmin() {
     }
   }
 
+  if (loading) return (
+    <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+      <LoadingSpinner />
+    </View>
+  )
+
   return (
-    <ScrollView contentContainerStyle={{ padding:16 }} style={{ backgroundColor:'#f3f4f6' }}>
-      <Text style={{ fontSize:20, fontWeight:'800' }}>Verification Appeals</Text>
-      {loading ? <View style={{ marginTop:16 }}><ActivityIndicator /></View> : error ? (
+    <ScrollView contentContainerStyle={{ padding:16, alignItems: 'center' }} style={{ backgroundColor: COLORS.background }}>
+      <View style={{ paddingVertical:1, marginTop: -18, flexDirection:'row', alignItems:'center', justifyContent:'space-between', width: '100%' }}>
+        <TouchableOpacity onPress={() => router.back()} style={{ width: 44, justifyContent: 'center', paddingLeft: 6 }} accessibilityLabel="Back">
+          <Ionicons name="arrow-back" size={22} color="#000" />
+        </TouchableOpacity>
+        <Text style={{ fontSize:20, fontWeight:'800', textAlign: 'center', color: '#000' }}>Verification Appeals</Text>
+        <View style={{ width: 44 }} />
+      </View>
+      {error ? (
         <Text style={{ color:'#dc2626', marginTop:12 }}>{error}</Text>
       ) : items.length === 0 ? (
         <Text style={{ color:'#6b7280', marginTop:12 }}>No open appeals.</Text>
       ) : (
         items.map(a => (
-          <View key={a.id} style={{ marginTop:14, backgroundColor:'#fff', padding:14, borderRadius:12, borderWidth:1, borderColor:'#e5e7eb' }}>
+          <View key={a.id} style={{ marginTop:14, backgroundColor:'#fff', padding:14, borderRadius:12, borderWidth:1, borderColor:'#e5e7eb', width: '100%', maxWidth: 720 }}>
             <View style={{ flexDirection:'row', justifyContent:'space-between' }}>
               <Text style={{ fontWeight:'700' }}>Appeal #{a.id}</Text>
               <Text style={{ color:'#f59e0b' }}>{a.status}</Text>
@@ -92,20 +108,20 @@ export default function VerificationAppealsAdmin() {
                   style={{ backgroundColor:'#f9fafb', borderWidth:1, borderColor:'#d1d5db', borderRadius:8, padding:10, minHeight:80, textAlignVertical:'top' }}
                 />
                 <View style={{ flexDirection:'row', flexWrap:'wrap', gap:10, marginTop:12 }}>
-                  <TouchableOpacity onPress={() => resolveAppeal(false)} style={{ backgroundColor:'#111827', paddingVertical:10, paddingHorizontal:14, borderRadius:10 }}>
+                  <TouchableOpacity onPress={() => resolveAppeal(false)} style={{ backgroundColor:'#111827', paddingVertical:10, paddingHorizontal:14, borderRadius:999 }}>
                     <Text style={{ color:'#fff', fontWeight:'700' }}>Resolve</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => resolveAppeal(true)} style={{ backgroundColor:'#16a34a', paddingVertical:10, paddingHorizontal:14, borderRadius:10 }}>
+                  <TouchableOpacity onPress={() => resolveAppeal(true)} style={{ backgroundColor:'#16a34a', paddingVertical:10, paddingHorizontal:14, borderRadius:999 }}>
                     <Text style={{ color:'#fff', fontWeight:'700' }}>Reinstate & Resolve</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={cancelResolve} style={{ backgroundColor:'#fff', paddingVertical:10, paddingHorizontal:14, borderRadius:10, borderWidth:1, borderColor:'#e5e7eb' }}>
+                  <TouchableOpacity onPress={cancelResolve} style={{ backgroundColor:'#fff', paddingVertical:10, paddingHorizontal:14, borderRadius:999, borderWidth:1, borderColor:'#e5e7eb' }}>
                     <Text style={{ color:'#111827', fontWeight:'700' }}>Cancel</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             ) : (
               <View style={{ flexDirection:'row', flexWrap:'wrap', gap:10, marginTop:12 }}>
-                <TouchableOpacity onPress={() => beginResolve(a.id)} style={{ backgroundColor:'#111827', paddingVertical:10, paddingHorizontal:14, borderRadius:10 }}>
+                <TouchableOpacity onPress={() => beginResolve(a.id)} style={{ backgroundColor:'#111827', paddingVertical:10, paddingHorizontal:14, borderRadius:999 }}>
                   <Text style={{ color:'#fff', fontWeight:'700' }}>Resolve</Text>
                 </TouchableOpacity>
               </View>

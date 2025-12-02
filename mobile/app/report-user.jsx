@@ -14,6 +14,7 @@ export default function ReportUser() {
   const [loadingTarget, setLoadingTarget] = useState(false)
   const [reason, setReason] = useState('')
   const [description, setDescription] = useState('')
+  const [targetEmail, setTargetEmail] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const toast = useToast()
 
@@ -36,9 +37,15 @@ export default function ReportUser() {
   const submit = async () => {
     try {
       setSubmitting(true)
+      if (!String(targetEmail || '').trim()) {
+        toast.show('Please provide the reported user email', { type: 'error' })
+        setSubmitting(false)
+        return
+      }
       const payload = {
         // Backend accepts username string or numeric id via reported_user_id
         reported_user_id: targetUsername || reportedId,
+        reported_user_email: String(targetEmail || '').trim() || undefined,
         reason_code: reason,
         description,
         evidence_media_links: [],
@@ -76,6 +83,11 @@ export default function ReportUser() {
       <View style={{ marginTop: 16 }}>
         <Text style={{ fontWeight: '700', color: '#000' }}>Description</Text>
         <TextInput value={description} onChangeText={setDescription} placeholder="Describe the issue" placeholderTextColor={'#000'} multiline style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10, padding: 10, minHeight: 100, marginTop: 8, textAlignVertical: 'top', backgroundColor: '#fff', color: '#000' }} />
+      </View>
+
+      <View style={{ marginTop: 16 }}>
+        <Text style={{ fontWeight: '700', color: '#000' }}>Reported user email</Text>
+        <TextInput value={targetEmail} onChangeText={setTargetEmail} placeholder="user@example.com" keyboardType="email-address" autoCapitalize="none" placeholderTextColor={'#000'} style={{ borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 10, padding: 10, marginTop: 8, backgroundColor: '#fff', color: '#000' }} />
       </View>
 
       <TouchableOpacity onPress={submit} disabled={submitting} style={{ backgroundColor: submitting ? '#9ca3af' : '#dc2626', paddingVertical: 12, paddingHorizontal: 18, borderRadius: 999, alignItems: 'center', marginTop: 20, alignSelf: 'center', minWidth: 140 }}>

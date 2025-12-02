@@ -4,6 +4,7 @@ import { useLocalSearchParams, router } from 'expo-router'
 import { getJSON, postJSON } from '../../context/api'
 import { COLORS } from '../../constants/colors'
 import { useProfile } from '../../context/profile'
+import { productDetailStyles as pstyles } from '../../assets/styles/products.styles'
 
 export default function AppealSuspension() {
   const { reportId } = useLocalSearchParams()
@@ -77,13 +78,13 @@ export default function AppealSuspension() {
   }, [reason, reportId])
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: '#F3F4F6' }} contentContainerStyle={{ padding: 16 }}>
+    <ScrollView style={{ flex: 1, backgroundColor: COLORS.background }} contentContainerStyle={{ padding: 16 }}>
       {/* Header */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }} style={{ paddingVertical: 6, paddingRight: 12, paddingLeft: 4 }}>
+      <View style={{ marginBottom: 8, alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, left: 10, right: 10, bottom: 10 }} style={{ position: 'absolute', left: 8, paddingVertical: 6, paddingRight: 12, paddingLeft: 4 }}>
           <Text style={{ fontSize: 20 }}>←</Text>
         </TouchableOpacity>
-        <Text style={{ fontSize: 20, fontWeight: '800', color: '#111827' }}>Appeal suspension</Text>
+        <Text style={{ fontSize: 20, fontWeight: '800', color: COLORS.text, textAlign: 'center' }}>Appeal suspension</Text>
       </View>
 
       {/* Status banner (concise) */}
@@ -144,9 +145,13 @@ export default function AppealSuspension() {
           onPress={submit}
           disabled={submitting || !String(reason).trim() || hasOpenAppeal}
           activeOpacity={0.85}
-          style={{ marginTop: 12, backgroundColor: (submitting || !String(reason).trim() || hasOpenAppeal) ? '#cbd5e1' : COLORS.primary, paddingVertical: 12, borderRadius: 12, alignItems: 'center' }}
+          style={
+            (submitting || !String(reason).trim() || hasOpenAppeal)
+              ? [pstyles.addBtn, pstyles.addBtnDisabled, { marginTop: 12, borderRadius: 12, paddingVertical: 12, minWidth: 160 }]
+              : [pstyles.addBtn, { marginTop: 12, borderRadius: 28, paddingVertical: 12, minWidth: 120, alignSelf: 'center', paddingHorizontal: 20 }]
+          }
         >
-          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '800' }}>Submit appeal</Text>}
+          {submitting ? <ActivityIndicator color="#fff" /> : <Text style={pstyles.addBtnText}>Submit appeal</Text>}
         </TouchableOpacity>
       </View>
     </ScrollView>

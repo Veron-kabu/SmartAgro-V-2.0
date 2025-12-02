@@ -5,6 +5,10 @@ import { useToast } from '../../context/toast'
 import { useAuth } from '@clerk/clerk-expo'
 import { useProfile } from '../../context/profile'
 import { useFocusEffect } from '@react-navigation/native'
+import { COLORS } from '../../constants/colors'
+import { Ionicons } from '@expo/vector-icons'
+import { router } from 'expo-router'
+import LoadingSpinner from '../../components/LoadingSpinner'
 // Cache + defaults to render instantly
 let cachedReports = global.__cached_reports__
 const DEFAULT_REPORTS = []
@@ -86,48 +90,75 @@ export default function ReportsQueue() {
   const pageItems = filtered.slice(page * pageSize, page * pageSize + pageSize)
   useEffect(() => { if (page >= totalPages) setPage(0) }, [totalPages, page])
 
-  const exportCsv = () => {
-    try {
-      const header = ['id','reportedUserId','reasonCode','status','createdAt']
-      const rows = pageItems.map(r => [r.id,r.reportedUserId,r.reasonCode,r.status,r.createdAt])
-      const csv = [header.join(','), ...rows.map(row => row.map(v => {
-        const s = String(v ?? '')
-        return s.includes(',') ? '"' + s.replace(/"/g,'""') + '"' : s
-      }).join(','))].join('\n')
-      // Fallback: display in a toast (could integrate Clipboard later)
-      toast.show('CSV ready (copied to state)', { type: 'success' })
-      console.log('[Reports CSV]\n' + csv)
-    } catch {}
-  }
+  
+
+  if (loading) return (
+    <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+      <LoadingSpinner />
+    </View>
+  )
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16 }}>
-      <Text style={{ fontSize: 20, fontWeight: '800' }}>Reports</Text>
-      <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:12 }}>
+    <ScrollView contentContainerStyle={{ padding: 16, backgroundColor: COLORS.background, alignItems: 'center' }}>
+      <View style={{ paddingVertical: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+        <TouchableOpacity onPress={() => router.back()} style={{ width: 44, justifyContent: 'center', paddingLeft: 6 }} accessibilityLabel="Back">
+          <Ionicons name="arrow-back" size={22} color="#000" />
+        </TouchableOpacity>
+        <Text style={{ fontSize: 20, fontWeight: '800', textAlign: 'center', color: COLORS.primary, marginTop: -40 }}>Reports</Text>
+        <View style={{ width: 44 }} />
+      </View>
+      <View style={{ flexDirection:'row', flexWrap:'wrap', gap:8, marginTop:12, width: '100%' }}>
         {['all','pending','validated','rejected'].map(s => (
-          <TouchableOpacity key={s} onPress={() => setStatusFilter(s)} style={{ paddingVertical:6, paddingHorizontal:12, borderRadius:20, backgroundColor: statusFilter===s ? '#111827' : '#fff', borderWidth:1, borderColor:'#e5e7eb' }}>
+          <TouchableOpacity key={s} onPress={() => setStatusFilter(s)} style={{ paddingVertical:6, paddingHorizontal:12, borderRadius:999, backgroundColor: statusFilter===s ? '#111827' : '#fff', borderWidth:1, borderColor:'#e5e7eb' }}>
             <Text style={{ color: statusFilter===s ? '#fff' : '#111827', fontWeight:'600', textTransform:'capitalize' }}>{s}</Text>
           </TouchableOpacity>
         ))}
       </View>
-      <View style={{ marginTop: 8, alignItems: 'flex-end' }}>
+    {/**  <View style={{ marginTop: 8, alignItems: 'flex-end' }}>
         <TouchableOpacity onPress={exportCsv} style={{ paddingVertical:6, paddingHorizontal:12, borderRadius:10, backgroundColor:'#111827' }}>
           <Text style={{ color: '#fff', fontWeight: '700' }}>Export CSV</Text>
         </TouchableOpacity>
-      </View>
+      </View>  */}
       {loading ? <View style={{ marginTop: 20 }}><ActivityIndicator /></View> : error ? (
         <Text style={{ color: '#dc2626', marginTop: 8 }}>{error}</Text>
       ) : pageItems.length === 0 ? (
         <Text style={{ color: '#6b7280', marginTop: 12 }}>No reports.</Text>
       ) : (
         pageItems.map(r => (
-          <View key={r.id} style={{ marginTop: 12, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', padding: 12 }}>
+          <View key={r.id} style={{ marginTop: 12, backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#e5e7eb', padding: 12, width: '100%', maxWidth: 720 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text style={{ fontWeight: '700' }}>Report #{r.id}</Text>
               <Text style={{ color: r.status === 'pending' ? '#f59e0b' : r.status === 'validated' ? '#16a34a' : '#6b7280' }}>{r.status === 'pending' ? 'pending' : r.status}</Text>
             </View>
             <Text style={{ color: '#374151', marginTop: 6 }}>Reason: {r.reasonCode}</Text>
             {r.description ? <Text style={{ color: '#374151', marginTop: 6 }}>{r.description}</Text> : null}
+            {/* Reporter info */}
+            {r.reporter ? (
+              <Text style={{ color: '#374151', marginTop: 6 }}>
+                Reporter: {r.reporter.fullName || r.reporter.username} {r.reporter.email ? `(${r.reporter.email})` : ''}
+              </Text>
+            ) : null}
+            {/* Reported user contact info */}
+            {(r.reportedUserFullName || r.reportedUserEmail || r.reportedUserUsername) ? (
+              <Text style={{ color: '#374151', marginTop: 6 }}>
+                Reported user: {r.reportedUserFullName || r.reportedUserUsername || r.reportedUserId} {r.reportedUserEmail ? `(${r.reportedUserEmail})` : ''}
+              </Text>
+            ) : null}
+            {/* Appeals (if any) */}
+            {Array.isArray(r.appeals) && r.appeals.length > 0 ? (
+              <View style={{ marginTop: 8, backgroundColor: COLORS.background, borderColor: '#E6EEF6', borderWidth: 1, borderRadius: 8, padding: 8 }}>
+                <Text style={{ fontWeight: '700', marginBottom: 6 }}>Appeals</Text>
+                {r.appeals.map(a => (
+                  <View key={a.id} style={{ marginTop: 6, padding: 8, backgroundColor: '#fff', borderRadius: 8, borderWidth: 1, borderColor: '#E5E7EB' }}>
+                    <Text style={{ fontWeight: '700' }}>{a.submitterFullName || a.submitterUsername || `User ${a.userId}`}</Text>
+                    {a.submitterEmail ? <Text style={{ color: '#6b7280', marginTop: 2 }}>{a.submitterEmail}</Text> : null}
+                    {a.reason ? <Text style={{ color: '#374151', marginTop: 6 }}>{a.reason}</Text> : <Text style={{ color: '#6b7280', marginTop: 6 }}>No message provided</Text>}
+                    <Text style={{ color: '#6b7280', marginTop: 6 }}>Status: {a.status}</Text>
+                    <Text style={{ color: '#6b7280', marginTop: 2 }}>Submitted {new Date(a.createdAt).toLocaleDateString()}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
             {(r.lastSuspendedAt || r.lastReactivatedAt) ? (
               <View style={{ marginTop: 8, backgroundColor: '#F9FAFB', borderColor: '#E5E7EB', borderWidth: 1, borderRadius: 8, padding: 8 }}>
                 {r.lastSuspendedAt ? (
@@ -148,21 +179,21 @@ export default function ReportsQueue() {
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
               {r.status === 'pending' ? (
                 <>
-                  <TouchableOpacity onPress={() => act(r.id, 'validate')} style={{ backgroundColor: '#16a34a', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10 }}>
+                  <TouchableOpacity onPress={() => act(r.id, 'validate')} style={{ backgroundColor: '#16a34a', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 999 }}>
                     <Text style={{ color: '#fff', fontWeight: '700' }}>Validate</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity onPress={() => act(r.id, 'reject')} style={{ backgroundColor: '#dc2626', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10 }}>
+                  <TouchableOpacity onPress={() => act(r.id, 'reject')} style={{ backgroundColor: '#dc2626', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 999 }}>
                     <Text style={{ color: '#fff', fontWeight: '700' }}>Reject</Text>
                   </TouchableOpacity>
                 </>
               ) : null}
               {/* Admin override: immediate suspension/activation */}
               {r.reportedUserStatus === 'suspended' ? (
-                <TouchableOpacity onPress={() => activateUser(r.reportedUserId)} style={{ backgroundColor: '#16a34a', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10 }}>
+                <TouchableOpacity onPress={() => activateUser(r.reportedUserId)} style={{ backgroundColor: '#16a34a', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 999 }}>
                   <Text style={{ color: '#fff', fontWeight: '700' }}>Activate user</Text>
                 </TouchableOpacity>
               ) : (
-                <TouchableOpacity onPress={() => suspendUser(r.reportedUserId)} style={{ backgroundColor: '#111827', paddingVertical: 10, paddingHorizontal: 12, borderRadius: 10 }}>
+                <TouchableOpacity onPress={() => suspendUser(r.reportedUserId)} style={{ backgroundColor: COLORS.error, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 999 }}>
                   <Text style={{ color: '#fff', fontWeight: '700' }}>Suspend user</Text>
                 </TouchableOpacity>
               )}

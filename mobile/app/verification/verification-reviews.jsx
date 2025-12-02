@@ -1,9 +1,13 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, RefreshControl, Image, Linking, Platform } from 'react-native'
+import { View, Text, FlatList, TouchableOpacity, RefreshControl, Image, Linking, Platform, StyleSheet } from 'react-native'
 import { getJSON } from '../../context/api'
 import { on as onEvent } from '../../utils/eventBus'
 import { router } from 'expo-router'
+import { Ionicons } from '@expo/vector-icons'
+import LoadingSpinner from '../../components/LoadingSpinner'
 import { useResolvedUrls } from '../../hooks/useResolvedUrls'
+import { COLORS } from '../../constants/colors'
+import { productDetailStyles as pstyles } from '../../assets/styles/products.styles'
 
 function Row({ item }) {
   const statusColor = item.status === 'approved' ? '#16a34a' : item.status === 'rejected' ? '#dc2626' : item.status === 'flagged' ? '#f59e0b' : '#2563eb'
@@ -43,8 +47,8 @@ function Row({ item }) {
       )}
       {lat != null && lng != null ? (
         <View style={{ marginTop: 10, flexDirection: 'row', justifyContent: 'flex-end' }}>
-          <TouchableOpacity onPress={openMap} style={{ backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#DBEAFE' }}>
-            <Text style={{ fontSize: 12, color: '#1E3A8A', fontWeight: '600' }}>Map</Text>
+          <TouchableOpacity onPress={openMap} style={{ backgroundColor: '#EFF6FF', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#DBEAFE', alignItems: 'center', justifyContent: 'center' }} accessibilityLabel="Open map">
+            <Ionicons name="location" size={14} color={'#1E3A8A'} />
           </TouchableOpacity>
         </View>
       ) : null}
@@ -96,10 +100,9 @@ export default function VerificationReviewsList() {
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const params = new URLSearchParams()
-      if (status) params.set('status', status)
-      const qs = params.toString()
-      const data = await getJSON(`/api/admin/verifications${qs ? `?${qs}` : ''}`)
+      // Fetch all verifications once and filter client-side to avoid
+      // triggering a network request on every status button press.
+      const data = await getJSON(`/api/admin/verifications`)
       const rows = data?.items || []
       setItems(rows)
       try { global.__cached_verifications__ = rows } catch {}
@@ -108,7 +111,7 @@ export default function VerificationReviewsList() {
     } finally {
       setLoading(false)
     }
-  }, [status])
+  }, [])
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -127,7 +130,8 @@ export default function VerificationReviewsList() {
     return () => { try { off && off() } catch {} }
   }, [status, fetchData])
 
-  const filtered = items
+  // Filter locally based on the selected status to prevent refetches
+  const filtered = (items || []).filter(it => String(it.status || '').toLowerCase() === String(status || '').toLowerCase())
 
   // Group by userId within the current status view; single stays as-is
   const groupedData = useMemo(() => {
@@ -157,33 +161,56 @@ export default function VerificationReviewsList() {
     })
   }, [filtered])
 
+  const localHeaderStyles = StyleSheet.create({
+    header: {
+      height: 34,
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: -8,
+      justifyContent: 'space-between',
+      paddingHorizontal: 10,
+    },
+    leftBtn: { padding: 6 },
+    title: { fontSize: 18, fontWeight: '700', color: COLORS.text },
+    rightActions: { flexDirection: 'row', alignItems: 'center' },
+  })
+
+  const header = (
+    <View style={localHeaderStyles.header}>
+      <TouchableOpacity onPress={() => { try { router.back() } catch {} }} style={localHeaderStyles.leftBtn} accessibilityLabel="Back">
+        <Ionicons name="arrow-back" size={20} color={COLORS.primary} />
+      </TouchableOpacity>
+      <Text style={[localHeaderStyles.title, { marginLeft: -25 }]}>Verification Reviews</Text>
+      <View style={localHeaderStyles.rightActions} />
+    </View>
+  )
+
+  if (loading) return <LoadingSpinner message="Loading verifications..." />
+
   return (
-    <View style={{ flex: 1, backgroundColor: '#F3F4F6' }}>
+    <View style={{ flex: 1, backgroundColor: COLORS.background }}>
+      {header}
       <View style={{ paddingHorizontal: 16, paddingTop: 18, paddingBottom: 6 }}>
-        <Text style={{ fontSize: 20, fontWeight: '800', color: '#111827' }}>Verification Reviews</Text>
-        <View style={{ flexDirection: 'row', marginTop: 12 }}>
+        <View style={{ flexDirection: 'row', marginTop: 12, gap: 8 }}>
           {['pending','flagged','approved','rejected'].map(s => (
             <TouchableOpacity
               key={s}
               onPress={() => setStatus(s)}
-              style={{ paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: status===s ? '#111827' : '#FFFFFF', marginRight: 10, borderWidth: 1, borderColor: status===s ? '#111827' : '#E5E7EB' }}
+              style={status === s ? [pstyles.addBtn, { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, minWidth: 92 }] : { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E5E7EB' }}
             >
-              <Text style={{ color: status===s ? '#FFFFFF' : '#111827', fontWeight: '600', textTransform: 'capitalize' }}>{s}</Text>
+              <Text style={status === s ? pstyles.addBtnText : { color: '#111827', fontWeight: '600', textTransform: 'capitalize' }}>{s}</Text>
             </TouchableOpacity>
           ))}
         </View>
       </View>
-      {loading ? (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}><ActivityIndicator /></View>
-      ) : (
-        <FlatList
+      <FlatList
           data={groupedData}
           keyExtractor={(it, idx) => it.type === 'group' ? `g:${it.userId}:${status}` : `s:${it.item.id}`}
           renderItem={({ item }) => item.type === 'group' ? <GroupRow group={item} status={status} /> : <Row item={item.item} />}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 24, paddingTop: 8 }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         />
-      )}
+    
     </View>
   )
 }
