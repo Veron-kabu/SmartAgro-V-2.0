@@ -146,7 +146,7 @@ export const productDetailStyles = StyleSheet.create({
   },
   desc: { 
     fontSize: 13, 
-    color: COLORS.textLight, 
+    color: COLORS.dark, 
     marginTop: -5, 
     lineHeight: 18 
   },

@@ -46,6 +46,7 @@ const coffeeTheme = {
 const forestTheme = {
   primary: "#2E7D32",
   background: "#E8F5E9",
+  dark: "#212121",
   text: "#1B5E20",
   border: "#C8E6C9",
   white: "#FFFFFF",

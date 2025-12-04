@@ -46,6 +46,7 @@ export default function ProductDetail() {
   const isSuspended = String(profile?.status || '').toLowerCase() === 'suspended'
   const isOwner = profile?.role === 'farmer' && profile?.id === product?.farmerId
   const isVerified = profile?.farmVerified === true
+  const isBuyer = String(profile?.role || '').toLowerCase() === 'buyer'
   const scrollRef = useRef(null)
   const { refresh: refreshProfile } = useProfile()
   
@@ -527,7 +528,7 @@ export default function ProductDetail() {
                     {derived.map((f, i) => (
                       <View key={i} style={{ flexDirection:'row', alignItems:'flex-start', gap:10 }}>
                         <Ionicons name="checkmark-circle" size={15} color={COLORS.primary} />
-                        <Text style={{ color: COLORS.textLight, flex: 1 }}>{f}</Text>
+                        <Text style={{ color: COLORS.dark, flex: 1 }}>{f}</Text>
                       </View>
                     ))}
                   </View>
@@ -718,20 +719,21 @@ export default function ProductDetail() {
                 />
                 <TouchableOpacity
                   onPress={() => {
-                    if (!isVerified) {
+                    // Buyers are allowed to submit reviews without farm verification.
+                    if (!isVerified && !isBuyer) {
                       Alert.alert('Verification Required', 'You must be verified to submit reviews. Please complete the verification process.')
                       return
                     }
                     submitReview()
                   }}
-                  disabled={submittingReview || myRating < 1 || isSuspended || !isVerified}
+                  disabled={submittingReview || myRating < 1 || isSuspended || (!isVerified && !isBuyer)}
                   style={[
                     styles.addBtn,
                     { marginTop: 10, alignSelf: 'center', width: '48%' },
-                    (submittingReview || myRating < 1 || isSuspended || !isVerified) && { opacity: 0.6 }
+                    (submittingReview || myRating < 1 || isSuspended || (!isVerified && !isBuyer)) && { opacity: 0.6 }
                   ]}
                 >
-                  <Text style={styles.addBtnText}>{submittingReview ? 'Submitting…' : (!isVerified ? 'Verification required' : 'Submit review')}</Text>
+                  <Text style={styles.addBtnText}>{submittingReview ? 'Submitting…' : ((!isVerified && !isBuyer) ? 'Verification required' : 'Submit review')}</Text>
                 </TouchableOpacity>
               </View>
             </View>

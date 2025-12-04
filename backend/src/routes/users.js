@@ -368,3 +368,32 @@ router.post('/admin/users/:id/trust', ensureAuth(), requireRole(['admin']), asyn
     return res.status(500).json({ error: 'failed' })
   }
 })
+
+// Admin: promote a user to admin
+router.post('/admin/users/:id/make-admin', ensureAuth(), requireRole(['admin']), async (req, res) => {
+  try {
+    const idNum = Number(req.params.id)
+    if (isNaN(idNum)) return res.status(400).json({ error: 'invalid id' })
+    const rows = await db.select().from(usersTable).where(eq(usersTable.id, idNum))
+    if (rows.length === 0) return res.status(404).json({ error: 'not found' })
+
+    const updated = await db.update(usersTable).set({ role: 'admin', updatedAt: new Date() }).where(eq(usersTable.id, idNum)).returning()
+
+    // Try to update Clerk metadata role for consistency (best-effort)
+    try {
+      const clerkUserId = rows?.[0]?.clerkUserId
+      if (clerkUserId) {
+        const clerkUser = await clerkClient.users.getUser(clerkUserId)
+        const current = (clerkUser && clerkUser.unsafeMetadata) || {}
+        await clerkClient.users.updateUser(clerkUserId, { unsafeMetadata: { ...current, role: 'admin' } })
+      }
+    } catch (e) {
+      console.warn('Failed to set Clerk metadata role when promoting to admin:', e?.message || e)
+    }
+
+    return res.json({ ok: true, user: updated[0] })
+  } catch (e) {
+    console.error('make-admin error', e)
+    return res.status(500).json({ error: 'failed' })
+  }
+})

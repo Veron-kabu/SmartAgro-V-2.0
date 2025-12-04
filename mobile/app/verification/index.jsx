@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native'
+import { View, Text, Pressable, StyleSheet, ScrollView, TouchableOpacity } from 'react-native'
 import { useRouter } from 'expo-router'
-// Code issuance removed
+import { Ionicons } from '@expo/vector-icons'
+import { COLORS } from '../../constants/colors' 
 import { getJSON } from '../../context/api'
 
 export default function VerificationPreparation() {
@@ -37,12 +38,37 @@ export default function VerificationPreparation() {
     return () => { mounted = false }
   }, [])
 
+  const localHeaderStyles = StyleSheet.create({
+    header: {
+      height: 36,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 10,
+      backgroundColor: COLORS.background,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: COLORS.border,
+    },
+    leftBtn: { padding: 6 },
+    title: { fontSize: 18, fontWeight: '700', color: COLORS.text },
+    rightActions: { width: 40 },
+  })
+
+  const header = (
+    <View style={localHeaderStyles.header}>
+      <TouchableOpacity onPress={() => router.back()} style={localHeaderStyles.leftBtn} accessibilityLabel="Back">
+        <Ionicons name="arrow-back" size={20} color={COLORS.primary} />
+      </TouchableOpacity>
+      <Text style={localHeaderStyles.title}>Capture Farm Proof</Text>
+      <View style={localHeaderStyles.rightActions} />
+    </View>
+  )
+
   return (
     <View style={styles.container}>
+      {header}
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.title}>Capture Farm Proof</Text>
-
-        <View style={styles.callout}> 
+        <View style={styles.callout}>
           <Text style={styles.calloutStrong}>Essential</Text>
           <Text style={[styles.calloutText, { marginTop: 8 }]}>
             Upload a photo showing you and your farm.
@@ -88,7 +114,7 @@ export default function VerificationPreparation() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white' },
+  container: { flex: 1, backgroundColor: COLORS.background },
   scrollContent: { padding: 16, paddingBottom: 24 },
   title: { fontSize: 22, fontWeight: '700', marginBottom: 8 },
   callout: { backgroundColor: '#fff7ed', borderColor: '#fdba74', borderWidth: 1, padding: 12, borderRadius: 10, marginBottom: 12 },

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import { View, Text, BackHandler, ActivityIndicator, TouchableOpacity } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { useUser } from '@clerk/clerk-expo'
 import { ZEGO_APP_ID, ZEGO_APP_SIGN, ensureZegoKeys } from '../../../config/zego'
@@ -233,9 +234,24 @@ export default function InCallScreen() {
         )}
         {/* Always-on-top End button to ensure our own end flow triggers even if SDK callback is skipped */}
         {showCallUI && !isEnding && (
-          <View style={{ position: 'absolute', bottom: 36, alignSelf: 'center' }} pointerEvents="auto">
-            <TouchableOpacity onPress={handleHangUp} style={{ backgroundColor: '#d32f2f', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 24, elevation: 2 }}>
-              <Text style={{ color: '#fff', fontWeight: '700' }}>End Call</Text>
+          <View style={{ position: 'absolute', bottom: 60, alignSelf: 'center' }} pointerEvents="auto">
+            <TouchableOpacity
+              onPress={handleHangUp}
+              style={{
+                backgroundColor: '#d32f2f',
+                width: 64,
+                height: 64,
+                borderRadius: 32,
+                alignItems: 'center',
+                justifyContent: 'center',
+                elevation: 4,
+                shadowColor: '#000',
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+                shadowOffset: { width: 0, height: 2 }
+              }}
+            >
+              <Ionicons name="call" size={22} color="#fff" />
             </TouchableOpacity>
           </View>
         )}

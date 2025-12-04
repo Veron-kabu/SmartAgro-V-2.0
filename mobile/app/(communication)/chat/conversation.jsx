@@ -81,7 +81,7 @@ export default function ChatConversation() {
       headerShown: true,
       title: headerTitle,
       headerStyle: {
-        backgroundColor: COLORS.primary,
+        backgroundColor: COLORS.textLight,
       },
       headerTintColor: COLORS.white,
       headerTitleStyle: {
@@ -398,16 +398,16 @@ export default function ChatConversation() {
 const chatStyles = {
   container: {
     flex: 1,
-    backgroundColor: COLORS.chatDarkBg,
+    backgroundColor: COLORS.background,
   },
   messagesContainer: {
     flex: 1,
-    backgroundColor: COLORS.chatDarkBg,
+    backgroundColor: COLORS.background,
   },
   messagesList: {
     flex: 1,
     paddingHorizontal: 12,
-    backgroundColor: COLORS.chatDarkBg,
+    backgroundColor: COLORS.background,
   },
   messagesContent: {
     flexGrow: 1,
@@ -477,9 +477,9 @@ const chatStyles = {
     paddingHorizontal: 12,
     paddingVertical: 12,
     paddingBottom: 24,
-    backgroundColor: COLORS.chatDarkBg,
+    backgroundColor: COLORS.background,
     borderTopWidth: 1,
-    borderTopColor: COLORS.receivedBubble,
+    borderTopColor: COLORS.border,
     gap: 8,
   },
   inputWrapper: {

@@ -7,6 +7,8 @@ const { width, height } = Dimensions.get('window');
 
 const HAND_SHIFT_X_VALUE = -Math.min(width * 0.0250, 15);
 const HAND_SHIFT_Y_VALUE = Math.min(height * 0.0088, 5);
+// Temporary static raise (pixels) applied to the hand graphic
+const HAND_RAISE_PIXELS = 5;
 
 export default function SplashScreen({ onFinish }) {
   const insets = useSafeAreaInsets()
@@ -80,6 +82,7 @@ export default function SplashScreen({ onFinish }) {
     // Previously this used Animated.loop(fullSeq) which kept the splash repeating
     // until the user tapped. Commenting out the loop behavior and starting a
     // single-run animation so the splash auto-advances when finished.
+    // Single-run animation (restore default behavior)
     loopAnim.current = fullSeq;
     loopAnim.current.start(() => {
       if (!isStoppedRef.current) {
@@ -160,7 +163,7 @@ export default function SplashScreen({ onFinish }) {
       </Animated.View>
 
       <Pressable style={styles.centerWrap} onPress={handlePress}>
-        <Animated.View style={{ alignItems: 'center', justifyContent: 'center', transform: [{ translateX: handTranslateX }, { translateY: handTranslateY }, { scale: handScale }], opacity: handOpacity }}>
+        <Animated.View style={{ alignItems: 'center', justifyContent: 'center', transform: [{ translateX: handTranslateX }, { translateY: handTranslateY }, { translateY: -HAND_RAISE_PIXELS }, { scale: handScale }], opacity: handOpacity }}>
           <Image source={require('../../assets/images/splash/nocircle.png')} resizeMode="contain" style={styles.handImage} />
         </Animated.View>
 

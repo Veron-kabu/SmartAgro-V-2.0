@@ -182,6 +182,17 @@ export default function Users() {
     ])
   }, [refreshAdminUsers])
 
+  const promoteToAdmin = useCallback(async (id) => {
+    try {
+      await postJSON(`/api/admin/users/${id}/make-admin`, {})
+      Alert.alert('Success', 'User promoted to admin')
+      setUsersLocal(prev => (prev || []).map(u => u.id === id ? { ...u, role: 'Admin' } : u))
+      await refreshAdminUsers()
+    } catch (e) {
+      Alert.alert('Failed', e?.message || 'Failed to promote user to admin')
+    }
+  }, [refreshAdminUsers])
+
   const toggleMenu = (id) => {
     setActiveMenuId(prev => (prev === id ? null : id))
   }
@@ -498,6 +509,11 @@ export default function Users() {
                     <View style={{ width: Math.round(COLW.actions * widthScale), alignItems:'center' }}>
                       {activeMenuId === item.id ? (
                         <View style={{ alignItems:'center' }}>
+                          { String(item.role || '').toLowerCase().includes('admin') ? null : (
+                            <TouchableOpacity onPress={() => { promoteToAdmin(item.id); setActiveMenuId(null); }} style={{ paddingVertical:4, paddingHorizontal:6 }}>
+                              <Text style={{ fontSize: Math.round(11 * fontScale), color: COLORS.primary, fontWeight:'700' }}>Make Admin</Text>
+                            </TouchableOpacity>
+                          )}
                           <TouchableOpacity onPress={() => { toggleUserStatus(item.id, item.status); setActiveMenuId(null); }} style={{ paddingVertical:4, paddingHorizontal:6 }}>
                             <Text style={{ fontSize: Math.round(11 * fontScale), color: COLORS.text, fontWeight:'700' }}>{item.status === 'Active' ? 'Suspend' : 'Activate'}</Text>
                           </TouchableOpacity>

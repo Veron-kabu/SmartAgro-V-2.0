@@ -242,7 +242,7 @@ export const productCardStyles = StyleSheet.create({
     alignItems: "center",
   },
   timeText: {
-    fontSize: 11,
+    fontSize: 20,
     color: COLORS.textLight,
     marginLeft: 4,
     fontWeight: "500",
